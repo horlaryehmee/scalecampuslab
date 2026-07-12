@@ -1601,7 +1601,8 @@ function UniversityOverviewSection({ events, registrations, schools, analytics, 
 }
 
 function UniversityVisitsSection({ csrf, events, registrations, errors, old }) {
-    const [editor, setEditor] = useState(null);
+    const hasEventFormErrors = Boolean((old?.title || old?.venue || old?.starts_at) && Object.keys(errors || {}).length);
+    const [editor, setEditor] = useState(hasEventFormErrors ? {} : null);
     const [status, setStatus] = useState('active');
     const [query, setQuery] = useState('');
     const [date, setDate] = useState('');
@@ -1636,7 +1637,7 @@ function UniversityVisitsSection({ csrf, events, registrations, errors, old }) {
                     <h1 className="text-2xl font-black text-slate-950 md:text-3xl">Visit Programs</h1>
                     <p className="mt-1 text-sm font-semibold text-slate-500">Manage recruitment cycles, capacity, and school-facing visit programs.</p>
                 </div>
-                <button onClick={() => setEditor({})} className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#006a61] px-4 py-2.5 text-sm font-black text-white shadow-sm hover:opacity-90"><Plus size={16} /> Create Program</button>
+                <button type="button" onClick={() => setEditor({})} className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#006a61] px-4 py-2.5 text-sm font-black text-white shadow-sm hover:opacity-90"><Plus size={16} /> Create Program</button>
             </div>
 
             {editor && <UniversityEventEditor csrf={csrf} event={editor.id ? editor : null} errors={errors} old={old} onClose={() => setEditor(null)} />}
@@ -1706,7 +1707,7 @@ function UniversityVisitsSection({ csrf, events, registrations, errors, old }) {
                                             <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[#e5eeff]"><div className={cx('h-full rounded-full', percent >= 100 ? 'bg-red-500' : 'bg-[#006a61]')} style={{ width: `${percent}%` }} /></div>
                                             <span className="w-9 text-right text-[11px] font-black text-[#006a61]">{percent}%</span>
                                         </div>
-                                        <button type="button" onClick={() => setEditor(event)} className="grid h-8 w-8 place-items-center rounded-lg border border-slate-200 text-slate-600 hover:border-[#006a61]/30 hover:text-[#006a61]" aria-label={`Edit ${event.title}`}><Edit3 size={15} /></button>
+                                        <button type="button" onClick={() => setEditor(event)} className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-[#006a61]/40 hover:bg-emerald-50 hover:text-[#006a61]" aria-label={`Edit ${event.title}`} title={`Edit ${event.title}`}><Edit3 size={16} /></button>
                                         <form action={`/campus-events/${event.id}`} method="POST" onSubmit={(formEvent) => { if (!window.confirm(`Delete ${event.title}? This cannot be undone.`)) formEvent.preventDefault(); }}>
                                             <input type="hidden" name="_token" value={csrf} />
                                             <input type="hidden" name="_method" value="DELETE" />
@@ -1750,9 +1751,33 @@ function UniversityEventEditor({ csrf, event, errors, old, onClose }) {
     const isEdit = Boolean(event);
     const value = (key, fallback = '') => old[key] || event?.[key] || fallback;
     return (
-        <section className="rounded-xl border border-blue-200 bg-blue-50/40 p-5 shadow-sm">
-            <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-black uppercase tracking-wide text-blue-700">{isEdit ? 'Edit event' : 'New event'}</p><h2 className="mt-1 text-xl font-black text-slate-950">{isEdit ? event.title : 'Create a university event'}</h2></div><button type="button" onClick={onClose} className="rounded-lg px-3 py-2 text-sm font-bold text-slate-500 hover:bg-white">Close</button></div>
-            <form action={isEdit ? `/campus-events/${event.id}` : '/campus-events'} method="POST" className="mt-5 grid gap-4 md:grid-cols-2"><input type="hidden" name="_token" value={csrf} />{isEdit && <input type="hidden" name="_method" value="PUT" />}<LightField label="Event title" name="title" defaultValue={value('title')} error={errors.title?.[0]} /><LightField label="Venue" name="venue" defaultValue={value('venue')} error={errors.venue?.[0]} /><LightField label="Start date and time" name="starts_at" type="datetime-local" defaultValue={toInputDateTime(value('startsAt') || value('starts_at'))} error={errors.starts_at?.[0]} /><LightField label="End date and time" name="ends_at" type="datetime-local" defaultValue={toInputDateTime(value('endsAt') || value('ends_at'))} error={errors.ends_at?.[0]} /><LightField label="Location" name="location" defaultValue={value('location')} error={errors.location?.[0]} /><LightField label="Capacity" name="capacity" type="number" min="1" defaultValue={value('capacity', '50')} error={errors.capacity?.[0]} /><div className="md:col-span-2"><LightTextarea label="Description" name="description" defaultValue={value('description')} error={errors.description?.[0]} /></div><label className="text-sm font-semibold text-slate-700">Status<select name="status" defaultValue={value('status', 'published')} className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-950 outline-none"><option value="published">Upcoming</option><option value="draft">Draft</option><option value="cancelled">Cancelled</option></select></label><div className="flex items-end justify-end"><button className="rounded-lg bg-slate-950 px-5 py-3 text-sm font-black text-white">{isEdit ? 'Save Changes' : 'Create Event'}</button></div></form>
+        <section className="fixed inset-0 z-[90] grid place-items-center bg-slate-950/55 px-3 py-5 backdrop-blur-sm">
+            <div className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-3xl border border-white/70 bg-white shadow-2xl">
+                <div className="flex items-start justify-between gap-4 border-b border-slate-100 p-4 md:p-5">
+                    <div>
+                        <p className="text-xs font-black uppercase tracking-[0.14em] text-[#006a61]">{isEdit ? 'Edit program' : 'New program'}</p>
+                        <h2 className="mt-1 text-xl font-black text-slate-950 md:text-2xl">{isEdit ? event.title : 'Create Visit Program'}</h2>
+                        <p className="mt-1 text-sm font-semibold text-slate-500">{isEdit ? 'Update schedule, capacity, venue, and status.' : 'Add a school-facing visit program to the database.'}</p>
+                    </div>
+                    <button type="button" onClick={onClose} className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-slate-200 bg-white text-slate-500 shadow-sm hover:bg-slate-50" aria-label="Close editor"><X size={18} /></button>
+                </div>
+                <form action={isEdit ? `/campus-events/${event.id}` : '/campus-events'} method="POST" className="grid gap-4 overflow-y-auto p-4 md:grid-cols-2 md:p-5">
+                    <input type="hidden" name="_token" value={csrf} />
+                    {isEdit && <input type="hidden" name="_method" value="PUT" />}
+                    <LightField label="Program title" name="title" defaultValue={value('title')} error={errors.title?.[0]} />
+                    <LightField label="Venue" name="venue" defaultValue={value('venue')} error={errors.venue?.[0]} />
+                    <LightField label="Start date and time" name="starts_at" type="datetime-local" defaultValue={toInputDateTime(value('startsAt') || value('starts_at'))} error={errors.starts_at?.[0]} />
+                    <LightField label="End date and time" name="ends_at" type="datetime-local" defaultValue={toInputDateTime(value('endsAt') || value('ends_at'))} error={errors.ends_at?.[0]} />
+                    <LightField label="Location" name="location" defaultValue={value('location')} error={errors.location?.[0]} />
+                    <LightField label="Capacity" name="capacity" type="number" min="1" defaultValue={value('capacity', '50')} error={errors.capacity?.[0]} />
+                    <div className="md:col-span-2"><LightTextarea label="Description" name="description" defaultValue={value('description')} error={errors.description?.[0]} /></div>
+                    <label className="text-sm font-semibold text-slate-700">Status<select name="status" defaultValue={value('status', 'published')} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-950 outline-none focus:border-[#006a61] focus:ring-4 focus:ring-emerald-50"><option value="published">Active</option><option value="draft">Draft</option><option value="cancelled">Archived</option></select></label>
+                    <div className="grid grid-cols-2 gap-2 md:items-end">
+                        <button type="button" onClick={onClose} className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-700 hover:bg-slate-50">Cancel</button>
+                        <button className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-black text-white hover:bg-slate-800">{isEdit ? 'Save Changes' : 'Create Program'}</button>
+                    </div>
+                </form>
+            </div>
         </section>
     );
 }
