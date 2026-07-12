@@ -1899,38 +1899,38 @@ function SchoolAvailableVisitsSection({ csrf, events = [], visitRequests = [], o
                 </select>
             </section>
 
-            <section className="grid gap-4">
+            <section className="grid gap-2.5">
                 {mobileRows.map((row) => (
-                    <article key={row.id} className="relative overflow-hidden rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-                        <div className="absolute right-3 top-3">
-                            <span className={cx('rounded-full px-2.5 py-1 text-[10px] font-black', row.matchScore >= 90 ? 'bg-[#86f2e4] text-[#006a61]' : 'bg-[#dce9ff] text-blue-700')}>{row.focus || `${row.matchScore}% Match`}</span>
-                        </div>
-                        <button type="button" onClick={() => setPreviewId(row.id)} className="flex w-full items-start gap-3 pr-20 text-left">
-                            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-lg border border-slate-200 bg-[#e5eeff] text-xs font-black text-slate-950">
+                    <article key={row.id} className="overflow-hidden rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm">
+                        <button type="button" onClick={() => setPreviewId(row.id)} className="grid w-full grid-cols-[44px_minmax(0,1fr)] gap-3 text-left">
+                            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-lg border border-slate-200 bg-[#e5eeff] text-[11px] font-black text-slate-950">
                                 {row.initials}
                             </span>
                             <span className="min-w-0">
-                                <span className="block text-xl font-black leading-tight text-slate-950">{row.title}</span>
-                                <span className="mt-1 block text-sm font-semibold text-slate-500">{row.university}</span>
+                                <span className="flex min-w-0 items-start justify-between gap-2">
+                                    <span className="line-clamp-2 text-[15px] font-black leading-[1.18] text-slate-950">{row.title}</span>
+                                    <span className={cx('max-w-[92px] shrink-0 truncate rounded-full px-2 py-0.5 text-[9px] font-black leading-4', row.matchScore >= 90 ? 'bg-[#86f2e4] text-[#006a61]' : 'bg-[#dce9ff] text-blue-700')}>{row.focus || `${row.matchScore}%`}</span>
+                                </span>
+                                <span className="mt-1 block truncate text-[12px] font-bold text-slate-500">{row.university}</span>
                             </span>
                         </button>
 
-                        <div className="my-4 grid gap-2 border-y border-slate-100 py-3 text-xs font-bold text-slate-500">
-                            <span className="inline-flex items-center gap-2"><CalendarDays size={16} /> {formatShortDate(row.startsAt)} {row.endsAt ? `- ${formatShortDate(row.endsAt)}` : ''}</span>
-                            <span className="inline-flex items-center gap-2"><MapPin size={16} /> {row.location || row.venue || 'Location TBA'}</span>
+                        <div className="my-3 grid grid-cols-2 gap-2 border-y border-slate-100 py-2.5 text-[11px] font-bold text-slate-500">
+                            <span className="inline-flex min-w-0 items-center gap-1.5"><CalendarDays size={14} className="shrink-0" /> <span className="truncate">{formatShortDate(row.startsAt)}{row.endsAt ? ` - ${formatShortDate(row.endsAt)}` : ''}</span></span>
+                            <span className="inline-flex min-w-0 items-center gap-1.5"><MapPin size={14} className="shrink-0" /> <span className="truncate">{row.location || row.venue || 'Location TBA'}</span></span>
                         </div>
 
-                        <div className="flex items-center justify-between gap-3">
+                        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
                             <div className="min-w-0">
                                 {row.seatsLeft > 0 ? (
-                                    <p className={cx('text-xs font-black', row.seatsLeft <= row.limitedThreshold ? 'text-rose-600' : 'text-slate-500')}>{row.availabilityLabel}</p>
+                                    <p className={cx('truncate text-[12px] font-black', row.seatsLeft <= row.limitedThreshold ? 'text-rose-600' : 'text-slate-600')}>{row.availabilityLabel}</p>
                                 ) : (
-                                    <p className="text-xs font-black text-rose-600">Waitlist only</p>
+                                    <p className="truncate text-[12px] font-black text-rose-600">Waitlist only</p>
                                 )}
-                                <p className="mt-1 text-[11px] font-semibold text-slate-400">{row.matchScore}% AI match</p>
+                                <p className="mt-0.5 text-[10px] font-bold text-slate-400">{row.matchScore}% AI match</p>
                             </div>
                             {row.existingRequest ? (
-                                <button type="button" onClick={() => setSection?.('bookings')} className="shrink-0 rounded-lg border border-slate-200 px-4 py-2 text-xs font-black text-slate-700">View Request</button>
+                                <button type="button" onClick={() => setSection?.('bookings')} className="shrink-0 rounded-lg border border-slate-200 px-3 py-2 text-[11px] font-black text-slate-700">View Request</button>
                             ) : (
                                 <RequestVisitForm csrf={csrf} row={row} old={old} compact />
                             )}
@@ -2118,7 +2118,7 @@ function RequestVisitForm({ csrf, row, old = {}, compact = false }) {
             <input type="hidden" name="group_size" value={old.party_size || '10'} />
             <input type="hidden" name="priority" value={row.matchScore >= 90 ? '4' : row.matchScore >= 80 ? '3' : '2'} />
             <input type="hidden" name="notes" value={`Requested from School Discover Visits. Match score: ${row.matchScore}%. Focus: ${row.focus}.`} />
-            <button className={compact ? 'rounded-lg bg-slate-950 px-3 py-2 text-xs font-black text-white hover:bg-slate-800' : 'w-full rounded-xl bg-blue-600 px-4 py-3 text-sm font-black text-white hover:bg-blue-700'}>{row.seatsLeft > 0 ? 'Request Visit' : 'Join Waitlist'}</button>
+            <button className={compact ? 'rounded-lg bg-slate-950 px-3 py-2 text-[11px] font-black text-white hover:bg-slate-800' : 'w-full rounded-xl bg-blue-600 px-4 py-3 text-sm font-black text-white hover:bg-blue-700'}>{row.seatsLeft > 0 ? 'Request Visit' : 'Join Waitlist'}</button>
         </form>
     );
 }
