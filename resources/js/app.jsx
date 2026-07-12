@@ -7212,6 +7212,10 @@ function UniversityVisitRequestsSection({ csrf, visitRequests = [], schools = []
     });
     const pages = Math.max(1, Math.ceil(filtered.length / perPage));
     const visible = filtered.slice((page - 1) * perPage, page * perPage);
+    const pendingCount = visitRequests.filter((item) => item.status === 'requested').length;
+    const approvedCount = visitRequests.filter((item) => ['approved', 'scheduled'].includes(item.status)).length;
+    const reviewCount = visitRequests.filter((item) => item.status === 'approved').length;
+    const capacityPct = Math.min(100, Math.max(0, Math.round((approvedCount / Math.max(1, visitRequests.length)) * 100)));
 
     useEffect(() => setPage(1), [query, status, region, date]);
 
@@ -7234,34 +7238,61 @@ function UniversityVisitRequestsSection({ csrf, visitRequests = [], schools = []
     };
 
     return (
-        <div className="grid gap-5">
-            <section className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-                <div><h1 className="text-3xl font-black tracking-tight text-slate-950">Visit Requests</h1><p className="mt-1 text-sm text-slate-500">Manage and track incoming campus visit inquiries from partner schools.</p></div>
-                <div className="flex gap-2">
-                    <button type="button" onClick={exportCsv} className="inline-flex items-center gap-2 rounded-xl border border-blue-600 bg-white px-4 py-2.5 text-sm font-black text-blue-700"><Download size={16} /> Export CSV</button>
-                    <button type="button" onClick={() => setCreateOpen(true)} className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-black text-white"><Plus size={16} /> New Request</button>
+        <div className="grid gap-4 md:gap-5">
+            <section className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+                <div><h1 className="text-2xl font-black tracking-tight text-slate-950 md:text-3xl">Visit Requests</h1><p className="mt-1 text-sm font-semibold text-slate-500">Manage and track incoming campus visit inquiries from partner schools.</p></div>
+                <div className="grid grid-cols-2 gap-2 sm:flex">
+                    <button type="button" onClick={exportCsv} className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#006a61]/30 bg-white px-3 py-2 text-xs font-black text-[#006a61] md:px-4 md:py-2.5 md:text-sm"><Download size={15} /> Export</button>
+                    <button type="button" onClick={() => setCreateOpen(true)} className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-3 py-2 text-xs font-black text-white md:px-4 md:py-2.5 md:text-sm"><Plus size={15} /> New Request</button>
                 </div>
             </section>
 
-            <section className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+            <section className="grid grid-cols-2 gap-2 md:grid-cols-4 md:gap-4">
+                <MobileRequestMetric label="Total Pending" value={pendingCount} helper="+12% vs last week" tone="emerald" icon={Activity} />
+                <MobileRequestMetric label="Under Review" value={reviewCount} helper="Last updated 1h ago" tone="blue" icon={Clock} />
+                <MobileRequestMetric label="Confirmed" value={approvedCount} helper="Active visits today" tone="emerald" icon={CheckCircle2} />
+                <article className="hidden rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:flex md:flex-col">
+                    <span className="text-[11px] font-black uppercase tracking-wide text-slate-400">Capacity</span>
+                    <span className="mt-1 text-3xl font-black text-slate-950">{capacityPct}%</span>
+                    <div className="mt-3 h-1.5 rounded-full bg-[#e5eeff]"><div className="h-full rounded-full bg-[#006a61]" style={{ width: `${capacityPct}%` }} /></div>
+                </article>
+            </section>
+
+            <section className="hidden items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 md:flex">
                 <Sparkles size={18} className="mt-0.5 shrink-0 text-emerald-700" />
                 <div><h2 className="text-xs font-black uppercase tracking-wide text-emerald-800">Insight Driven Pipeline</h2><p className="mt-1 text-sm text-emerald-800/80">{visitRequests.length > 0 ? `${visitRequests.filter((item) => item.status === 'requested').length} requests currently need review. Prioritize high-volume groups before opening additional visit slots.` : 'Incoming request insights will appear as partner schools submit visit inquiries.'}</p></div>
             </section>
 
-            <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <section className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm md:rounded-2xl md:p-4">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                     <div className="flex flex-1 flex-col gap-3 md:flex-row">
-                        <div className="relative flex-1 md:max-w-xs"><Search size={16} className="absolute left-3 top-3 text-slate-400" /><input value={query} onChange={(event) => setQuery(event.target.value)} className="w-full rounded-lg border border-slate-200 py-2.5 pl-9 pr-3 text-sm outline-none focus:border-blue-500" placeholder="Search requests or schools..." /></div>
-                        <select value={status} onChange={(event) => setStatus(event.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm"><option value="all">All Statuses</option><option value="requested">Pending</option><option value="approved">Approved</option><option value="scheduled">Scheduled</option><option value="declined">Rejected</option></select>
-                        <select value={region} onChange={(event) => setRegion(event.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm"><option value="all">All Regions</option>{regions.map((item) => <option key={item}>{item}</option>)}</select>
-                        <input type="date" value={date} onChange={(event) => setDate(event.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm" />
+                        <div className="relative flex-1 md:max-w-xs"><Search size={16} className="absolute left-3 top-3 text-slate-400" /><input value={query} onChange={(event) => setQuery(event.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-3 text-sm font-semibold outline-none focus:border-[#006a61] focus:ring-4 focus:ring-emerald-50" placeholder="Search requests or schools..." /></div>
+                        <select value={status} onChange={(event) => setStatus(event.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold"><option value="all">All Statuses</option><option value="requested">Pending</option><option value="approved">Approved</option><option value="scheduled">Scheduled</option><option value="declined">Rejected</option></select>
+                        <select value={region} onChange={(event) => setRegion(event.target.value)} className="hidden rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold md:block"><option value="all">All Regions</option>{regions.map((item) => <option key={item}>{item}</option>)}</select>
+                        <input type="date" value={date} onChange={(event) => setDate(event.target.value)} className="hidden rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold md:block" />
                     </div>
-                    <button type="button" onClick={() => setAdvanced(!advanced)} className="inline-flex items-center gap-2 text-sm font-bold text-slate-600"><Filter size={16} /> Advanced Filters</button>
+                    <button type="button" onClick={() => setAdvanced(!advanced)} className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-600"><Filter size={16} /> Filter</button>
                 </div>
                 {advanced && <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-slate-100 pt-4"><span className="text-xs font-bold text-slate-500">Quick filters:</span><button type="button" onClick={() => setStatus('requested')} className="rounded-full bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-700">Needs review</button><button type="button" onClick={() => { setQuery(''); setStatus('all'); setRegion('all'); setDate(''); }} className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-600">Clear all</button></div>}
             </section>
 
-            <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="flex items-center justify-between md:hidden">
+                <h2 className="text-xl font-black text-slate-950">Incoming Visit Requests</h2>
+                <button type="button" onClick={() => setStatus(status === 'requested' ? 'all' : 'requested')} className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-black text-slate-600">Sort</button>
+            </div>
+
+            <section className="grid gap-3 md:hidden">
+                {visible.length === 0 ? <SaaSEmptyState title="No visit requests found" message="Adjust the filters or add a new request." /> : visible.map((request) => (
+                    <MobileVisitRequestCard key={request.id} csrf={csrf} request={request} statusStyle={statusStyle} onDetails={() => setSelected(request)} />
+                ))}
+                <div className="flex items-center justify-center gap-3 pb-3 pt-1 text-sm font-semibold text-slate-500">
+                    <button type="button" disabled={page === 1} onClick={() => setPage(page - 1)} className="grid h-9 w-9 place-items-center rounded-full border border-slate-200 bg-white disabled:opacity-40"><ChevronRight size={16} className="rotate-180" /></button>
+                    <span>Page {page} of {pages}</span>
+                    <button type="button" disabled={page === pages} onClick={() => setPage(page + 1)} className="grid h-9 w-9 place-items-center rounded-full border border-slate-200 bg-white disabled:opacity-40"><ChevronRight size={16} /></button>
+                </div>
+            </section>
+
+            <section className="hidden overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm md:block">
                 <div className="hidden grid-cols-12 gap-4 bg-slate-50 px-6 py-3 text-[10px] font-black uppercase tracking-wider text-slate-500 md:grid"><span className="col-span-3">School Name</span><span className="col-span-2">Requested Date</span><span className="col-span-2">Group Size</span><span className="col-span-2">Region</span><span className="col-span-2">Status</span><span className="text-right">Actions</span></div>
                 <div className="divide-y divide-slate-100">
                     {visible.length === 0 ? <SaaSEmptyState title="No visit requests found" message="Adjust the filters or add a new request." /> : visible.map((request) => (
@@ -7295,6 +7326,82 @@ function ModalShell(props) {
 function DecisionIconButton({ csrf, id, decision, label, icon: Icon, tone }) {
     const tones = { green: 'text-emerald-700 hover:bg-emerald-50', red: 'text-rose-700 hover:bg-rose-50', blue: 'text-blue-700 hover:bg-blue-50' };
     return <form action={`/visit-requests/${id}/decision`} method="POST"><input type="hidden" name="_token" value={csrf} /><input type="hidden" name="decision" value={decision} /><button className={cx('rounded-lg p-2', tones[tone])} title={label} aria-label={label}><Icon size={18} /></button></form>;
+}
+
+function MobileRequestMetric({ label, value, helper, tone = 'emerald', icon: Icon }) {
+    const tones = {
+        emerald: 'text-[#006a61] bg-emerald-50',
+        blue: 'text-blue-700 bg-blue-50',
+    };
+
+    return (
+        <article className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+            <span className="block text-[10px] font-black uppercase tracking-wide text-slate-400">{label}</span>
+            <span className="mt-1 block text-2xl font-black text-slate-950">{value}</span>
+            <span className={cx('mt-2 inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-black', tones[tone] || tones.emerald)}>
+                <Icon size={12} /> {helper}
+            </span>
+        </article>
+    );
+}
+
+function MobileVisitRequestCard({ csrf, request, onDetails }) {
+    const isPending = request.status === 'requested';
+    const statusTone = {
+        requested: 'bg-emerald-50 text-[#006a61]',
+        approved: 'bg-blue-50 text-blue-700',
+        scheduled: 'bg-emerald-50 text-emerald-700',
+        declined: 'bg-rose-50 text-rose-700',
+    };
+    const statusLabel = request.status === 'requested' ? 'New' : request.status === 'approved' ? 'Reviewing' : request.status;
+
+    return (
+        <article className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm">
+            <div className="flex items-start gap-3">
+                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[#e5eeff] text-blue-700">
+                    <School size={19} />
+                </span>
+                <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                        <h3 className="truncate text-sm font-black text-slate-950">{request.school}</h3>
+                        <span className={cx('shrink-0 rounded px-2 py-0.5 text-[9px] font-black uppercase', statusTone[request.status] || 'bg-slate-100 text-slate-600')}>{statusLabel}</span>
+                    </div>
+                    <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[11px] font-semibold text-slate-500">
+                        <span className="inline-flex items-center gap-1"><CalendarDays size={13} /> {request.window || 'Date pending'}</span>
+                        <span className="inline-flex items-center gap-1"><MapPin size={13} /> {request.region || request.location || 'Region pending'}</span>
+                        <span className="inline-flex items-center gap-1 font-black text-slate-800"><UsersRound size={13} /> {request.groupSize || 0} Students</span>
+                    </div>
+                </div>
+            </div>
+            <div className="mt-3 flex gap-2">
+                {isPending ? (
+                    <>
+                        <DecisionTextButton csrf={csrf} id={request.id} decision="approved" label="Approve" tone="approve" />
+                        <DecisionTextButton csrf={csrf} id={request.id} decision="declined" label="Deny" tone="deny" />
+                    </>
+                ) : request.status === 'approved' ? (
+                    <DecisionTextButton csrf={csrf} id={request.id} decision="scheduled" label="Schedule" tone="approve" />
+                ) : (
+                    <button type="button" onClick={onDetails} className="flex-1 rounded-full border border-slate-200 px-4 py-2 text-xs font-black text-slate-600">View Status</button>
+                )}
+                <button type="button" onClick={onDetails} className="grid h-9 w-10 place-items-center rounded-full border border-slate-200 text-slate-500" aria-label="View request details">
+                    <MoreVertical size={17} />
+                </button>
+            </div>
+        </article>
+    );
+}
+
+function DecisionTextButton({ csrf, id, decision, label, tone }) {
+    return (
+        <form action={`/visit-requests/${id}/decision`} method="POST" className="flex-1">
+            <input type="hidden" name="_token" value={csrf} />
+            <input type="hidden" name="decision" value={decision} />
+            <button className={cx('w-full rounded-full px-4 py-2 text-xs font-black', tone === 'deny' ? 'border border-rose-200 text-rose-700 hover:bg-rose-50' : 'bg-[#006a61] text-white hover:opacity-90')}>
+                {label}
+            </button>
+        </form>
+    );
 }
 
 function RequestDetail({ label, value }) {
