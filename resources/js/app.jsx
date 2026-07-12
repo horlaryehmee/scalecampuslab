@@ -744,6 +744,7 @@ function DashboardFrame({ csrf, children, role, title, subtitle, activeId, activ
     const workspace = role === 'admin' ? 'ScaleCampusLab HQ' : (role === 'university' ? 'CampusConnect' : `${roleLabels[role]} Workspace`);
     const darkSidebar = true;
     const navItems = flatNavItems(navGroups);
+    const compactMobilePage = ['school', 'high_school'].includes(role) && activeId === 'bookings';
 
     useEffect(() => {
         if (!toast) return undefined;
@@ -847,13 +848,15 @@ function DashboardFrame({ csrf, children, role, title, subtitle, activeId, activ
                         </div>
                     </header>
 
-                    <div className="border-b border-slate-200 bg-white px-4 py-4 md:hidden">
-                        <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">{workspace}</p>
-                        <h1 className="mt-1 truncate text-2xl font-black text-slate-950">{activeTitle}</h1>
-                        <p className="mt-1 line-clamp-2 text-sm leading-5 text-slate-500">{subtitle || title}</p>
-                    </div>
+                    {!compactMobilePage && (
+                        <div className="border-b border-slate-200 bg-white px-4 py-4 md:hidden">
+                            <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">{workspace}</p>
+                            <h1 className="mt-1 truncate text-2xl font-black text-slate-950">{activeTitle}</h1>
+                            <p className="mt-1 line-clamp-2 text-sm leading-5 text-slate-500">{subtitle || title}</p>
+                        </div>
+                    )}
 
-                    <div className="flex-1 overflow-y-auto p-4 pb-28 sm:p-5 sm:pb-28 md:p-8">
+                    <div className={cx('flex-1 overflow-y-auto pb-28 md:p-8', compactMobilePage ? 'p-3 sm:p-4' : 'p-4 sm:p-5')}>
                         {children}
                     </div>
                 </section>
@@ -2210,17 +2213,37 @@ function SchoolBookingsSection({ csrf = '', visitRequests = [], registrations = 
         declined: ['Declined', 'bg-rose-50 text-rose-700 ring-rose-200'],
     };
     const currentProgress = selected?.status === 'scheduled' ? 'w-full' : selected?.status === 'approved' ? 'w-2/3' : selected?.status === 'declined' ? 'w-1/3 bg-rose-500' : 'w-1/3';
+    const handleMobileRequestAction = (request) => {
+        if (request.status === 'scheduled') {
+            setSection?.('calendar');
+            return;
+        }
+
+        if (request.status === 'approved') {
+            setSection?.('itinerary');
+            return;
+        }
+
+        setSelectedId(request.id);
+    };
+    const mobileRequestActionLabel = (request) => {
+        if (request.status === 'scheduled') return 'Open Schedule';
+        if (request.status === 'approved') return 'Plan Itinerary';
+        if (request.status === 'declined') return 'View Decision';
+        return 'View Details';
+    };
+
     return (
         <div className="grid gap-6">
             <div className="md:hidden">
-                <div className="sticky top-16 z-20 -mx-4 flex gap-2 overflow-x-auto border-b border-slate-200 bg-[#f6f8fb]/90 px-4 py-3 backdrop-blur [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <div className="sticky top-16 z-20 -mx-3 flex gap-2 overflow-x-auto border-b border-slate-200 bg-[#f6f8fb]/95 px-3 py-2 backdrop-blur [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                     {statusTabs.map(([value, label]) => (
                         <button
                             key={value}
                             type="button"
                             onClick={() => setStatusFilter(value)}
                             className={cx(
-                                'shrink-0 rounded-full px-4 py-2 text-xs font-black',
+                                'shrink-0 rounded-full px-3.5 py-1.5 text-[12px] font-black',
                                 statusFilter === value ? 'bg-slate-950 text-white shadow-sm' : 'border border-slate-200 bg-white text-slate-600'
                             )}
                         >
@@ -2229,28 +2252,28 @@ function SchoolBookingsSection({ csrf = '', visitRequests = [], registrations = 
                     ))}
                 </div>
 
-                <div className="mt-4 flex items-center justify-between gap-3">
+                <div className="mt-3 flex items-center justify-between gap-3">
                     <span className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Active Requests ({filteredRequests.length})</span>
                     <button type="button" onClick={() => setCreateOpen(true)} className="inline-flex items-center gap-1 text-xs font-black text-[#006a61]">
                         <Plus size={15} /> New
                     </button>
                 </div>
 
-                <label className="relative mt-3 block">
+                <label className="relative mt-2 block">
                     <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                    <input value={query} onChange={(event) => setQuery(event.target.value)} className="h-11 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-sm font-semibold outline-none focus:border-[#006a61] focus:ring-4 focus:ring-emerald-50" placeholder="Search requests..." />
+                    <input value={query} onChange={(event) => setQuery(event.target.value)} className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-sm font-semibold outline-none focus:border-[#006a61] focus:ring-4 focus:ring-emerald-50" placeholder="Search requests..." />
                 </label>
 
-                <div className="mt-4 grid gap-3">
+                <div className="mt-3 grid gap-2.5">
                     {filteredRequests.map((request) => {
                         const [label, tone] = statusMeta[request.status] || [request.status || 'Pending', 'bg-slate-50 text-slate-700 ring-slate-200'];
                         const accent = request.status === 'requested' ? 'border-l-amber-500' : request.status === 'approved' || request.status === 'scheduled' ? 'border-l-emerald-500' : request.status === 'declined' ? 'border-l-rose-500' : 'border-l-blue-500';
                         const Icon = request.status === 'scheduled' ? CalendarDays : request.status === 'approved' ? CheckCircle2 : request.status === 'declined' ? X : Clock;
 
                         return (
-                            <article key={request.id} className={cx('rounded-xl border border-l-4 border-slate-200 bg-white p-3.5 shadow-sm', accent)}>
-                                <div className="grid grid-cols-[42px_minmax(0,1fr)_auto] gap-3">
-                                    <span className="grid h-10 w-10 place-items-center rounded-lg border border-slate-200 bg-[#e5eeff] text-slate-950">
+                            <article key={request.id} className={cx('rounded-xl border border-l-4 border-slate-200 bg-white p-3 shadow-sm', accent)}>
+                                <div className="grid grid-cols-[38px_minmax(0,1fr)_auto] gap-2.5">
+                                    <span className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 bg-[#e5eeff] text-slate-950">
                                         <Icon size={18} />
                                     </span>
                                     <div className="min-w-0">
@@ -2260,7 +2283,7 @@ function SchoolBookingsSection({ csrf = '', visitRequests = [], registrations = 
                                     <span className={cx('h-fit max-w-[94px] truncate rounded-full px-2 py-1 text-[9px] font-black uppercase ring-1', tone)}>{label}</span>
                                 </div>
 
-                                <div className="mt-3 grid grid-cols-2 gap-3 border-y border-slate-100 py-2.5">
+                                <div className="mt-2.5 grid grid-cols-2 gap-3 border-y border-slate-100 py-2">
                                     <div>
                                         <span className="block text-[9px] font-black uppercase tracking-[0.08em] text-slate-400">{request.status === 'scheduled' ? 'Scheduled Date' : 'Requested Date'}</span>
                                         <span className="mt-0.5 block truncate text-[12px] font-black text-slate-800">{request.window || formatShortDate(request.eventDate)}</span>
@@ -2271,11 +2294,11 @@ function SchoolBookingsSection({ csrf = '', visitRequests = [], registrations = 
                                     </div>
                                 </div>
 
-                                <div className="mt-3 flex gap-2">
-                                    <button type="button" onClick={() => setSelectedId(request.id)} className="flex-1 rounded-lg bg-[#006a61] px-3 py-2.5 text-[12px] font-black text-white">
-                                        {request.status === 'scheduled' ? 'Add to Calendar' : request.status === 'requested' ? 'Follow Up' : 'View Details'}
+                                <div className="mt-2.5 flex gap-2">
+                                    <button type="button" onClick={() => handleMobileRequestAction(request)} className="flex-1 rounded-lg bg-[#006a61] px-3 py-2 text-[12px] font-black text-white">
+                                        {mobileRequestActionLabel(request)}
                                     </button>
-                                    <button type="button" onClick={() => setSelectedId(request.id)} className="grid h-9 w-10 place-items-center rounded-lg border border-slate-200 text-slate-600">
+                                    <button type="button" onClick={() => setSelectedId(request.id)} className="grid h-8 w-9 place-items-center rounded-lg border border-slate-200 text-slate-600" aria-label="Open request details">
                                         <MoreVertical size={17} />
                                     </button>
                                 </div>
