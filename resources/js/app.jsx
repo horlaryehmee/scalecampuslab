@@ -6214,7 +6214,7 @@ function StudentNotificationsSection({ registrations }) {
     );
 }
 
-function EventCalendarSection({ csrf, events, registrations = [], title = 'Calendar' }) {
+function EventCalendarSection({ csrf, events, registrations = [], title = 'Calendar', canManage = false }) {
     const [localEvents, setLocalEvents] = useState(events || []);
 
     useEffect(() => {
@@ -6305,7 +6305,11 @@ function EventCalendarSection({ csrf, events, registrations = [], title = 'Calen
                 </div>
                 <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
                     <button type="button" onClick={jumpToToday} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 shadow-sm">Today</button>
-                    <button type="button" onClick={() => selectedEvent && setPendingDate(addDays(new Date(selectedEvent.startsAt || Date.now()), 7))} disabled={!selectedEvent} className="rounded-xl bg-slate-950 px-3 py-2 text-xs font-black text-white shadow-sm disabled:opacity-40">Suggest Slot</button>
+                    {canManage ? (
+                        <button type="button" onClick={() => selectedEvent && setPendingDate(addDays(new Date(selectedEvent.startsAt || Date.now()), 7))} disabled={!selectedEvent} className="rounded-xl bg-slate-950 px-3 py-2 text-xs font-black text-white shadow-sm disabled:opacity-40">Suggest Slot</button>
+                    ) : (
+                        <button type="button" onClick={() => selectedEvent && setSelectedDate(new Date(selectedEvent.startsAt || Date.now()))} disabled={!selectedEvent} className="rounded-xl bg-slate-950 px-3 py-2 text-xs font-black text-white shadow-sm disabled:opacity-40">Next Visit</button>
+                    )}
                 </div>
             </div>
 
@@ -6343,58 +6347,103 @@ function EventCalendarSection({ csrf, events, registrations = [], title = 'Calen
 
                 <div className="relative mt-4 space-y-3 before:absolute before:bottom-2 before:left-5 before:top-2 before:w-px before:bg-slate-200">
                     {dayEvents.length === 0 ? (
-                        <button type="button" onClick={() => selectedEvent && setPendingDate(selectedDate)} className="relative z-10 w-full rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm font-black text-slate-500">Free slot - tap to move selected visit here</button>
+                        <div className="relative z-10 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center text-sm font-black text-slate-500">
+                            {canManage ? (
+                                <button type="button" onClick={() => selectedEvent && setPendingDate(selectedDate)} className="w-full">Free slot - tap to move selected visit here</button>
+                            ) : 'No visits scheduled for this day.'}
+                        </div>
                     ) : dayEvents.map((event) => (
-                        <MobileScheduleCard key={event.id} event={event} active={selectedId === event.id} onSelect={() => selectEvent(event)} onMove={() => setPendingDate(selectedDate)} />
+                        <MobileScheduleCard key={event.id} event={event} active={selectedId === event.id} canManage={canManage} onSelect={() => selectEvent(event)} onMove={() => setPendingDate(selectedDate)} />
                     ))}
                 </div>
             </section>
 
             <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
-                <section className="hidden overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm md:block">
-                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+                <section className="hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:block">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
                             <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">{cursor.getFullYear()}</p>
                             <h2 className="text-xl font-black text-slate-950">{cursor.toLocaleDateString([], { month: 'long' })}</h2>
                         </div>
                         <div className="flex items-center gap-2">
-                            <span className="rounded-xl bg-[#e5eeff] px-3 py-2 text-xs font-black text-[#006a61]">Month</span>
+                            <span className="rounded-xl bg-[#e5eeff] px-3 py-2 text-xs font-black text-[#006a61]">Agenda</span>
                             <button type="button" onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1))} className="grid h-9 w-9 place-items-center rounded-xl border border-slate-200 bg-white text-slate-600"><ChevronRight size={16} className="rotate-180" /></button>
                             <button type="button" onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1))} className="grid h-9 w-9 place-items-center rounded-xl border border-slate-200 bg-white text-slate-600"><ChevronRight size={16} /></button>
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50 text-center text-[10px] font-black uppercase tracking-wide text-slate-400">
-                        {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => <div key={day} className="px-2 py-2.5">{day}</div>)}
-                    </div>
-                    <div className="grid grid-cols-7">
-                        {monthCells.map((date) => {
-                            const dayItems = eventsForDay(date);
-                            const inMonth = date.getMonth() === cursor.getMonth();
-                            const isTarget = pendingDate && isSameCalendarDay(date, pendingDate);
-                            const isSelectedDay = isSameCalendarDay(date, selectedDate);
+                    <div className="mt-4 grid gap-4 lg:grid-cols-[260px_1fr]">
+                        <aside className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                            <div className="mb-3 flex items-center justify-between">
+                                <p className="text-xs font-black uppercase tracking-wide text-slate-500">Upcoming</p>
+                                <span className="rounded-full bg-white px-2 py-1 text-[10px] font-black text-slate-500">{datedEvents.length}</span>
+                            </div>
+                            <div className="max-h-[420px] space-y-2 overflow-y-auto pr-1">
+                                {datedEvents.length === 0 ? (
+                                    <div className="rounded-xl border border-dashed border-slate-300 bg-white p-4 text-center text-xs font-bold text-slate-500">No scheduled visits yet.</div>
+                                ) : datedEvents.map((event) => {
+                                    const active = selectedId === event.id;
+                                    return (
+                                        <button key={event.id} type="button" onClick={() => selectEvent(event)} className={cx('w-full rounded-xl border p-3 text-left transition', active ? 'border-[#006a61] bg-white shadow-sm' : 'border-transparent bg-white/70 hover:bg-white')}>
+                                            <div className="flex items-start justify-between gap-2">
+                                                <span className="min-w-0 truncate text-xs font-black text-slate-950">{event.title}</span>
+                                                <span className="shrink-0 text-[10px] font-black text-[#006a61]">{formatShortDate(event.startsAt)}</span>
+                                            </div>
+                                            <p className="mt-1 truncate text-[11px] font-semibold text-slate-500">{formatTimeRange(event.startsAt, event.endsAt)} · {event.venue || 'Venue TBA'}</p>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </aside>
 
-                            return (
-                                <div key={date.toISOString()} className={cx('min-h-24 border-b border-r border-slate-100 p-2', inMonth ? 'bg-white' : 'bg-slate-50/70', isSelectedDay && 'bg-emerald-50/40', isTarget && 'ring-2 ring-inset ring-[#006a61]')}>
-                                    <div className="flex items-center justify-between">
-                                        <button type="button" onClick={() => setSelectedDate(date)} className={cx('grid h-6 w-6 place-items-center rounded-full text-xs font-black', isSelectedDay ? 'bg-[#006a61] text-white' : inMonth ? 'text-slate-600 hover:bg-slate-100' : 'text-slate-300')}>{date.getDate()}</button>
-                                        {selectedEvent && inMonth && <button type="button" onClick={() => setPendingDate(date)} className="rounded px-1.5 py-1 text-[10px] font-black text-[#006a61] hover:bg-emerald-50">Move</button>}
+                        <div className="grid gap-3">
+                            <div className="grid grid-cols-7 gap-2">
+                                {weekDays.map((date) => {
+                                    const active = isSameCalendarDay(date, selectedDate);
+                                    const count = eventsForDay(date).length;
+                                    return (
+                                        <button key={date.toISOString()} type="button" onClick={() => setSelectedDate(date)} className={cx('rounded-2xl border p-3 text-center transition', active ? 'border-[#006a61] bg-[#006a61] text-white shadow-sm' : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-white')}>
+                                            <span className="block text-[10px] font-black uppercase">{date.toLocaleDateString([], { weekday: 'short' })}</span>
+                                            <span className="mt-1 block text-lg font-black">{date.getDate()}</span>
+                                            <span className={cx('mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-black', active ? 'bg-white/15 text-white' : 'bg-white text-slate-500')}>{count}</span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+
+                            <div className="rounded-2xl border border-slate-200 bg-white p-3">
+                                <div className="mb-3 flex items-center justify-between">
+                                    <div>
+                                        <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">Selected day</p>
+                                        <h3 className="text-base font-black text-slate-950">{selectedDate.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' })}</h3>
                                     </div>
-                                    <div className="mt-1.5 space-y-1">
-                                        {dayItems.slice(0, 2).map((event) => {
-                                            const full = Number(event.confirmedSeats || 0) >= Number(event.capacity || 1);
-                                            return (
-                                                <button key={event.id} type="button" onClick={() => selectEvent(event)} className={cx('w-full rounded-lg border-l-4 px-2 py-1 text-left text-[10px] font-bold leading-4', selectedId === event.id ? 'border-[#006a61] bg-emerald-50 text-[#005049]' : full ? 'border-red-500 bg-red-50 text-red-700' : 'border-blue-500 bg-blue-50 text-blue-800')}>
-                                                    <span className="block truncate">{event.title}</span>
-                                                    <span className="opacity-75">{formatTimeRange(event.startsAt, event.endsAt)} · {event.confirmedSeats}/{event.capacity}</span>
-                                                </button>
-                                            );
-                                        })}
-                                        {dayItems.length > 2 && <span className="text-[10px] font-bold text-slate-400">+{dayItems.length - 2} more</span>}
-                                    </div>
+                                    {canManage && selectedEvent && <button type="button" onClick={() => setPendingDate(selectedDate)} className="rounded-xl bg-slate-950 px-3 py-2 text-xs font-black text-white">Move selected here</button>}
                                 </div>
-                            );
-                        })}
+                                <div className="grid gap-2">
+                                    {dayEvents.length === 0 ? (
+                                        <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center text-sm font-bold text-slate-500">No visits on this day.</div>
+                                    ) : dayEvents.map((event) => {
+                                        const full = Number(event.confirmedSeats || 0) >= Number(event.capacity || 1);
+                                        return (
+                                            <button key={event.id} type="button" onClick={() => selectEvent(event)} className={cx('grid gap-3 rounded-xl border p-3 text-left transition sm:grid-cols-[92px_minmax(0,1fr)_120px]', selectedId === event.id ? 'border-[#006a61] bg-emerald-50' : 'border-slate-200 bg-white hover:border-slate-300')}>
+                                                <div>
+                                                    <p className="text-sm font-black text-slate-950">{formatTimeRange(event.startsAt, event.endsAt).split(' - ')[0]}</p>
+                                                    <p className="mt-1 text-[10px] font-black uppercase text-slate-400">{event.status || 'published'}</p>
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <h4 className="truncate text-sm font-black text-slate-950">{event.title}</h4>
+                                                    <p className="mt-1 truncate text-xs font-semibold text-slate-500">{event.venue || 'Venue TBA'} {event.location ? `· ${event.location}` : ''}</p>
+                                                </div>
+                                                <div className="flex items-center justify-between gap-2 sm:justify-end">
+                                                    <span className={cx('rounded-full px-2 py-1 text-[10px] font-black', full ? 'bg-red-50 text-red-700' : 'bg-blue-50 text-blue-700')}>{event.confirmedSeats}/{event.capacity}</span>
+                                                    <ChevronRight size={16} className="text-slate-400" />
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </section>
 
@@ -6439,7 +6488,7 @@ function ScheduleMetric({ label, value, detail, tone = 'blue' }) {
     );
 }
 
-function MobileScheduleCard({ event, active, onSelect, onMove }) {
+function MobileScheduleCard({ event, active, canManage = false, onSelect, onMove }) {
     const full = Number(event.confirmedSeats || 0) >= Number(event.capacity || 1);
     return (
         <article className="relative z-10 grid grid-cols-[40px_minmax(0,1fr)] gap-3">
@@ -6460,7 +6509,11 @@ function MobileScheduleCard({ event, active, onSelect, onMove }) {
                 </div>
                 <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-100 pt-2">
                     <span className="text-[10px] font-black uppercase tracking-wide text-slate-400">{event.status || 'published'}</span>
-                    <span onClick={(click) => { click.stopPropagation(); onMove(); }} className="rounded-lg bg-slate-950 px-3 py-1.5 text-[11px] font-black text-white">Move here</span>
+                    {canManage ? (
+                        <span onClick={(click) => { click.stopPropagation(); onMove(); }} className="rounded-lg bg-slate-950 px-3 py-1.5 text-[11px] font-black text-white">Move here</span>
+                    ) : (
+                        <span className="rounded-lg bg-slate-100 px-3 py-1.5 text-[11px] font-black text-slate-600">View</span>
+                    )}
                 </div>
             </button>
         </article>
@@ -8513,7 +8566,7 @@ function dashboardContent(role, activeId, metrics, actions, context = {}) {
             subtitle: 'View upcoming visit programs and important hosting dates.',
             action: 'Create program',
             metrics: baseMetrics,
-            custom: <EventCalendarSection csrf={csrf} events={events || []} registrations={registrations || []} title="University Calendar" />,
+            custom: <EventCalendarSection csrf={csrf} events={events || []} registrations={registrations || []} title="University Calendar" canManage />,
         };
     }
 
@@ -8566,7 +8619,7 @@ function dashboardContent(role, activeId, metrics, actions, context = {}) {
     }
 
     if (['school', 'high_school'].includes(role) && activeId === 'calendar') {
-        return { title: 'My Schedule', subtitle: 'View upcoming visits and student attendance dates.', action: 'Discover visits', metrics: baseMetrics, custom: <EventCalendarSection csrf={csrf} events={(events || []).filter((event) => event.status === 'published')} registrations={registrations || []} title="School Schedule" /> };
+        return { title: 'My Schedule', subtitle: 'View upcoming visits and student attendance dates.', action: 'Discover visits', metrics: baseMetrics, custom: <EventCalendarSection csrf={csrf} events={(events || []).filter((event) => event.status === 'published')} registrations={registrations || []} title="School Schedule" canManage={false} /> };
     }
 
     if (['school', 'high_school'].includes(role) && activeId === 'reports') {
