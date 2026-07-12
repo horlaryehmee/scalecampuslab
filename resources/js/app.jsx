@@ -607,7 +607,7 @@ function RoleDashboard({ csrf, role, title, subtitle, metrics, actions, roadmap 
     }, [activeId, storageKey]);
     const activeTitle = navItems.find((item) => item.id === activeId)?.title || 'Overview';
     const content = dashboardContent(role, activeId, dashboardData.metrics, actions, { csrf, ...dashboardData, errors: formErrors, old: formOld, flash: localFlash, setActiveId: selectTab });
-    const showMetrics = role === 'university' && activeId === 'events';
+    const showMetrics = !content.custom && Array.isArray(content.metrics) && content.metrics.length > 0;
 
     return (
         <DashboardFrame
