@@ -1594,11 +1594,17 @@ function UniversityOverviewSection({ events, registrations, schools, analytics, 
 
 function UniversityVisitsSection({ csrf, events, registrations, errors, old }) {
     const [editor, setEditor] = useState(null);
-    const [status, setStatus] = useState('all');
+    const [status, setStatus] = useState('active');
     const [query, setQuery] = useState('');
     const [date, setDate] = useState('');
+    const activeEvents = events.filter((event) => event.status === 'published');
+    const draftEvents = events.filter((event) => event.status === 'draft');
+    const archivedEvents = events.filter((event) => ['cancelled', 'completed'].includes(event.status));
     const filteredEvents = events.filter((event) => {
-        const matchesStatus = status === 'all' || event.status === status;
+        const matchesStatus = status === 'all'
+            || (status === 'active' && event.status === 'published')
+            || (status === 'draft' && event.status === 'draft')
+            || (status === 'archived' && ['cancelled', 'completed'].includes(event.status));
         const matchesQuery = !query || `${event.title} ${event.location} ${event.venue}`.toLowerCase().includes(query.toLowerCase());
         const matchesDate = !date || (event.startsAt || '').slice(0, 10) === date;
 
@@ -1608,52 +1614,127 @@ function UniversityVisitsSection({ csrf, events, registrations, errors, old }) {
     const totalCapacity = events.reduce((total, event) => total + Number(event.capacity || 0), 0);
     const averageFill = totalCapacity ? Math.round((totalRegistrations / totalCapacity) * 100) : 0;
     const published = events.filter((event) => event.status === 'published').length;
+    const tabs = [
+        ['active', `Active Programs (${activeEvents.length})`],
+        ['draft', `Drafts (${draftEvents.length})`],
+        ['archived', `Archived (${archivedEvents.length})`],
+        ['all', `All (${events.length})`],
+    ];
 
     return (
-        <div className="grid gap-6">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="grid gap-4">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                 <div>
-                    <h1 className="mt-1 text-3xl font-black text-slate-950">University Events</h1>
-                    <p className="mt-1 text-sm text-slate-500">Manage and track upcoming career fairs, info sessions, and campus interviews.</p>
+                    <h1 className="text-2xl font-black text-slate-950 md:text-3xl">Visit Programs</h1>
+                    <p className="mt-1 text-sm font-semibold text-slate-500">Manage recruitment cycles, capacity, and school-facing visit programs.</p>
                 </div>
-                <button onClick={() => setEditor({})} className="inline-flex items-center justify-center gap-2 rounded-lg bg-slate-950 px-4 py-3 text-sm font-black text-white shadow-sm hover:bg-slate-800"><Plus size={16} /> Create Event</button>
+                <button onClick={() => setEditor({})} className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#006a61] px-4 py-2.5 text-sm font-black text-white shadow-sm hover:opacity-90"><Plus size={16} /> Create Program</button>
             </div>
 
             {editor && <UniversityEventEditor csrf={csrf} event={editor.id ? editor : null} errors={errors} old={old} onClose={() => setEditor(null)} />}
 
-            <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-                <div className="grid gap-3 border-b border-slate-200 p-4 md:grid-cols-[1fr_1fr_1fr_auto]">
-                    <label className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-500"><CalendarDays size={15} className="text-blue-600" /><input value={date} onChange={(event) => setDate(event.target.value)} type="date" className="min-w-0 flex-1 bg-transparent outline-none" /></label>
-                    <label className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-500"><MapPin size={15} className="text-blue-600" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="All locations" className="min-w-0 flex-1 bg-transparent outline-none" /></label>
-                    <label className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-500"><Filter size={15} className="text-blue-600" /><select value={status} onChange={(event) => setStatus(event.target.value)} className="min-w-0 flex-1 bg-transparent outline-none"><option value="all">All statuses</option><option value="published">Upcoming</option><option value="draft">Draft</option><option value="cancelled">Cancelled</option></select></label>
-                    <button type="button" onClick={() => { setDate(''); setQuery(''); setStatus('all'); }} className="px-3 text-xs font-black text-blue-700">Clear Filters</button>
+            <div className="grid gap-3 md:grid-cols-2">
+                <button type="button" onClick={() => setStatus('archived')} className="flex items-center justify-between rounded-xl bg-slate-950 p-3 text-left text-white shadow-sm">
+                    <span className="flex items-center gap-3">
+                        <span className="grid h-9 w-9 place-items-center rounded-lg bg-white/10 text-emerald-200"><Archive size={18} /></span>
+                        <span><span className="block text-sm font-black">Archive Vault</span><span className="text-[11px] font-semibold text-white/60">{archivedEvents.length} historical programs</span></span>
+                    </span>
+                    <span className="rounded-lg bg-white/10 px-3 py-1 text-xs font-black">View</span>
+                </button>
+                <div className="grid grid-cols-3 rounded-xl border border-slate-200 bg-[#e5eeff] p-3 shadow-sm">
+                    <div className="text-center"><p className="text-xl font-black text-[#006a61]">{published}</p><p className="text-[10px] font-black uppercase text-slate-500">Visits</p></div>
+                    <div className="text-center"><p className="text-xl font-black text-blue-700">{totalRegistrations.toLocaleString()}</p><p className="text-[10px] font-black uppercase text-slate-500">Leads</p></div>
+                    <div className="text-center"><p className="text-xl font-black text-slate-950">{averageFill || 0}</p><p className="text-[10px] font-black uppercase text-slate-500">Engage</p></div>
                 </div>
-                <div className="overflow-x-auto">
-                    <table className="w-full min-w-[900px] text-left text-sm">
-                        <thead className="bg-slate-50 text-[11px] font-black uppercase tracking-wide text-slate-500"><tr><th className="px-5 py-4">Event Name</th><th className="px-5 py-4">Date & Time</th><th className="px-5 py-4">Location</th><th className="px-5 py-4">Registered</th><th className="px-5 py-4">Status</th><th className="px-5 py-4">Verification</th><th className="px-5 py-4 text-right">Actions</th></tr></thead>
-                        <tbody className="divide-y divide-slate-200">
-                            {filteredEvents.length === 0 ? <tr><td colSpan="7" className="px-5 py-14 text-center text-slate-500">No events match your filters.</td></tr> : filteredEvents.map((event) => (
-                                <tr key={event.id} className="hover:bg-blue-50/30">
-                                    <td className="px-5 py-5"><div className="flex items-center gap-3"><span className="grid h-9 w-9 place-items-center rounded bg-blue-500 text-xs font-black text-white">{event.title?.slice(0, 2).toUpperCase() || 'EV'}</span><div><p className="font-black text-slate-950">{event.title}</p><p className="mt-0.5 text-xs text-slate-500">{event.description || 'Campus recruitment event'}</p></div></div></td>
-                                    <td className="px-5 py-5"><p className="font-bold text-slate-700">{formatShortDate(event.startsAt)}</p><p className="mt-1 text-xs text-slate-500">{formatTimeRange(event.startsAt, event.endsAt)}</p></td>
-                                    <td className="px-5 py-5 text-slate-600"><p>{event.location || 'Location TBA'}</p><p className="mt-1 text-xs text-slate-400">{event.venue}</p></td>
-                                    <td className="px-5 py-5"><div className="h-1.5 w-20 rounded-full bg-slate-200"><div className={cx('h-1.5 rounded-full', eventCapacityPercent(event) >= 100 ? 'bg-red-500' : 'bg-blue-600')} style={{ width: `${eventCapacityPercent(event)}%` }} /></div><p className="mt-2 text-xs font-bold text-slate-600">{event.confirmedSeats}/{event.capacity}</p></td>
-                                    <td className="px-5 py-5"><UniversityStatusPill status={event.status} /></td>
-                                    <td className="px-5 py-5"><div className="flex items-center justify-end gap-2"><button type="button" onClick={() => setEditor(event)} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-black text-slate-700 hover:bg-slate-50">Edit</button><form action={`/campus-events/${event.id}`} method="POST" onSubmit={(formEvent) => { if (!window.confirm(`Delete ${event.title}? This cannot be undone.`)) formEvent.preventDefault(); }}><input type="hidden" name="_token" value={csrf} /><input type="hidden" name="_method" value="DELETE" /><button className="rounded-lg px-2 py-1.5 text-xs font-black text-red-600 hover:bg-red-50">Delete</button></form></div></td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-                <div className="flex items-center justify-between border-t border-slate-200 px-5 py-4 text-xs text-slate-500"><span>Showing {filteredEvents.length} of {events.length} events</span><span>Events update directly in your database.</span></div>
-            </section>
-
-            <div className="grid gap-4 md:grid-cols-3">
-                <MiniStat label="Total Registered Students" value={totalRegistrations.toLocaleString()} />
-                <MiniStat label="Average Attendance Rate" value={`${averageFill}%`} />
-                <MiniStat label="Active Campaigns" value={published} />
             </div>
+
+            <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                <div className="grid gap-2 border-b border-slate-100 p-3 md:grid-cols-[1fr_180px_160px_auto] md:p-4">
+                    <label className="flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-500"><Search size={15} className="text-[#006a61]" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search programs, schools, locations..." className="min-w-0 flex-1 bg-transparent font-semibold outline-none" /></label>
+                    <label className="flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-500"><CalendarDays size={15} className="text-[#006a61]" /><input value={date} onChange={(event) => setDate(event.target.value)} type="date" className="min-w-0 flex-1 bg-transparent font-semibold outline-none" /></label>
+                    <label className="flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-500"><Filter size={15} className="text-[#006a61]" /><select value={status} onChange={(event) => setStatus(event.target.value)} className="min-w-0 flex-1 bg-transparent font-semibold outline-none"><option value="active">Active</option><option value="draft">Drafts</option><option value="archived">Archived</option><option value="all">All</option></select></label>
+                    <button type="button" onClick={() => { setDate(''); setQuery(''); setStatus('active'); }} className="h-10 px-3 text-xs font-black text-[#006a61]">Clear Filters</button>
+                </div>
+
+                <div className="flex gap-6 overflow-x-auto border-b border-slate-200 px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                    {tabs.map(([value, label]) => (
+                        <button key={value} type="button" onClick={() => setStatus(value)} className={cx('shrink-0 border-b-2 py-3 text-xs font-black', status === value ? 'border-[#006a61] text-[#006a61]' : 'border-transparent text-slate-400 hover:text-slate-700')}>
+                            {label}
+                        </button>
+                    ))}
+                </div>
+
+                <div className="grid gap-2 p-3">
+                    {filteredEvents.length === 0 ? (
+                        <div className="rounded-xl border border-dashed border-slate-200 p-10 text-center text-sm font-semibold text-slate-500">No visit programs match your filters.</div>
+                    ) : filteredEvents.map((event) => {
+                        const percent = eventCapacityPercent(event);
+                        const isDraft = event.status === 'draft';
+                        const schoolsLabel = event.location || event.venue || 'No schools assigned yet';
+
+                        return (
+                            <article key={event.id} className={cx('rounded-xl border border-slate-200 bg-white px-3 py-3 transition hover:bg-slate-50 md:px-4', isDraft && 'opacity-85')}>
+                                <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_260px] md:items-center">
+                                    <div className="flex min-w-0 flex-col gap-2 md:flex-row md:items-center md:gap-4">
+                                        <span className={cx('w-fit rounded px-2 py-1 text-[10px] font-black uppercase', event.status === 'published' ? 'bg-emerald-50 text-emerald-700' : event.status === 'draft' ? 'bg-slate-100 text-slate-600' : 'bg-rose-50 text-rose-700')}>{event.status === 'published' ? 'Active' : event.status}</span>
+                                        <div className="min-w-0">
+                                            <h3 className="truncate text-sm font-black text-slate-950">{event.title}</h3>
+                                            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] font-semibold text-slate-500">
+                                                <span className="inline-flex items-center gap-1"><CalendarDays size={13} /> {formatShortDate(event.startsAt)} {event.endsAt ? `- ${formatShortDate(event.endsAt)}` : ''}</span>
+                                                <span className="inline-flex min-w-0 items-center gap-1"><School size={13} /> <span className="truncate">{schoolsLabel}</span></span>
+                                                <span className="inline-flex items-center gap-1"><MapPin size={13} /> {event.venue || 'Venue pending'}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-3 md:justify-end">
+                                        {event.status === 'draft' ? (
+                                            <UniversityEventStatusForm csrf={csrf} event={event} status="published" label="Publish" />
+                                        ) : event.status === 'published' ? (
+                                            <UniversityEventStatusForm csrf={csrf} event={event} status="cancelled" label="Archive" tone="muted" />
+                                        ) : (
+                                            <UniversityEventStatusForm csrf={csrf} event={event} status="published" label="Restore" />
+                                        )}
+                                        <div className="flex min-w-[116px] flex-1 items-center gap-2 md:w-44 md:flex-none">
+                                            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[#e5eeff]"><div className={cx('h-full rounded-full', percent >= 100 ? 'bg-red-500' : 'bg-[#006a61]')} style={{ width: `${percent}%` }} /></div>
+                                            <span className="w-9 text-right text-[11px] font-black text-[#006a61]">{percent}%</span>
+                                        </div>
+                                        <button type="button" onClick={() => setEditor(event)} className="grid h-8 w-8 place-items-center rounded-lg border border-slate-200 text-slate-600 hover:border-[#006a61]/30 hover:text-[#006a61]" aria-label={`Edit ${event.title}`}><Edit3 size={15} /></button>
+                                        <form action={`/campus-events/${event.id}`} method="POST" onSubmit={(formEvent) => { if (!window.confirm(`Delete ${event.title}? This cannot be undone.`)) formEvent.preventDefault(); }}>
+                                            <input type="hidden" name="_token" value={csrf} />
+                                            <input type="hidden" name="_method" value="DELETE" />
+                                            <button className="grid h-8 w-8 place-items-center rounded-lg border border-red-100 text-red-600 hover:bg-red-50" aria-label={`Delete ${event.title}`}><Trash2 size={15} /></button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </article>
+                        );
+                    })}
+                </div>
+
+                <div className="flex flex-col gap-2 border-t border-slate-200 px-4 py-3 text-xs font-semibold text-slate-500 md:flex-row md:items-center md:justify-between">
+                    <span>Showing {filteredEvents.length} of {events.length} visit programs</span>
+                    <span>Program actions update directly in your database.</span>
+                </div>
+            </section>
         </div>
+    );
+}
+
+function UniversityEventStatusForm({ csrf, event, status, label, tone = 'primary' }) {
+    return (
+        <form action={`/campus-events/${event.id}`} method="POST">
+            <input type="hidden" name="_token" value={csrf} />
+            <input type="hidden" name="_method" value="PUT" />
+            <input type="hidden" name="title" value={event.title || ''} />
+            <input type="hidden" name="starts_at" value={toInputDateTime(event.startsAt)} />
+            <input type="hidden" name="ends_at" value={toInputDateTime(event.endsAt)} />
+            <input type="hidden" name="venue" value={event.venue || 'Main Campus'} />
+            <input type="hidden" name="location" value={event.location || ''} />
+            <input type="hidden" name="description" value={event.description || ''} />
+            <input type="hidden" name="capacity" value={event.capacity || 50} />
+            <input type="hidden" name="status" value={status} />
+            <button className={cx('rounded-lg px-3 py-1.5 text-xs font-black', tone === 'primary' ? 'border border-[#006a61]/30 text-[#006a61] hover:bg-emerald-50' : 'border border-slate-200 text-slate-500 hover:bg-slate-50')}>{label}</button>
+        </form>
     );
 }
 
