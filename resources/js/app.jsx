@@ -743,6 +743,7 @@ function DashboardFrame({ csrf, children, role, title, subtitle, activeId, activ
     const [toast, setToast] = useState(null);
     const workspace = role === 'admin' ? 'ScaleCampusLab HQ' : (role === 'university' ? 'CampusConnect' : `${roleLabels[role]} Workspace`);
     const darkSidebar = true;
+    const navItems = flatNavItems(navGroups);
 
     useEffect(() => {
         if (!toast) return undefined;
@@ -761,7 +762,7 @@ function DashboardFrame({ csrf, children, role, title, subtitle, activeId, activ
     };
 
     return (
-        <main className="min-h-screen bg-slate-50 text-slate-950">
+        <main className="min-h-screen bg-[#f6f8fb] text-slate-950">
             <div className="flex min-h-screen w-full overflow-hidden">
                 <aside className={cx('fixed inset-y-0 left-0 z-40 hidden shrink-0 transition-all duration-300 md:block', sidebarOpen ? 'w-[276px]' : 'w-0 overflow-hidden')}>
                     <SidebarNav
@@ -777,16 +778,36 @@ function DashboardFrame({ csrf, children, role, title, subtitle, activeId, activ
                 </aside>
 
                 <section className={cx('flex min-w-0 flex-1 flex-col transition-all duration-300', sidebarOpen ? 'md:pl-[276px]' : 'md:pl-0')}>
-                    <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center justify-between border-b border-slate-200/80 bg-white/90 px-4 shadow-sm shadow-slate-950/[0.02] backdrop-blur-xl md:px-6">
+                    <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center justify-between border-b border-slate-200/80 bg-white/95 px-4 shadow-sm shadow-slate-950/[0.02] backdrop-blur-xl md:hidden">
                         <div className="flex min-w-0 items-center gap-3">
+                            <a href="/" className="flex min-w-0 items-center gap-2.5" aria-label="ScaleCampus Labs home">
+                                <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full border border-slate-200 bg-white">
+                                    <img src="/images/brand/scalecampus-logo-light-bg.png" alt="" className="h-9 w-9 object-contain" />
+                                </span>
+                                <span className="min-w-0">
+                                    <span className="block truncate text-base font-black text-slate-950">ScaleCampusLab</span>
+                                    <span className="block truncate text-[11px] font-bold text-slate-500">{roleLabels[role]} portal</span>
+                                </span>
+                            </a>
+                        </div>
+                        <div className="flex items-center gap-1.5">
                             <button
                                 type="button"
-                                onClick={() => setMobileNavOpen(true)}
-                                className="rounded-xl p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-950 md:hidden"
-                                aria-label="Open dashboard menu"
+                                onClick={() => setSearchOpen(true)}
+                                className="grid h-10 w-10 place-items-center rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-950"
+                                aria-label="Search"
                             >
-                                <PanelLeftOpen size={18} strokeWidth={1.6} />
+                                <Search size={18} />
                             </button>
+                            <button type="button" onClick={() => setToast({ title: 'Notifications', message: 'No new alerts right now.' })} className="relative grid h-10 w-10 place-items-center rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-950" aria-label="Notifications">
+                                <Bell size={18} />
+                                <span className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-rose-500" />
+                            </button>
+                        </div>
+                    </header>
+
+                    <header className="sticky top-0 z-30 hidden h-16 shrink-0 items-center justify-between border-b border-slate-200/80 bg-white/90 px-4 shadow-sm shadow-slate-950/[0.02] backdrop-blur-xl md:flex md:px-6">
+                        <div className="flex min-w-0 items-center gap-3">
                             <button
                                 type="button"
                                 onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -826,13 +847,13 @@ function DashboardFrame({ csrf, children, role, title, subtitle, activeId, activ
                         </div>
                     </header>
 
-                    <div className="border-b border-slate-200 bg-white px-5 py-5 md:hidden">
-                        <LightBrandMark />
-                        <p className="mt-3 text-sm text-slate-500">{title}</p>
-                        <p className="mt-1 text-xs text-slate-400">{subtitle}</p>
+                    <div className="border-b border-slate-200 bg-white px-4 py-4 md:hidden">
+                        <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">{workspace}</p>
+                        <h1 className="mt-1 truncate text-2xl font-black text-slate-950">{activeTitle}</h1>
+                        <p className="mt-1 line-clamp-2 text-sm leading-5 text-slate-500">{subtitle || title}</p>
                     </div>
 
-                    <div className="flex-1 overflow-y-auto p-4 sm:p-5 md:p-8">
+                    <div className="flex-1 overflow-y-auto p-4 pb-28 sm:p-5 sm:pb-28 md:p-8">
                         {children}
                     </div>
                 </section>
@@ -858,9 +879,75 @@ function DashboardFrame({ csrf, children, role, title, subtitle, activeId, activ
             )}
 
             {searchOpen && <SearchOverlay onClose={() => setSearchOpen(false)} navGroups={navGroups} onSelect={(id) => { setSearchOpen(false); handleSelect(id); }} />}
+            <MobileBottomDock items={navItems} role={role} activeId={activeId} onSelect={handleSelect} onOpenMore={() => setMobileNavOpen(true)} />
             <Toast toast={toast} onClose={() => setToast(null)} />
         </main>
     );
+}
+
+function MobileBottomDock({ items, role, activeId, onSelect, onOpenMore }) {
+    const preferred = {
+        university: ['overview', 'events', 'visit-requests', 'calendar'],
+        school: ['overview', 'events', 'bookings', 'itinerary'],
+        high_school: ['overview', 'events', 'bookings', 'itinerary'],
+        student: ['overview', 'my-visits', 'explore-visits', 'messages'],
+        admin: ['overview', 'universities', 'events', 'analytics'],
+    };
+    const ids = preferred[role] || preferred.student;
+    const dockItems = ids
+        .map((id) => items.find((item) => item.id === id))
+        .filter(Boolean);
+
+    return (
+        <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-2 pb-[calc(env(safe-area-inset-bottom)+0.55rem)] pt-2 shadow-[0_-12px_30px_rgba(15,23,42,0.08)] backdrop-blur-xl md:hidden" aria-label="Mobile dashboard navigation">
+            <div className="mx-auto grid max-w-md grid-cols-5 gap-1">
+                {dockItems.map((item) => {
+                    const Icon = item.icon;
+                    const active = item.id === activeId;
+                    return (
+                        <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => onSelect(item.id)}
+                            className={cx(
+                                'flex min-w-0 flex-col items-center justify-center gap-1 rounded-2xl px-1.5 py-2 text-[10px] font-black transition-colors',
+                                active ? 'bg-cyan-50 text-[#006a61]' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-950'
+                            )}
+                        >
+                            <Icon size={20} strokeWidth={active ? 2.4 : 1.8} />
+                            <span className="max-w-full truncate">{mobileDockLabel(item.title)}</span>
+                        </button>
+                    );
+                })}
+                <button
+                    type="button"
+                    onClick={onOpenMore}
+                    className="flex min-w-0 flex-col items-center justify-center gap-1 rounded-2xl px-1.5 py-2 text-[10px] font-black text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-950"
+                >
+                    <PanelLeftOpen size={20} strokeWidth={1.8} />
+                    <span>More</span>
+                </button>
+            </div>
+        </nav>
+    );
+}
+
+function mobileDockLabel(title) {
+    const labels = {
+        'Platform Overview': 'Overview',
+        'Visit Programs': 'Programs',
+        'Visit Requests': 'Requests',
+        'Partner Schools': 'Schools',
+        'Discover Visits': 'Discover',
+        'My Requests': 'Requests',
+        'My Schedule': 'Schedule',
+        'Explore Visits': 'Explore',
+        'My Visits': 'Visits',
+        'Institutions': 'Institutions',
+        'Visit Activity': 'Activity',
+    };
+
+    return labels[title] || title;
 }
 
 function LightBrandMark() {
