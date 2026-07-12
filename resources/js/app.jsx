@@ -2196,6 +2196,12 @@ function SchoolBookingsSection({ csrf = '', visitRequests = [], registrations = 
     const pendingCount = visitRequests.filter((request) => request.status === 'requested').length;
     const approvedCount = visitRequests.filter((request) => ['approved', 'scheduled'].includes(request.status)).length;
     const totalStudents = visitRequests.reduce((total, request) => total + Number(request.groupSize || 0), 0);
+    const statusTabs = [
+        ['all', 'All Requests'],
+        ['requested', 'Pending'],
+        ['approved', 'Approved'],
+        ['scheduled', 'Past Visits'],
+    ];
 
     const statusMeta = {
         requested: ['Pending', 'bg-amber-50 text-amber-700 ring-amber-200'],
@@ -2206,7 +2212,92 @@ function SchoolBookingsSection({ csrf = '', visitRequests = [], registrations = 
     const currentProgress = selected?.status === 'scheduled' ? 'w-full' : selected?.status === 'approved' ? 'w-2/3' : selected?.status === 'declined' ? 'w-1/3 bg-rose-500' : 'w-1/3';
     return (
         <div className="grid gap-6">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div className="md:hidden">
+                <div className="sticky top-16 z-20 -mx-4 flex gap-2 overflow-x-auto border-b border-slate-200 bg-[#f6f8fb]/90 px-4 py-3 backdrop-blur [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                    {statusTabs.map(([value, label]) => (
+                        <button
+                            key={value}
+                            type="button"
+                            onClick={() => setStatusFilter(value)}
+                            className={cx(
+                                'shrink-0 rounded-full px-4 py-2 text-xs font-black',
+                                statusFilter === value ? 'bg-slate-950 text-white shadow-sm' : 'border border-slate-200 bg-white text-slate-600'
+                            )}
+                        >
+                            {label}
+                        </button>
+                    ))}
+                </div>
+
+                <div className="mt-4 flex items-center justify-between gap-3">
+                    <span className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Active Requests ({filteredRequests.length})</span>
+                    <button type="button" onClick={() => setCreateOpen(true)} className="inline-flex items-center gap-1 text-xs font-black text-[#006a61]">
+                        <Plus size={15} /> New
+                    </button>
+                </div>
+
+                <label className="relative mt-3 block">
+                    <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input value={query} onChange={(event) => setQuery(event.target.value)} className="h-11 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-sm font-semibold outline-none focus:border-[#006a61] focus:ring-4 focus:ring-emerald-50" placeholder="Search requests..." />
+                </label>
+
+                <div className="mt-4 grid gap-3">
+                    {filteredRequests.map((request) => {
+                        const [label, tone] = statusMeta[request.status] || [request.status || 'Pending', 'bg-slate-50 text-slate-700 ring-slate-200'];
+                        const accent = request.status === 'requested' ? 'border-l-amber-500' : request.status === 'approved' || request.status === 'scheduled' ? 'border-l-emerald-500' : request.status === 'declined' ? 'border-l-rose-500' : 'border-l-blue-500';
+                        const Icon = request.status === 'scheduled' ? CalendarDays : request.status === 'approved' ? CheckCircle2 : request.status === 'declined' ? X : Clock;
+
+                        return (
+                            <article key={request.id} className={cx('rounded-xl border border-l-4 border-slate-200 bg-white p-3.5 shadow-sm', accent)}>
+                                <div className="grid grid-cols-[42px_minmax(0,1fr)_auto] gap-3">
+                                    <span className="grid h-10 w-10 place-items-center rounded-lg border border-slate-200 bg-[#e5eeff] text-slate-950">
+                                        <Icon size={18} />
+                                    </span>
+                                    <div className="min-w-0">
+                                        <h3 className="truncate text-[15px] font-black leading-5 text-slate-950">{request.university || 'University Partner'}</h3>
+                                        <p className="mt-0.5 line-clamp-1 text-[12px] font-semibold text-slate-500">{request.event || 'General campus visit request'}</p>
+                                    </div>
+                                    <span className={cx('h-fit max-w-[94px] truncate rounded-full px-2 py-1 text-[9px] font-black uppercase ring-1', tone)}>{label}</span>
+                                </div>
+
+                                <div className="mt-3 grid grid-cols-2 gap-3 border-y border-slate-100 py-2.5">
+                                    <div>
+                                        <span className="block text-[9px] font-black uppercase tracking-[0.08em] text-slate-400">{request.status === 'scheduled' ? 'Scheduled Date' : 'Requested Date'}</span>
+                                        <span className="mt-0.5 block truncate text-[12px] font-black text-slate-800">{request.window || formatShortDate(request.eventDate)}</span>
+                                    </div>
+                                    <div>
+                                        <span className="block text-[9px] font-black uppercase tracking-[0.08em] text-slate-400">Participants</span>
+                                        <span className="mt-0.5 block truncate text-[12px] font-black text-slate-800">{Number(request.groupSize || 0).toLocaleString()} Students</span>
+                                    </div>
+                                </div>
+
+                                <div className="mt-3 flex gap-2">
+                                    <button type="button" onClick={() => setSelectedId(request.id)} className="flex-1 rounded-lg bg-[#006a61] px-3 py-2.5 text-[12px] font-black text-white">
+                                        {request.status === 'scheduled' ? 'Add to Calendar' : request.status === 'requested' ? 'Follow Up' : 'View Details'}
+                                    </button>
+                                    <button type="button" onClick={() => setSelectedId(request.id)} className="grid h-9 w-10 place-items-center rounded-lg border border-slate-200 text-slate-600">
+                                        <MoreVertical size={17} />
+                                    </button>
+                                </div>
+                            </article>
+                        );
+                    })}
+
+                    {filteredRequests.length === 0 && (
+                        <div className="rounded-xl border border-slate-200 bg-white p-8 text-center">
+                            <Inbox className="mx-auto text-slate-300" size={38} />
+                            <p className="mt-3 font-black text-slate-950">No requests found</p>
+                            <p className="mt-1 text-sm text-slate-500">Create a request or change your filters.</p>
+                        </div>
+                    )}
+                </div>
+
+                <button type="button" onClick={() => setCreateOpen(true)} className="fixed bottom-24 right-5 z-30 grid h-14 w-14 place-items-center rounded-full bg-[#006a61] text-white shadow-xl shadow-slate-950/20">
+                    <Plus size={27} />
+                </button>
+            </div>
+
+            <div className="hidden flex-col gap-4 lg:flex-row lg:items-end lg:justify-between md:flex">
                 <div>
                     <h1 className="text-3xl font-black text-slate-950">My Requests Tracking</h1>
                     <p className="mt-1 max-w-3xl text-sm text-slate-500">Monitor and manage sent visit inquiries to partner universities. Status updates, student counts, and itinerary readiness stay tied to database records.</p>
@@ -2221,14 +2312,14 @@ function SchoolBookingsSection({ csrf = '', visitRequests = [], registrations = 
                 </div>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-4">
+            <div className="hidden gap-4 md:grid md:grid-cols-4">
                 <SchoolRequestMetric label="Total Sent" value={visitRequests.length} helper={`${totalStudents.toLocaleString()} requested students`} icon={Send} tone="blue" />
                 <SchoolRequestMetric label="Pending" value={pendingCount} helper="Awaiting university review" icon={Clock} tone="amber" />
                 <SchoolRequestMetric label="Approved" value={approvedCount} helper="Ready for itinerary planning" icon={CheckCircle2} tone="emerald" />
                 <SchoolRequestMetric label="Scheduled Visits" value={confirmedRegistrations.length} helper="Confirmed attendance records" icon={CalendarDays} tone="slate" />
             </div>
 
-            <div className="grid gap-6">
+            <div className="hidden gap-6 md:grid">
                 <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
                     <div className="border-b border-slate-200 p-5">
                         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
