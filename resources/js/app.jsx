@@ -6232,6 +6232,7 @@ function EventCalendarSection({ csrf, events, registrations = [], title = 'Calen
     const [pendingDate, setPendingDate] = useState(null);
     const [savingMove, setSavingMove] = useState(false);
     const [moveMessage, setMoveMessage] = useState('');
+    const [draggingId, setDraggingId] = useState(null);
     const selectedEvent = localEvents.find((event) => event.id === selectedId) || datedEvents[0] || localEvents[0] || null;
     const selectedRoster = selectedEvent ? registrations.filter((registration) => registration.event === selectedEvent.title) : [];
     const monthCells = calendarMonthCells(cursor);
@@ -6259,6 +6260,20 @@ function EventCalendarSection({ csrf, events, registrations = [], title = 'Calen
         const today = new Date();
         setCursor(new Date(today.getFullYear(), today.getMonth(), 1));
         setSelectedDate(today);
+    };
+
+    const prepareMove = (eventId, date) => {
+        if (!canManage || !eventId || !date) return;
+        setSelectedId(eventId);
+        setSelectedDate(date);
+        setPendingDate(date);
+        setMoveMessage('');
+    };
+
+    const handleDropOnDate = (date) => {
+        if (!draggingId) return;
+        prepareMove(draggingId, date);
+        setDraggingId(null);
     };
 
     const handleMoveSubmit = async (event) => {
@@ -6302,6 +6317,7 @@ function EventCalendarSection({ csrf, events, registrations = [], title = 'Calen
                 <div>
                     <h1 className="text-2xl font-black text-slate-950 md:text-3xl">{title}</h1>
                     <p className="mt-1 max-w-2xl text-sm font-semibold leading-6 text-slate-500">Plan visits, inspect capacity, and move schedule dates without leaving the page.</p>
+                    {canManage && <p className="mt-2 hidden text-xs font-black text-[#006a61] md:block">Drag a visit onto a day to reschedule it.</p>}
                 </div>
                 <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
                     <button type="button" onClick={jumpToToday} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 shadow-sm">Today</button>
@@ -6336,7 +6352,7 @@ function EventCalendarSection({ csrf, events, registrations = [], title = 'Calen
                         const active = isSameCalendarDay(date, selectedDate);
                         const count = eventsForDay(date).length;
                         return (
-                            <button key={date.toISOString()} type="button" onClick={() => setSelectedDate(date)} className={cx('relative rounded-xl px-1 py-2 text-center transition', active ? 'bg-[#006a61] text-white shadow-sm' : 'text-slate-500')}>
+                            <button key={date.toISOString()} type="button" onClick={() => setSelectedDate(date)} onDragOver={(event) => canManage && event.preventDefault()} onDrop={() => handleDropOnDate(date)} className={cx('relative rounded-xl px-1 py-2 text-center transition', active ? 'bg-[#006a61] text-white shadow-sm' : 'text-slate-500', draggingId && canManage && 'ring-2 ring-[#006a61]/30')}>
                                 <span className="block text-[9px] font-black uppercase">{date.toLocaleDateString([], { weekday: 'short' })}</span>
                                 <span className="mt-1 block text-sm font-black">{date.getDate()}</span>
                                 {count > 0 && <span className={cx('mx-auto mt-1 block h-1.5 w-1.5 rounded-full', active ? 'bg-white' : 'bg-[#006a61]')} />}
@@ -6353,7 +6369,7 @@ function EventCalendarSection({ csrf, events, registrations = [], title = 'Calen
                             ) : 'No visits scheduled for this day.'}
                         </div>
                     ) : dayEvents.map((event) => (
-                        <MobileScheduleCard key={event.id} event={event} active={selectedId === event.id} canManage={canManage} onSelect={() => selectEvent(event)} onMove={() => setPendingDate(selectedDate)} />
+                        <MobileScheduleCard key={event.id} event={event} active={selectedId === event.id} canManage={canManage} onSelect={() => selectEvent(event)} onMove={() => prepareMove(event.id, addDays(new Date(event.startsAt || selectedDate), 1))} />
                     ))}
                 </div>
             </section>
@@ -6384,7 +6400,7 @@ function EventCalendarSection({ csrf, events, registrations = [], title = 'Calen
                                 ) : datedEvents.map((event) => {
                                     const active = selectedId === event.id;
                                     return (
-                                        <button key={event.id} type="button" onClick={() => selectEvent(event)} className={cx('w-full rounded-xl border p-3 text-left transition', active ? 'border-[#006a61] bg-white shadow-sm' : 'border-transparent bg-white/70 hover:bg-white')}>
+                                        <button key={event.id} type="button" draggable={canManage} onDragStart={() => { setDraggingId(event.id); setSelectedId(event.id); }} onDragEnd={() => setDraggingId(null)} onClick={() => selectEvent(event)} className={cx('w-full cursor-grab rounded-xl border p-3 text-left transition active:cursor-grabbing', active ? 'border-[#006a61] bg-white shadow-sm' : 'border-transparent bg-white/70 hover:bg-white', draggingId === event.id && 'opacity-60 ring-2 ring-[#006a61]/30')}>
                                             <div className="flex items-start justify-between gap-2">
                                                 <span className="min-w-0 truncate text-xs font-black text-slate-950">{event.title}</span>
                                                 <span className="shrink-0 text-[10px] font-black text-[#006a61]">{formatShortDate(event.startsAt)}</span>
@@ -6402,7 +6418,7 @@ function EventCalendarSection({ csrf, events, registrations = [], title = 'Calen
                                     const active = isSameCalendarDay(date, selectedDate);
                                     const count = eventsForDay(date).length;
                                     return (
-                                        <button key={date.toISOString()} type="button" onClick={() => setSelectedDate(date)} className={cx('rounded-2xl border p-3 text-center transition', active ? 'border-[#006a61] bg-[#006a61] text-white shadow-sm' : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-white')}>
+                                        <button key={date.toISOString()} type="button" onClick={() => setSelectedDate(date)} onDragOver={(event) => canManage && event.preventDefault()} onDrop={() => handleDropOnDate(date)} className={cx('rounded-2xl border p-3 text-center transition', active ? 'border-[#006a61] bg-[#006a61] text-white shadow-sm' : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-white', draggingId && canManage && 'border-dashed ring-2 ring-[#006a61]/20')}>
                                             <span className="block text-[10px] font-black uppercase">{date.toLocaleDateString([], { weekday: 'short' })}</span>
                                             <span className="mt-1 block text-lg font-black">{date.getDate()}</span>
                                             <span className={cx('mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-black', active ? 'bg-white/15 text-white' : 'bg-white text-slate-500')}>{count}</span>
@@ -6425,7 +6441,7 @@ function EventCalendarSection({ csrf, events, registrations = [], title = 'Calen
                                     ) : dayEvents.map((event) => {
                                         const full = Number(event.confirmedSeats || 0) >= Number(event.capacity || 1);
                                         return (
-                                            <button key={event.id} type="button" onClick={() => selectEvent(event)} className={cx('grid gap-3 rounded-xl border p-3 text-left transition sm:grid-cols-[92px_minmax(0,1fr)_120px]', selectedId === event.id ? 'border-[#006a61] bg-emerald-50' : 'border-slate-200 bg-white hover:border-slate-300')}>
+                                            <button key={event.id} type="button" draggable={canManage} onDragStart={() => { setDraggingId(event.id); setSelectedId(event.id); }} onDragEnd={() => setDraggingId(null)} onClick={() => selectEvent(event)} className={cx('grid cursor-grab gap-3 rounded-xl border p-3 text-left transition active:cursor-grabbing sm:grid-cols-[92px_minmax(0,1fr)_120px]', selectedId === event.id ? 'border-[#006a61] bg-emerald-50' : 'border-slate-200 bg-white hover:border-slate-300', draggingId === event.id && 'opacity-60 ring-2 ring-[#006a61]/30')}>
                                                 <div>
                                                     <p className="text-sm font-black text-slate-950">{formatTimeRange(event.startsAt, event.endsAt).split(' - ')[0]}</p>
                                                     <p className="mt-1 text-[10px] font-black uppercase text-slate-400">{event.status || 'published'}</p>
