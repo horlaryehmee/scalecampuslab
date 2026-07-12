@@ -1792,6 +1792,7 @@ function SchoolAvailableVisitsSection({ csrf, events = [], visitRequests = [], o
     const [sortBy, setSortBy] = useState('match');
     const [selectedIds, setSelectedIds] = useState([]);
     const [previewId, setPreviewId] = useState(null);
+    const [mobileVisibleCount, setMobileVisibleCount] = useState(6);
 
     const rows = useMemo(() => events.map((event, index) => enrichDiscoverVisit(event, visitRequests, index)), [events, visitRequests]);
     const universities = [...new Set(rows.map((row) => row.university).filter(Boolean))].sort();
@@ -1824,6 +1825,12 @@ function SchoolAvailableVisitsSection({ csrf, events = [], visitRequests = [], o
     const requestedCount = rows.filter((row) => row.existingRequest).length;
     const openCount = rows.filter((row) => row.seatsLeft > 0).length;
     const avgMatch = rows.length ? Math.round(rows.reduce((sum, row) => sum + row.matchScore, 0) / rows.length) : 0;
+    const mobileRows = filteredRows.slice(0, mobileVisibleCount);
+    const mobileChips = [
+        { label: 'All Visits', active: availability === 'all' && focusFilters.length === 0 && region === 'all', onClick: () => resetFilters() },
+        ...focusOptions.slice(0, 3).map((focus) => ({ label: focus, active: focusFilters.includes(focus), onClick: () => toggleFocus(focus) })),
+        { label: 'Open Seats', active: availability === 'open', onClick: () => setAvailability((current) => current === 'open' ? 'all' : 'open') },
+    ];
 
     const toggleFocus = (focus) => {
         setFocusFilters((current) => current.includes(focus) ? current.filter((item) => item !== focus) : [...current, focus]);
@@ -1845,10 +1852,111 @@ function SchoolAvailableVisitsSection({ csrf, events = [], visitRequests = [], o
         setAvailability('all');
         setDateFilter('');
         setSortBy('match');
+        setMobileVisibleCount(6);
     };
 
+    useEffect(() => {
+        setMobileVisibleCount(6);
+    }, [query, region, universityFilter, focusFilters, availability, dateFilter, sortBy]);
+
     return (
-        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <>
+        <div className="space-y-5 md:hidden">
+            <section className="space-y-4">
+                <label className="relative block">
+                    <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                        value={query}
+                        onChange={(event) => setQuery(event.target.value)}
+                        className="w-full rounded-xl border border-slate-200 bg-white py-3.5 pl-12 pr-4 text-sm font-semibold text-slate-800 shadow-sm outline-none focus:border-[#006a61] focus:ring-4 focus:ring-emerald-50"
+                        placeholder="Search programs, universities..."
+                    />
+                </label>
+                <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                    {mobileChips.map((chip) => (
+                        <button
+                            key={chip.label}
+                            type="button"
+                            onClick={chip.onClick}
+                            className={cx(
+                                'shrink-0 rounded-full px-4 py-2 text-xs font-black transition',
+                                chip.active ? 'bg-[#131b2e] text-white' : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                            )}
+                        >
+                            {chip.label}
+                        </button>
+                    ))}
+                </div>
+            </section>
+
+            <section className="flex items-center justify-between gap-3">
+                <h2 className="text-xl font-black text-slate-950">Available Programs <span className="text-sm font-semibold text-slate-400">({filteredRows.length})</span></h2>
+                <select value={sortBy} onChange={(event) => setSortBy(event.target.value)} className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-black text-[#006a61] outline-none">
+                    <option value="match">Sort: Match</option>
+                    <option value="date">Sort: Date</option>
+                    <option value="availability">Sort: Seats</option>
+                    <option value="university">Sort: University</option>
+                </select>
+            </section>
+
+            <section className="grid gap-4">
+                {mobileRows.map((row) => (
+                    <article key={row.id} className="relative overflow-hidden rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                        <div className="absolute right-3 top-3">
+                            <span className={cx('rounded-full px-2.5 py-1 text-[10px] font-black', row.matchScore >= 90 ? 'bg-[#86f2e4] text-[#006a61]' : 'bg-[#dce9ff] text-blue-700')}>{row.focus || `${row.matchScore}% Match`}</span>
+                        </div>
+                        <button type="button" onClick={() => setPreviewId(row.id)} className="flex w-full items-start gap-3 pr-20 text-left">
+                            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-lg border border-slate-200 bg-[#e5eeff] text-xs font-black text-slate-950">
+                                {row.initials}
+                            </span>
+                            <span className="min-w-0">
+                                <span className="block text-xl font-black leading-tight text-slate-950">{row.title}</span>
+                                <span className="mt-1 block text-sm font-semibold text-slate-500">{row.university}</span>
+                            </span>
+                        </button>
+
+                        <div className="my-4 grid gap-2 border-y border-slate-100 py-3 text-xs font-bold text-slate-500">
+                            <span className="inline-flex items-center gap-2"><CalendarDays size={16} /> {formatShortDate(row.startsAt)} {row.endsAt ? `- ${formatShortDate(row.endsAt)}` : ''}</span>
+                            <span className="inline-flex items-center gap-2"><MapPin size={16} /> {row.location || row.venue || 'Location TBA'}</span>
+                        </div>
+
+                        <div className="flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                                {row.seatsLeft > 0 ? (
+                                    <p className={cx('text-xs font-black', row.seatsLeft <= row.limitedThreshold ? 'text-rose-600' : 'text-slate-500')}>{row.availabilityLabel}</p>
+                                ) : (
+                                    <p className="text-xs font-black text-rose-600">Waitlist only</p>
+                                )}
+                                <p className="mt-1 text-[11px] font-semibold text-slate-400">{row.matchScore}% AI match</p>
+                            </div>
+                            {row.existingRequest ? (
+                                <button type="button" onClick={() => setSection?.('bookings')} className="shrink-0 rounded-lg border border-slate-200 px-4 py-2 text-xs font-black text-slate-700">View Request</button>
+                            ) : (
+                                <RequestVisitForm csrf={csrf} row={row} old={old} compact />
+                            )}
+                        </div>
+                    </article>
+                ))}
+
+                {filteredRows.length === 0 && (
+                    <div className="rounded-xl border border-slate-200 bg-white p-8 text-center">
+                        <Search className="mx-auto text-slate-300" size={40} />
+                        <p className="mt-3 font-black text-slate-950">No programs match your filters</p>
+                        <p className="mt-1 text-sm text-slate-500">Adjust search or filters to see more published visits.</p>
+                    </div>
+                )}
+            </section>
+
+            {mobileVisibleCount < filteredRows.length && (
+                <div className="flex justify-center py-3">
+                    <button type="button" onClick={() => setMobileVisibleCount((count) => count + 6)} className="rounded-full border border-slate-200 bg-white px-6 py-3 text-sm font-black text-slate-700">
+                        Load more programs
+                    </button>
+                </div>
+            )}
+        </div>
+
+        <div className="hidden overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm md:block">
             <div className="grid min-h-[720px] xl:grid-cols-[280px_minmax(0,1fr)]">
                 <aside className="border-b border-slate-200 bg-slate-50/80 p-4 xl:border-b-0 xl:border-r">
                     <div className="flex items-center justify-between gap-3">
@@ -1986,8 +2094,9 @@ function SchoolAvailableVisitsSection({ csrf, events = [], visitRequests = [], o
                 </main>
 
             </div>
-            <SchoolVisitPreview csrf={csrf} row={preview} old={old} setSection={setSection} onClose={() => setPreviewId(null)} />
         </div>
+        <SchoolVisitPreview csrf={csrf} row={preview} old={old} setSection={setSection} onClose={() => setPreviewId(null)} />
+        </>
     );
 }
 
