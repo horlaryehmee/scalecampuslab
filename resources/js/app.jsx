@@ -2646,7 +2646,7 @@ function SchoolBookingsSection({ csrf = '', visitRequests = [], registrations = 
                             University visit program
                             <select name="campus_event_id" required className="rounded-xl border border-slate-200 px-3 py-2.5 font-normal">
                                 <option value="">Select a published visit</option>
-                                {publishedEvents.map((event) => <option key={event.id} value={event.id}>{event.university || 'University'} â€” {event.title}</option>)}
+                                {publishedEvents.map((event) => <option key={event.id} value={event.id}>{event.university || 'University'} - {event.title}</option>)}
                             </select>
                         </label>
                         <div className="grid gap-4 sm:grid-cols-2">
@@ -4251,7 +4251,7 @@ function AdminPlatformOverviewSection({ users = [], events = [], registrations =
     const activityRows = [
         ...visitRequests.slice(0, 4).map((request) => ({
             title: request.event || 'Visit request',
-            meta: `${request.school || 'School'} â†’ ${request.university || 'University'}`,
+            meta: `${request.school || 'School'} to ${request.university || 'University'}`,
             status: request.status,
             type: 'Request',
         })),
@@ -6233,6 +6233,7 @@ function EventCalendarSection({ csrf, events, registrations = [], title = 'Calen
     const [savingMove, setSavingMove] = useState(false);
     const [moveMessage, setMoveMessage] = useState('');
     const [draggingId, setDraggingId] = useState(null);
+    const [movingEventId, setMovingEventId] = useState(null);
     const selectedEvent = localEvents.find((event) => event.id === selectedId) || datedEvents[0] || localEvents[0] || null;
     const selectedRoster = selectedEvent ? registrations.filter((registration) => registration.event === selectedEvent.title) : [];
     const monthCells = calendarMonthCells(cursor);
@@ -6253,6 +6254,7 @@ function EventCalendarSection({ csrf, events, registrations = [], title = 'Calen
     const selectEvent = (event) => {
         setSelectedId(event.id);
         setPendingDate(null);
+        setMovingEventId(null);
         if (event.startsAt) setSelectedDate(new Date(event.startsAt));
     };
 
@@ -6267,7 +6269,24 @@ function EventCalendarSection({ csrf, events, registrations = [], title = 'Calen
         setSelectedId(eventId);
         setSelectedDate(date);
         setPendingDate(date);
+        setMovingEventId(null);
         setMoveMessage('');
+    };
+
+    const startMove = (eventId) => {
+        if (!canManage || !eventId) return;
+        setSelectedId(eventId);
+        setPendingDate(null);
+        setMovingEventId(eventId);
+        setMoveMessage('');
+    };
+
+    const chooseDate = (date) => {
+        if (movingEventId) {
+            prepareMove(movingEventId, date);
+            return;
+        }
+        setSelectedDate(date);
     };
 
     const handleDropOnDate = (date) => {
@@ -6303,6 +6322,7 @@ function EventCalendarSection({ csrf, events, registrations = [], title = 'Calen
             setSelectedDate(new Date(pendingStart));
             setCursor(new Date(new Date(pendingStart).getFullYear(), new Date(pendingStart).getMonth(), 1));
             setPendingDate(null);
+            setMovingEventId(null);
             setMoveMessage('Visit rescheduled.');
         } catch (error) {
             setMoveMessage(error.message || 'Unable to reschedule visit.');
@@ -6317,17 +6337,26 @@ function EventCalendarSection({ csrf, events, registrations = [], title = 'Calen
                 <div>
                     <h1 className="text-2xl font-black text-slate-950 md:text-3xl">{title}</h1>
                     <p className="mt-1 max-w-2xl text-sm font-semibold leading-6 text-slate-500">Plan visits, inspect capacity, and move schedule dates without leaving the page.</p>
-                    {canManage && <p className="mt-2 hidden text-xs font-black text-[#006a61] md:block">Drag a visit onto a day to reschedule it.</p>}
+                    {canManage && <p className="mt-2 hidden text-xs font-black text-[#006a61] md:block">Use Move, then choose the new day. Dragging still works on desktop.</p>}
                 </div>
                 <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
                     <button type="button" onClick={jumpToToday} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 shadow-sm">Today</button>
                     {canManage ? (
-                        <button type="button" onClick={() => selectedEvent && setPendingDate(addDays(new Date(selectedEvent.startsAt || Date.now()), 7))} disabled={!selectedEvent} className="rounded-xl bg-slate-950 px-3 py-2 text-xs font-black text-white shadow-sm disabled:opacity-40">Suggest Slot</button>
+                        <button type="button" onClick={() => selectedEvent && startMove(selectedEvent.id)} disabled={!selectedEvent} className="rounded-xl bg-slate-950 px-3 py-2 text-xs font-black text-white shadow-sm disabled:opacity-40">Move Visit</button>
                     ) : (
                         <button type="button" onClick={() => selectedEvent && setSelectedDate(new Date(selectedEvent.startsAt || Date.now()))} disabled={!selectedEvent} className="rounded-xl bg-slate-950 px-3 py-2 text-xs font-black text-white shadow-sm disabled:opacity-40">Next Visit</button>
                     )}
                 </div>
             </div>
+
+            {canManage && movingEventId && (
+                <section className="rounded-2xl border border-[#006a61]/25 bg-emerald-50 p-3 shadow-sm">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <p className="text-sm font-black text-[#005049]">Moving: {localEvents.find((event) => event.id === movingEventId)?.title || 'selected visit'}. Choose the new day below.</p>
+                        <button type="button" onClick={() => setMovingEventId(null)} className="rounded-xl border border-[#006a61]/25 bg-white px-3 py-2 text-xs font-black text-[#006a61]">Cancel move</button>
+                    </div>
+                </section>
+            )}
 
             <div className="grid grid-cols-3 gap-2 md:gap-4">
                 <ScheduleMetric label="This week" value={weekEvents || localEvents.length} detail="scheduled visits" tone="green" />
@@ -6352,7 +6381,7 @@ function EventCalendarSection({ csrf, events, registrations = [], title = 'Calen
                         const active = isSameCalendarDay(date, selectedDate);
                         const count = eventsForDay(date).length;
                         return (
-                            <button key={date.toISOString()} type="button" onClick={() => setSelectedDate(date)} onDragOver={(event) => canManage && event.preventDefault()} onDrop={() => handleDropOnDate(date)} className={cx('relative rounded-xl px-1 py-2 text-center transition', active ? 'bg-[#006a61] text-white shadow-sm' : 'text-slate-500', draggingId && canManage && 'ring-2 ring-[#006a61]/30')}>
+                            <button key={date.toISOString()} type="button" onClick={() => chooseDate(date)} onDragOver={(event) => canManage && event.preventDefault()} onDrop={() => handleDropOnDate(date)} className={cx('relative rounded-xl px-1 py-2 text-center transition', active ? 'bg-[#006a61] text-white shadow-sm' : 'text-slate-500', (draggingId || movingEventId) && canManage && 'ring-2 ring-[#006a61]/30')}>
                                 <span className="block text-[9px] font-black uppercase">{date.toLocaleDateString([], { weekday: 'short' })}</span>
                                 <span className="mt-1 block text-sm font-black">{date.getDate()}</span>
                                 {count > 0 && <span className={cx('mx-auto mt-1 block h-1.5 w-1.5 rounded-full', active ? 'bg-white' : 'bg-[#006a61]')} />}
@@ -6369,7 +6398,7 @@ function EventCalendarSection({ csrf, events, registrations = [], title = 'Calen
                             ) : 'No visits scheduled for this day.'}
                         </div>
                     ) : dayEvents.map((event) => (
-                        <MobileScheduleCard key={event.id} event={event} active={selectedId === event.id} canManage={canManage} onSelect={() => selectEvent(event)} onMove={() => prepareMove(event.id, addDays(new Date(event.startsAt || selectedDate), 1))} />
+                        <MobileScheduleCard key={event.id} event={event} active={selectedId === event.id} canManage={canManage} onSelect={() => selectEvent(event)} onMove={() => startMove(event.id)} />
                     ))}
                 </div>
             </section>
@@ -6400,12 +6429,13 @@ function EventCalendarSection({ csrf, events, registrations = [], title = 'Calen
                                 ) : datedEvents.map((event) => {
                                     const active = selectedId === event.id;
                                     return (
-                                        <button key={event.id} type="button" draggable={canManage} onDragStart={() => { setDraggingId(event.id); setSelectedId(event.id); }} onDragEnd={() => setDraggingId(null)} onClick={() => selectEvent(event)} className={cx('w-full cursor-grab rounded-xl border p-3 text-left transition active:cursor-grabbing', active ? 'border-[#006a61] bg-white shadow-sm' : 'border-transparent bg-white/70 hover:bg-white', draggingId === event.id && 'opacity-60 ring-2 ring-[#006a61]/30')}>
+                                        <button key={event.id} type="button" draggable={canManage} onDragStart={() => { setDraggingId(event.id); setSelectedId(event.id); }} onDragEnd={() => setDraggingId(null)} onClick={() => selectEvent(event)} className={cx('w-full cursor-grab rounded-xl border p-3 text-left transition active:cursor-grabbing', active ? 'border-[#006a61] bg-white shadow-sm' : 'border-transparent bg-white/70 hover:bg-white', draggingId === event.id && 'opacity-60 ring-2 ring-[#006a61]/30', movingEventId === event.id && 'ring-2 ring-[#006a61]/40')}>
                                             <div className="flex items-start justify-between gap-2">
                                                 <span className="min-w-0 truncate text-xs font-black text-slate-950">{event.title}</span>
                                                 <span className="shrink-0 text-[10px] font-black text-[#006a61]">{formatShortDate(event.startsAt)}</span>
                                             </div>
-                                            <p className="mt-1 truncate text-[11px] font-semibold text-slate-500">{formatTimeRange(event.startsAt, event.endsAt)} · {event.venue || 'Venue TBA'}</p>
+                                            <p className="mt-1 truncate text-[11px] font-semibold text-slate-500">{formatTimeRange(event.startsAt, event.endsAt)} - {event.venue || 'Venue TBA'}</p>
+                                            {canManage && <span onClick={(click) => { click.stopPropagation(); startMove(event.id); }} className="mt-2 inline-flex rounded-lg bg-slate-950 px-3 py-1.5 text-[11px] font-black text-white">Move</span>}
                                         </button>
                                     );
                                 })}
@@ -6418,7 +6448,7 @@ function EventCalendarSection({ csrf, events, registrations = [], title = 'Calen
                                     const active = isSameCalendarDay(date, selectedDate);
                                     const count = eventsForDay(date).length;
                                     return (
-                                        <button key={date.toISOString()} type="button" onClick={() => setSelectedDate(date)} onDragOver={(event) => canManage && event.preventDefault()} onDrop={() => handleDropOnDate(date)} className={cx('rounded-2xl border p-3 text-center transition', active ? 'border-[#006a61] bg-[#006a61] text-white shadow-sm' : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-white', draggingId && canManage && 'border-dashed ring-2 ring-[#006a61]/20')}>
+                                        <button key={date.toISOString()} type="button" onClick={() => chooseDate(date)} onDragOver={(event) => canManage && event.preventDefault()} onDrop={() => handleDropOnDate(date)} className={cx('rounded-2xl border p-3 text-center transition', active ? 'border-[#006a61] bg-[#006a61] text-white shadow-sm' : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-white', (draggingId || movingEventId) && canManage && 'border-dashed ring-2 ring-[#006a61]/20')}>
                                             <span className="block text-[10px] font-black uppercase">{date.toLocaleDateString([], { weekday: 'short' })}</span>
                                             <span className="mt-1 block text-lg font-black">{date.getDate()}</span>
                                             <span className={cx('mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-black', active ? 'bg-white/15 text-white' : 'bg-white text-slate-500')}>{count}</span>
@@ -6433,7 +6463,7 @@ function EventCalendarSection({ csrf, events, registrations = [], title = 'Calen
                                         <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">Selected day</p>
                                         <h3 className="text-base font-black text-slate-950">{selectedDate.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' })}</h3>
                                     </div>
-                                    {canManage && selectedEvent && <button type="button" onClick={() => setPendingDate(selectedDate)} className="rounded-xl bg-slate-950 px-3 py-2 text-xs font-black text-white">Move selected here</button>}
+                                    {canManage && selectedEvent && <button type="button" onClick={() => movingEventId ? prepareMove(movingEventId, selectedDate) : startMove(selectedEvent.id)} className="rounded-xl bg-slate-950 px-3 py-2 text-xs font-black text-white">{movingEventId ? 'Use this day' : 'Move selected'}</button>}
                                 </div>
                                 <div className="grid gap-2">
                                     {dayEvents.length === 0 ? (
@@ -6448,10 +6478,11 @@ function EventCalendarSection({ csrf, events, registrations = [], title = 'Calen
                                                 </div>
                                                 <div className="min-w-0">
                                                     <h4 className="truncate text-sm font-black text-slate-950">{event.title}</h4>
-                                                    <p className="mt-1 truncate text-xs font-semibold text-slate-500">{event.venue || 'Venue TBA'} {event.location ? `· ${event.location}` : ''}</p>
+                                                    <p className="mt-1 truncate text-xs font-semibold text-slate-500">{event.venue || 'Venue TBA'} {event.location ? `- ${event.location}` : ''}</p>
                                                 </div>
                                                 <div className="flex items-center justify-between gap-2 sm:justify-end">
                                                     <span className={cx('rounded-full px-2 py-1 text-[10px] font-black', full ? 'bg-red-50 text-red-700' : 'bg-blue-50 text-blue-700')}>{event.confirmedSeats}/{event.capacity}</span>
+                                                    {canManage && <span onClick={(click) => { click.stopPropagation(); startMove(event.id); }} className="rounded-lg bg-slate-950 px-3 py-1.5 text-[11px] font-black text-white">Move</span>}
                                                     <ChevronRight size={16} className="text-slate-400" />
                                                 </div>
                                             </button>
@@ -6536,7 +6567,7 @@ function MobileScheduleCard({ event, active, canManage = false, onSelect, onMove
                 <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-100 pt-2">
                     <span className="text-[10px] font-black uppercase tracking-wide text-slate-400">{event.status || 'published'}</span>
                     {canManage ? (
-                        <span onClick={(click) => { click.stopPropagation(); onMove(); }} className="rounded-lg bg-slate-950 px-3 py-1.5 text-[11px] font-black text-white">Move here</span>
+                        <span onClick={(click) => { click.stopPropagation(); onMove(); }} className="rounded-lg bg-slate-950 px-3 py-1.5 text-[11px] font-black text-white">Move</span>
                     ) : (
                         <span className="rounded-lg bg-slate-100 px-3 py-1.5 text-[11px] font-black text-slate-600">View</span>
                     )}
@@ -8166,7 +8197,7 @@ function formatTimeRange(start, end) {
     const startTime = new Date(start).toLocaleTimeString([], options);
     const endTime = end ? new Date(end).toLocaleTimeString([], options) : null;
 
-    return endTime ? `${startTime} â€“ ${endTime}` : startTime;
+    return endTime ? `${startTime} - ${endTime}` : startTime;
 }
 
 function formatTimeOnly(value) {
