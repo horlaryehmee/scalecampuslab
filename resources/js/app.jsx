@@ -6450,7 +6450,17 @@ function EventCalendarSection({ csrf, events, registrations = [], title = 'Calen
                 <CalendarEventDrawer event={selectedEvent} roster={selectedRoster} />
             </div>
 
-            {moveMessage && <p className={cx('rounded-xl px-4 py-3 text-sm font-black', moveMessage.includes('Unable') ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-700')}>{moveMessage}</p>}
+            {moveMessage && (
+                <div className="fixed left-3 right-3 top-20 z-[80] md:left-auto md:right-6 md:top-6 md:w-full md:max-w-sm">
+                    <div className={cx('flex items-start gap-3 rounded-2xl border px-4 py-3 text-sm font-black shadow-2xl backdrop-blur', moveMessage.includes('Unable') ? 'border-red-200 bg-red-50/95 text-red-800' : 'border-emerald-200 bg-emerald-50/95 text-emerald-800')}>
+                        {moveMessage.includes('Unable') ? <X size={18} className="mt-0.5 shrink-0" /> : <CheckCircle2 size={18} className="mt-0.5 shrink-0" />}
+                        <span className="min-w-0 flex-1">{moveMessage}</span>
+                        <button type="button" onClick={() => setMoveMessage('')} className="rounded-full p-1 opacity-70 hover:bg-black/5 hover:opacity-100" aria-label="Dismiss notification">
+                            <X size={14} />
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {pendingDate && selectedEvent && (
                 <section className="sticky bottom-20 z-20 ml-auto w-full rounded-2xl border border-slate-700 bg-slate-950 p-3 text-white shadow-2xl md:bottom-4 md:max-w-2xl">
