@@ -888,8 +888,8 @@ function DashboardFrame({ csrf, children, role, title, subtitle, activeId, activ
 function MobileBottomDock({ items, role, activeId, onSelect, onOpenMore }) {
     const preferred = {
         university: ['overview', 'events', 'visit-requests', 'calendar'],
-        school: ['overview', 'events', 'bookings', 'itinerary'],
-        high_school: ['overview', 'events', 'bookings', 'itinerary'],
+        school: ['overview', 'events', 'students', 'messages'],
+        high_school: ['overview', 'events', 'students', 'messages'],
         student: ['overview', 'my-visits', 'explore-visits', 'messages'],
         admin: ['overview', 'universities', 'events', 'analytics'],
     };
@@ -940,6 +940,7 @@ function mobileDockLabel(title) {
         'Partner Schools': 'Schools',
         'Discover Visits': 'Discover',
         'My Requests': 'Requests',
+        'My Students': 'Students',
         'My Schedule': 'Schedule',
         'Explore Visits': 'Explore',
         'My Visits': 'Visits',
@@ -4035,9 +4036,140 @@ function SchoolCoordinatorOverviewSection({ events = [], registrations = [], sch
     const engagementScore = Math.min(9.8, Math.max(4.2, ((activeRequests.length * 0.8) + (confirmedVisits.length * 1.1) + (studentRows.length * 0.03) + 5))).toFixed(1);
     const upcomingVisits = schoolOverviewUpcomingVisits(confirmedVisits, visitRequests, publishedEvents, events).slice(0, 5);
     const latestMessage = messages[0];
+    const todayVisits = upcomingVisits.slice(0, 3);
+    const firstName = (messages[0]?.sender || schoolProfileNameFromStudents(studentRows) || 'Coordinator').split(' ')[0];
+    const activityItems = [
+        latestMessage && {
+            id: 'message',
+            icon: MailCheck,
+            tone: 'text-[#006a61]',
+            title: latestMessage.subject || 'New message received',
+            detail: latestMessage.preview || latestMessage.content || 'A university partner sent an update.',
+            time: latestMessage.createdAt ? formatRelativeTime(latestMessage.createdAt) : 'Recently',
+        },
+        pendingRequests[0] && {
+            id: 'request',
+            icon: Inbox,
+            tone: 'text-amber-600',
+            title: `${pendingRequests[0].university || 'University partner'} request is pending`,
+            detail: pendingRequests[0].event || pendingRequests[0].notes || 'Review the latest visit request details.',
+            time: pendingRequests[0].createdAt ? formatRelativeTime(pendingRequests[0].createdAt) : 'Today',
+        },
+        confirmedVisits[0] && {
+            id: 'confirmed',
+            icon: CheckCircle2,
+            tone: 'text-emerald-600',
+            title: `${confirmedVisits[0].event || 'Visit'} confirmed`,
+            detail: `${Number(confirmedVisits[0].partySize || 0).toLocaleString()} student seat(s) confirmed.`,
+            time: confirmedVisits[0].createdAt ? formatRelativeTime(confirmedVisits[0].createdAt) : 'Recently',
+        },
+    ].filter(Boolean);
 
     return (
-        <div className="grid gap-6">
+        <>
+        <div className="grid gap-5 md:hidden">
+            <section className="space-y-2">
+                <div>
+                    <h1 className="text-[30px] font-black leading-tight text-slate-950">Welcome back, {firstName}</h1>
+                    <p className="mt-1 text-sm leading-5 text-slate-500">Here is what is happening today across your students and visit requests.</p>
+                </div>
+                <div className="mt-4 flex items-start gap-4 rounded-xl bg-[#131b2e] p-5 text-white shadow-lg shadow-slate-950/10">
+                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#006a61] text-white">
+                        <Sparkles size={20} />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                        <p className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-300">Activity Summary</p>
+                        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm font-semibold text-slate-100">
+                            <p><span className="font-black text-[#89f5e7]">{pendingRequests.length}</span> new visit invites</p>
+                            <p><span className="font-black text-[#89f5e7]">{studentRows.length}</span> student profiles</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section className="grid grid-cols-2 gap-3">
+                <button type="button" onClick={() => setSection?.('students')} className="col-span-2 flex items-center justify-between rounded-xl border border-slate-200 bg-[#eff4ff] p-5 text-left">
+                    <span>
+                        <span className="block text-[11px] font-black uppercase tracking-[0.08em] text-slate-500">Active Students</span>
+                        <span className="mt-1 block text-3xl font-black text-slate-950">{studentTotal.toLocaleString()}</span>
+                    </span>
+                    <span className="flex flex-col items-end text-[#006a61]">
+                        <span className="text-xs font-black">+{Math.max(1, Math.round(studentTotal / 100))}%</span>
+                        <Activity size={28} />
+                    </span>
+                </button>
+                <button type="button" onClick={() => setSection?.('calendar')} className="rounded-xl border border-slate-200 bg-white p-5 text-left">
+                    <CalendarDays className="text-[#006a61]" size={23} />
+                    <p className="mt-4 text-[11px] font-black uppercase tracking-[0.08em] text-slate-500">Visits</p>
+                    <p className="mt-1 text-2xl font-black text-slate-950">{String(confirmedVisits.length || scheduledRequests.length).padStart(2, '0')}</p>
+                </button>
+                <button type="button" onClick={() => setSection?.('bookings')} className="rounded-xl border border-slate-200 bg-white p-5 text-left">
+                    <Inbox className="text-rose-600" size={23} />
+                    <p className="mt-4 text-[11px] font-black uppercase tracking-[0.08em] text-slate-500">Pending</p>
+                    <p className="mt-1 text-2xl font-black text-slate-950">{String(pendingRequests.length).padStart(2, '0')}</p>
+                </button>
+            </section>
+
+            <section className="space-y-3">
+                <div className="flex items-center justify-between">
+                    <h2 className="text-xl font-black text-slate-950">Today's Schedule</h2>
+                    <button type="button" onClick={() => setSection?.('calendar')} className="text-xs font-black text-[#006a61]">View Calendar</button>
+                </div>
+                <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+                    <div className="relative space-y-6 p-5">
+                        <div className="absolute bottom-8 left-9 top-8 w-px bg-slate-200" />
+                        {todayVisits.length ? todayVisits.map((visit, index) => (
+                            <button key={visit.id} type="button" onClick={() => setSection?.(visit.status === 'confirmed' ? 'calendar' : 'bookings')} className="relative z-10 flex w-full gap-4 text-left">
+                                <span className={cx('grid h-8 w-8 shrink-0 place-items-center rounded-full', index === 0 ? 'bg-[#86f2e4] text-[#006a61]' : index === 1 ? 'bg-[#131b2e] text-white' : 'bg-[#e5eeff] text-slate-600')}>
+                                    {index === 1 ? <UsersRound size={15} /> : <School size={15} />}
+                                </span>
+                                <span className="min-w-0 flex-1 pb-1">
+                                    <span className="flex items-start justify-between gap-2">
+                                        <span className="truncate text-sm font-black text-slate-950">{visit.university}</span>
+                                        <span className="shrink-0 text-[11px] font-bold text-slate-500">{formatTimeOnly(visit.date)}</span>
+                                    </span>
+                                    <span className="mt-1 block text-sm text-slate-500">{visit.program}</span>
+                                    <span className="mt-2 flex flex-wrap gap-2">
+                                        <span className="rounded bg-[#dce9ff] px-2 py-0.5 text-[10px] font-black uppercase text-slate-600">{visit.venue}</span>
+                                        <span className={cx('rounded px-2 py-0.5 text-[10px] font-black uppercase', visit.status === 'confirmed' ? 'bg-[#86f2e4]/40 text-[#006a61]' : 'bg-amber-50 text-amber-700')}>{visit.statusLabel}</span>
+                                    </span>
+                                </span>
+                            </button>
+                        )) : (
+                            <div className="relative z-10 rounded-lg bg-slate-50 p-5 text-center text-sm font-semibold text-slate-500">No scheduled visits yet. Discover visits to request one.</div>
+                        )}
+                    </div>
+                </div>
+            </section>
+
+            <section className="space-y-3">
+                <h2 className="text-xl font-black text-slate-950">Recent Activity</h2>
+                <div className="space-y-2">
+                    {activityItems.length ? activityItems.map((item) => {
+                        const Icon = item.icon;
+                        return (
+                            <article key={item.id} className="flex gap-4 rounded-xl border border-slate-200 bg-white p-4">
+                                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-slate-200 bg-slate-50">
+                                    <Icon className={item.tone} size={19} />
+                                </span>
+                                <span className="min-w-0">
+                                    <span className="block text-sm leading-5 text-slate-700"><span className="font-black text-slate-950">{item.title}</span> {item.detail}</span>
+                                    <span className="mt-1 block text-[11px] font-bold text-slate-400">{item.time}</span>
+                                </span>
+                            </article>
+                        );
+                    }) : (
+                        <div className="rounded-xl border border-slate-200 bg-white p-5 text-sm font-semibold text-slate-500">Activity will appear after visit requests, messages, or student updates.</div>
+                    )}
+                </div>
+            </section>
+
+            <button type="button" onClick={() => setSection?.('events')} className="fixed bottom-24 right-5 z-30 grid h-14 w-14 place-items-center rounded-2xl bg-[#006a61] text-white shadow-xl shadow-slate-950/20">
+                <Plus size={26} />
+            </button>
+        </div>
+
+        <div className="hidden gap-6 md:grid">
             <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
                 <div>
                     <h1 className="text-3xl font-black tracking-tight text-slate-950">Overview Dashboard</h1>
@@ -4195,6 +4327,7 @@ function SchoolCoordinatorOverviewSection({ events = [], registrations = [], sch
                 </section>
             </div>
         </div>
+        </>
     );
 }
 
@@ -7093,6 +7226,35 @@ function formatTimeRange(start, end) {
     const endTime = end ? new Date(end).toLocaleTimeString([], options) : null;
 
     return endTime ? `${startTime} â€“ ${endTime}` : startTime;
+}
+
+function formatTimeOnly(value) {
+    if (!value) return 'TBA';
+
+    return new Date(value).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+
+function formatRelativeTime(value) {
+    if (!value) return 'Recently';
+
+    const timestamp = new Date(value).getTime();
+    if (Number.isNaN(timestamp)) return 'Recently';
+
+    const diff = Date.now() - timestamp;
+    const minutes = Math.max(0, Math.round(diff / 60000));
+    if (minutes < 1) return 'Just now';
+    if (minutes < 60) return `${minutes} min ago`;
+
+    const hours = Math.round(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+
+    const days = Math.round(hours / 24);
+    return days === 1 ? 'Yesterday' : `${days}d ago`;
+}
+
+function schoolProfileNameFromStudents(students = []) {
+    const student = students.find((item) => item?.name);
+    return student?.name || '';
 }
 
 function calendarMonthCells(cursor) {
