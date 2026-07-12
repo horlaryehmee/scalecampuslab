@@ -419,6 +419,17 @@ function AdminLogin({ csrf, errors }) {
 }
 
 function LoginPage({ csrf, errors, old, title, subtitle, action, mode }) {
+    const demoAccounts = mode === 'admin'
+        ? [
+            ['Admin', 'admin@scalecampuslab.test', '/admin/login'],
+        ]
+        : [
+            ['University', 'university@scalecampuslab.test', '/login'],
+            ['School', 'school@scalecampuslab.test', '/login'],
+            ['Student', 'student@scalecampuslab.test', '/login'],
+            ['Admin', 'admin@scalecampuslab.test', '/admin/login'],
+        ];
+
     return (
         <CenteredShell>
             <div className="mx-auto w-full max-w-md rounded-[2rem] border border-white/15 bg-black/55 p-7 shadow-2xl shadow-black/40 backdrop-blur-2xl">
@@ -449,6 +460,24 @@ function LoginPage({ csrf, errors, old, title, subtitle, action, mode }) {
                         Sign in
                     </button>
                 </form>
+
+                <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.045] p-4">
+                    <p className="text-xs font-black uppercase tracking-normal text-white/45">Demo accounts</p>
+                    <div className="mt-3 grid gap-2">
+                        {demoAccounts.map(([label, email, demoAction]) => (
+                            <form key={email} action={demoAction} method="POST">
+                                <input type="hidden" name="_token" value={csrf} />
+                                <input type="hidden" name="email" value={email} />
+                                <input type="hidden" name="password" value="password" />
+                                <button className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-black/25 px-3 py-2.5 text-left text-sm font-bold text-white/80 transition hover:border-lime-300/35 hover:bg-lime-300/10 hover:text-white">
+                                    <span>{label}</span>
+                                    <span className="text-xs font-semibold text-white/40">{email}</span>
+                                </button>
+                            </form>
+                        ))}
+                    </div>
+                    <p className="mt-3 text-xs font-semibold text-white/35">Password: password</p>
+                </div>
 
                 <div className="mt-6 text-center text-xs leading-6 text-white/45">
                     {mode === 'admin' ? (
