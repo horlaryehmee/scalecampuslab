@@ -35,6 +35,8 @@ Route::middleware('auth')->group(function (): void {
     Route::post('/campus-events', [CampusEventController::class, 'store'])->middleware('role:university')->name('campus-events.store');
     Route::put('/campus-events/{event}', [CampusEventController::class, 'update'])->middleware('role:university')->name('campus-events.update');
     Route::delete('/campus-events/{event}', [CampusEventController::class, 'destroy'])->middleware('role:university')->name('campus-events.destroy');
+    Route::post('/campus-events/{event}/duplicate', [CampusEventController::class, 'duplicate'])->middleware('role:university')->name('campus-events.duplicate');
+    Route::post('/campus-events/{event}/invite-schools', [CampusEventController::class, 'inviteSchools'])->middleware('role:university')->name('campus-events.invite-schools');
     Route::post('/campus-events/{event}/registrations', [CampusEventController::class, 'register'])->middleware('role:student,school,high_school')->name('campus-events.register');
     Route::post('/partner-schools/{school}/schedule-visit', [VisitOperationsController::class, 'schedulePartnerVisit'])->middleware('role:university')->name('partner-schools.schedule-visit');
     Route::post('/visit-requests', [VisitOperationsController::class, 'storeRequest'])->middleware('role:university,school,high_school')->name('visit-requests.store');

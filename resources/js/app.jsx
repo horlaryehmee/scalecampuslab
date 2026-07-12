@@ -746,7 +746,7 @@ function DashboardFrame({ csrf, children, role, title, subtitle, activeId, activ
     const navItems = flatNavItems(navGroups);
     const compactMobilePage = ['school', 'high_school'].includes(role) && activeId === 'bookings';
     const customHeaderPages = {
-        university: ['overview', 'events', 'visit-requests', 'schools', 'attendees', 'calendar', 'insights', 'messages', 'settings'],
+        university: ['overview', 'events', 'visit-requests', 'schools', 'attendees', 'calendar', 'insights', 'messages', 'university-prd', 'settings'],
         school: ['overview', 'events', 'bookings', 'itinerary', 'students', 'calendar', 'messages', 'reports', 'settings'],
         high_school: ['overview', 'events', 'bookings', 'itinerary', 'students', 'calendar', 'messages', 'reports', 'settings'],
         admin: ['overview', 'universities', 'schools', 'events', 'users', 'analytics', 'health', 'settings'],
@@ -1600,9 +1600,11 @@ function UniversityOverviewSection({ events, registrations, schools, analytics, 
     );
 }
 
-function UniversityVisitsSection({ csrf, events, registrations, errors, old }) {
+function UniversityVisitsSection({ csrf, events, registrations, schools = [], errors, old }) {
     const hasEventFormErrors = Boolean((old?.title || old?.venue || old?.starts_at) && Object.keys(errors || {}).length);
     const [editor, setEditor] = useState(hasEventFormErrors ? {} : null);
+    const [detail, setDetail] = useState(null);
+    const [inviteProgram, setInviteProgram] = useState(null);
     const [status, setStatus] = useState('active');
     const [query, setQuery] = useState('');
     const [date, setDate] = useState('');
@@ -1640,7 +1642,9 @@ function UniversityVisitsSection({ csrf, events, registrations, errors, old }) {
                 <button type="button" onClick={() => setEditor({})} className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#006a61] px-4 py-2.5 text-sm font-black text-white shadow-sm hover:opacity-90"><Plus size={16} /> Create Program</button>
             </div>
 
-            {editor && <UniversityEventEditor csrf={csrf} event={editor.id ? editor : null} errors={errors} old={old} onClose={() => setEditor(null)} />}
+            {editor && <UniversityEventEditor csrf={csrf} event={editor.id ? editor : null} events={events} errors={errors} old={old} onClose={() => setEditor(null)} />}
+            {detail && <UniversityProgramDetailModal event={detail} registrations={registrations} schools={schools} onClose={() => setDetail(null)} onEdit={() => { setEditor(detail); setDetail(null); }} onInvite={() => { setInviteProgram(detail); setDetail(null); }} />}
+            {inviteProgram && <InviteSchoolsModal csrf={csrf} event={inviteProgram} schools={schools} onClose={() => setInviteProgram(null)} />}
 
             <div className="grid gap-3 md:grid-cols-2">
                 <button type="button" onClick={() => setStatus('archived')} className="flex items-center justify-between rounded-xl bg-slate-950 p-3 text-left text-white shadow-sm">
@@ -1695,7 +1699,7 @@ function UniversityVisitsSection({ csrf, events, registrations, errors, old }) {
                                             </div>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-3 md:justify-end">
+                                    <div className="flex flex-wrap items-center gap-2 md:justify-end">
                                         {event.status === 'draft' ? (
                                             <UniversityEventStatusForm csrf={csrf} event={event} status="published" label="Publish" />
                                         ) : event.status === 'published' ? (
@@ -1707,6 +1711,12 @@ function UniversityVisitsSection({ csrf, events, registrations, errors, old }) {
                                             <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[#e5eeff]"><div className={cx('h-full rounded-full', percent >= 100 ? 'bg-red-500' : 'bg-[#006a61]')} style={{ width: `${percent}%` }} /></div>
                                             <span className="w-9 text-right text-[11px] font-black text-[#006a61]">{percent}%</span>
                                         </div>
+                                        <button type="button" onClick={() => setDetail(event)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 shadow-sm hover:border-[#006a61]/40 hover:bg-emerald-50 hover:text-[#006a61]">Details</button>
+                                        <form action={`/campus-events/${event.id}/duplicate`} method="POST">
+                                            <input type="hidden" name="_token" value={csrf} />
+                                            <button className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 shadow-sm hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700">Copy</button>
+                                        </form>
+                                        <button type="button" onClick={() => setInviteProgram(event)} className="rounded-xl border border-[#006a61]/25 bg-white px-3 py-2 text-xs font-black text-[#006a61] shadow-sm hover:bg-emerald-50">Invite</button>
                                         <button type="button" onClick={() => setEditor(event)} className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-[#006a61]/40 hover:bg-emerald-50 hover:text-[#006a61]" aria-label={`Edit ${event.title}`} title={`Edit ${event.title}`}><Edit3 size={16} /></button>
                                         <form action={`/campus-events/${event.id}`} method="POST" onSubmit={(formEvent) => { if (!window.confirm(`Delete ${event.title}? This cannot be undone.`)) formEvent.preventDefault(); }}>
                                             <input type="hidden" name="_token" value={csrf} />
@@ -1737,19 +1747,30 @@ function UniversityEventStatusForm({ csrf, event, status, label, tone = 'primary
             <input type="hidden" name="title" value={event.title || ''} />
             <input type="hidden" name="starts_at" value={toInputDateTime(event.startsAt)} />
             <input type="hidden" name="ends_at" value={toInputDateTime(event.endsAt)} />
+            <input type="hidden" name="registration_opens_at" value={toInputDateTime(event.registrationOpensAt)} />
+            <input type="hidden" name="registration_closes_at" value={toInputDateTime(event.registrationClosesAt)} />
             <input type="hidden" name="venue" value={event.venue || 'Main Campus'} />
             <input type="hidden" name="location" value={event.location || ''} />
             <input type="hidden" name="description" value={event.description || ''} />
             <input type="hidden" name="capacity" value={event.capacity || 50} />
+            <input type="hidden" name="per_school_capacity" value={event.perSchoolCapacity || ''} />
+            <input type="hidden" name="per_group_capacity" value={event.perGroupCapacity || ''} />
+            <input type="hidden" name="visibility" value={event.visibility || 'public'} />
+            <input type="hidden" name="lifecycle_stage" value={status === 'published' ? 'open' : status === 'cancelled' ? 'archived' : (event.lifecycleStage || 'planning')} />
             <input type="hidden" name="status" value={status} />
             <button className={cx('rounded-lg px-3 py-1.5 text-xs font-black', tone === 'primary' ? 'border border-[#006a61]/30 text-[#006a61] hover:bg-emerald-50' : 'border border-slate-200 text-slate-500 hover:bg-slate-50')}>{label}</button>
         </form>
     );
 }
 
-function UniversityEventEditor({ csrf, event, errors, old, onClose }) {
+function UniversityEventEditor({ csrf, event, events = [], errors, old, onClose }) {
     const isEdit = Boolean(event);
     const value = (key, fallback = '') => old[key] || event?.[key] || fallback;
+    const selectedVenue = value('venue');
+    const selectedStart = value('startsAt') || value('starts_at');
+    const conflict = selectedVenue && selectedStart
+        ? events.find((item) => item.id !== event?.id && item.status !== 'cancelled' && String(item.venue || '').toLowerCase() === String(selectedVenue).toLowerCase() && toInputDateTime(item.startsAt) === toInputDateTime(selectedStart))
+        : null;
     return (
         <section className="fixed inset-0 z-[90] grid place-items-center bg-slate-950/55 px-3 py-5 backdrop-blur-sm">
             <div className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-3xl border border-white/70 bg-white shadow-2xl">
@@ -1766,17 +1787,200 @@ function UniversityEventEditor({ csrf, event, errors, old, onClose }) {
                     {isEdit && <input type="hidden" name="_method" value="PUT" />}
                     <LightField label="Program title" name="title" defaultValue={value('title')} error={errors.title?.[0]} />
                     <LightField label="Venue" name="venue" defaultValue={value('venue')} error={errors.venue?.[0]} />
+                    {conflict && <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm font-bold text-amber-800 md:col-span-2">Conflict warning: {conflict.title} already uses this venue and start time. The backend will block overlapping schedules.</div>}
                     <LightField label="Start date and time" name="starts_at" type="datetime-local" defaultValue={toInputDateTime(value('startsAt') || value('starts_at'))} error={errors.starts_at?.[0]} />
                     <LightField label="End date and time" name="ends_at" type="datetime-local" defaultValue={toInputDateTime(value('endsAt') || value('ends_at'))} error={errors.ends_at?.[0]} />
+                    <LightField label="Registration opens" name="registration_opens_at" type="datetime-local" defaultValue={toInputDateTime(value('registrationOpensAt') || value('registration_opens_at'))} error={errors.registration_opens_at?.[0]} />
+                    <LightField label="Registration closes" name="registration_closes_at" type="datetime-local" defaultValue={toInputDateTime(value('registrationClosesAt') || value('registration_closes_at'))} error={errors.registration_closes_at?.[0]} />
                     <LightField label="Location" name="location" defaultValue={value('location')} error={errors.location?.[0]} />
                     <LightField label="Capacity" name="capacity" type="number" min="1" defaultValue={value('capacity', '50')} error={errors.capacity?.[0]} />
+                    <LightField label="Per-school capacity" name="per_school_capacity" type="number" min="1" defaultValue={value('perSchoolCapacity') || value('per_school_capacity')} error={errors.per_school_capacity?.[0]} />
+                    <LightField label="Per-group capacity" name="per_group_capacity" type="number" min="1" defaultValue={value('perGroupCapacity') || value('per_group_capacity')} error={errors.per_group_capacity?.[0]} />
                     <div className="md:col-span-2"><LightTextarea label="Description" name="description" defaultValue={value('description')} error={errors.description?.[0]} /></div>
                     <label className="text-sm font-semibold text-slate-700">Status<select name="status" defaultValue={value('status', 'published')} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-950 outline-none focus:border-[#006a61] focus:ring-4 focus:ring-emerald-50"><option value="published">Active</option><option value="draft">Draft</option><option value="cancelled">Archived</option></select></label>
+                    <label className="text-sm font-semibold text-slate-700">Visibility<select name="visibility" defaultValue={value('visibility', 'public')} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-950 outline-none focus:border-[#006a61] focus:ring-4 focus:ring-emerald-50"><option value="public">Public</option><option value="invite_only">Invite only</option><option value="private">Private</option></select></label>
+                    <label className="text-sm font-semibold text-slate-700">Lifecycle stage<select name="lifecycle_stage" defaultValue={value('lifecycleStage') || value('lifecycle_stage', 'planning')} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-950 outline-none focus:border-[#006a61] focus:ring-4 focus:ring-emerald-50"><option value="planning">Planning</option><option value="inviting">Inviting</option><option value="open">Open</option><option value="full">Full</option><option value="in_progress">In progress</option><option value="completed">Completed</option><option value="archived">Archived</option></select></label>
                     <div className="grid grid-cols-2 gap-2 md:items-end">
                         <button type="button" onClick={onClose} className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-700 hover:bg-slate-50">Cancel</button>
                         <button className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-black text-white hover:bg-slate-800">{isEdit ? 'Save Changes' : 'Create Program'}</button>
                     </div>
                 </form>
+            </div>
+        </section>
+    );
+}
+
+function UniversityProgramDetailModal({ event, registrations = [], schools = [], onClose, onEdit, onInvite }) {
+    const roster = registrations.filter((registration) => Number(registration.eventId) === Number(event.id) || registration.event === event.title);
+    const confirmed = roster.filter((registration) => registration.status === 'confirmed');
+    const waitlisted = roster.filter((registration) => registration.status === 'waitlisted');
+    const percent = eventCapacityPercent(event);
+    const invitedCount = (event.invitedSchoolIds || []).length;
+    const lifecycle = event.lifecycleLog || [];
+
+    return (
+        <section className="fixed inset-0 z-[90] grid place-items-center bg-slate-950/55 px-3 py-5 backdrop-blur-sm">
+            <div className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl border border-white/70 bg-white shadow-2xl">
+                <div className="flex items-start justify-between gap-4 border-b border-slate-100 p-4 md:p-5">
+                    <div className="min-w-0">
+                        <p className="text-xs font-black uppercase tracking-[0.14em] text-[#006a61]">Program detail</p>
+                        <h2 className="mt-1 truncate text-2xl font-black text-slate-950">{event.title}</h2>
+                        <p className="mt-1 text-sm font-semibold text-slate-500">{formatDateTime(event.startsAt)} - {event.venue || 'Venue TBA'}</p>
+                    </div>
+                    <button type="button" onClick={onClose} className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-slate-200 bg-white text-slate-500 shadow-sm"><X size={18} /></button>
+                </div>
+                <div className="grid gap-4 overflow-y-auto p-4 lg:grid-cols-[1.25fr_0.75fr] md:p-5">
+                    <div className="space-y-4">
+                        <section className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                            <MiniStat label="Confirmed" value={confirmed.reduce((sum, row) => sum + Number(row.partySize || 0), 0)} />
+                            <MiniStat label="Waitlisted" value={waitlisted.length} />
+                            <MiniStat label="Capacity" value={`${percent}%`} />
+                            <MiniStat label="Invited schools" value={invitedCount} />
+                        </section>
+                        <section className="rounded-2xl border border-slate-200 bg-white p-4">
+                            <h3 className="text-sm font-black text-slate-950">Logistics & controls</h3>
+                            <div className="mt-3 grid gap-3 text-sm font-semibold text-slate-600 md:grid-cols-2">
+                                <p>Visibility: <span className="font-black capitalize text-slate-950">{String(event.visibility || 'public').replace('_', ' ')}</span></p>
+                                <p>Lifecycle: <span className="font-black capitalize text-slate-950">{String(event.lifecycleStage || 'planning').replace('_', ' ')}</span></p>
+                                <p>Registration opens: <span className="font-black text-slate-950">{formatDateTime(event.registrationOpensAt)}</span></p>
+                                <p>Registration closes: <span className="font-black text-slate-950">{formatDateTime(event.registrationClosesAt)}</span></p>
+                                <p>Per-school cap: <span className="font-black text-slate-950">{event.perSchoolCapacity || 'No rule'}</span></p>
+                                <p>Per-group cap: <span className="font-black text-slate-950">{event.perGroupCapacity || 'No rule'}</span></p>
+                            </div>
+                            <div className="mt-4 grid grid-cols-2 gap-2">
+                                <button type="button" onClick={onEdit} className="rounded-xl bg-slate-950 px-4 py-3 text-sm font-black text-white">Edit Program</button>
+                                <button type="button" onClick={onInvite} className="rounded-xl border border-[#006a61]/25 bg-emerald-50 px-4 py-3 text-sm font-black text-[#006a61]">Invite Schools</button>
+                            </div>
+                        </section>
+                        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                            <div className="border-b border-slate-100 p-4">
+                                <h3 className="text-sm font-black text-slate-950">Roster</h3>
+                                <p className="mt-1 text-xs font-semibold text-slate-500">Confirmed and waitlisted attendees connected to this program.</p>
+                            </div>
+                            <div className="divide-y divide-slate-100">
+                                {roster.length === 0 ? <p className="p-5 text-sm font-semibold text-slate-500">No roster records yet.</p> : roster.slice(0, 10).map((row) => (
+                                    <div key={row.id} className="flex items-center justify-between gap-3 p-4">
+                                        <div className="min-w-0">
+                                            <p className="truncate text-sm font-black text-slate-950">{row.name}</p>
+                                            <p className="mt-1 truncate text-xs font-semibold text-slate-500">{row.school || row.email}</p>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-sm font-black text-slate-950">{row.partySize} seat(s)</p>
+                                            <p className="mt-1 text-[10px] font-black uppercase text-slate-500">{row.status}</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </section>
+                    </div>
+                    <aside className="space-y-4">
+                        <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                            <h3 className="text-sm font-black text-slate-950">Lifecycle tracking</h3>
+                            <div className="mt-3 space-y-3">
+                                {lifecycle.length === 0 ? <p className="text-sm font-semibold text-slate-500">Lifecycle events will appear after actions are taken.</p> : lifecycle.slice().reverse().map((item, index) => (
+                                    <div key={`${item.at}-${index}`} className="rounded-xl bg-white p-3 text-xs font-semibold text-slate-600">
+                                        <p className="font-black capitalize text-slate-950">{item.action}</p>
+                                        <p className="mt-1">{item.actor || 'System'} - {formatRelativeTime(item.at)}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        </section>
+                        <section className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                            <h3 className="text-sm font-black text-emerald-900">Scheduling intelligence</h3>
+                            <p className="mt-2 text-sm font-semibold leading-6 text-emerald-800">{percent >= 90 ? 'Capacity pressure is high. Consider a second session or stricter per-school caps.' : 'Capacity is healthy. Invite high-match schools to improve attendance quality.'}</p>
+                        </section>
+                    </aside>
+                </div>
+            </div>
+        </section>
+    );
+}
+
+function InviteSchoolsModal({ csrf, event, schools = [], onClose }) {
+    const topSchools = [...schools].sort((a, b) => Number(b.matchScore || 0) - Number(a.matchScore || 0)).slice(0, 12);
+
+    return (
+        <section className="fixed inset-0 z-[90] grid place-items-center bg-slate-950/55 px-3 py-5 backdrop-blur-sm">
+            <form action={`/campus-events/${event.id}/invite-schools`} method="POST" className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-white/70 bg-white shadow-2xl">
+                <input type="hidden" name="_token" value={csrf} />
+                <div className="flex items-start justify-between gap-4 border-b border-slate-100 p-4 md:p-5">
+                    <div>
+                        <p className="text-xs font-black uppercase tracking-[0.14em] text-[#006a61]">Invite schools</p>
+                        <h2 className="mt-1 text-xl font-black text-slate-950">Invite schools to {event.title}</h2>
+                        <p className="mt-1 text-sm font-semibold text-slate-500">Creates database-backed visit requests for selected schools.</p>
+                    </div>
+                    <button type="button" onClick={onClose} className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-slate-200 bg-white text-slate-500 shadow-sm"><X size={18} /></button>
+                </div>
+                <div className="grid gap-3 overflow-y-auto p-4 md:p-5">
+                    {topSchools.length === 0 ? <p className="rounded-xl border border-dashed border-slate-200 p-6 text-center text-sm font-semibold text-slate-500">No partner schools available yet.</p> : topSchools.map((school) => (
+                        <label key={school.id} className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3 hover:bg-slate-50">
+                            <input type="checkbox" name="school_ids[]" value={school.id} className="h-4 w-4 rounded border-slate-300 text-[#006a61]" defaultChecked={(event.invitedSchoolIds || []).includes(school.id)} />
+                            <span className="grid h-10 w-10 place-items-center rounded-xl bg-[#e5eeff] text-xs font-black text-[#006a61]">{school.name?.slice(0, 1)}</span>
+                            <span className="min-w-0 flex-1">
+                                <span className="block truncate text-sm font-black text-slate-950">{school.name}</span>
+                                <span className="mt-1 block truncate text-xs font-semibold text-slate-500">{school.city}, {school.country} - {school.matchScore || 0}/100 match</span>
+                            </span>
+                        </label>
+                    ))}
+                    <label className="grid gap-1.5 text-sm font-bold text-slate-700">Invite message<textarea name="message" rows="3" className="rounded-xl border border-slate-200 px-3 py-3 font-normal outline-none focus:border-[#006a61] focus:ring-4 focus:ring-emerald-50" placeholder="Add context for counselors..." /></label>
+                </div>
+                <div className="grid grid-cols-2 gap-2 border-t border-slate-100 p-4">
+                    <button type="button" onClick={onClose} className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700">Cancel</button>
+                    <button className="rounded-xl bg-[#006a61] px-4 py-3 text-sm font-black text-white">Send Invites</button>
+                </div>
+            </form>
+        </section>
+    );
+}
+
+function UniversityPrdTracker({ events = [], registrations = [], schools = [], visitRequests = [] }) {
+    const hasAdvancedFields = events.some((event) => event.visibility || event.registrationOpensAt || event.perSchoolCapacity || event.lifecycleStage);
+    const items = [
+        ['Duplicate/copy programs', 'done', 'Copy action creates draft programs from existing records.'],
+        ['Dedicated program detail page', 'done', 'Detail modal shows roster, logistics, lifecycle, and actions.'],
+        ['Conflict detection before saving', 'midway', 'UI warning and backend venue/time protection exist; richer time overlap UX can improve.'],
+        ['Capacity rules per school/group', hasAdvancedFields ? 'done' : 'midway', 'Per-school and per-group caps are stored and enforced for registration limits.'],
+        ['Custom registration windows', hasAdvancedFields ? 'done' : 'midway', 'Open/close windows are stored and checked during registration.'],
+        ['Visibility control', hasAdvancedFields ? 'done' : 'midway', 'Public, invite-only, and private program visibility is stored.'],
+        ['Invite schools workflow', visitRequests.length > 0 ? 'done' : 'midway', 'Invite action creates visit requests for selected schools.'],
+        ['Program lifecycle tracking', events.some((event) => (event.lifecycleLog || []).length) ? 'done' : 'midway', 'Lifecycle stage and action log are stored on each program.'],
+        ['Production readiness', events.length && schools.length && registrations.length ? 'midway' : 'issue', 'Core structure exists; final readiness needs full QA, notification delivery, and SPA feedback polish.'],
+    ];
+    const counts = items.reduce((acc, [, status]) => ({ ...acc, [status]: (acc[status] || 0) + 1 }), {});
+    const score = Math.round(((counts.done || 0) / items.length) * 100);
+
+    return (
+        <section className="grid gap-4">
+            <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                    <div>
+                        <p className="text-xs font-black uppercase tracking-[0.14em] text-[#006a61]">Temporary University PRD</p>
+                        <h1 className="mt-2 text-2xl font-black text-slate-950 md:text-3xl">Visit Program Workflow Readiness</h1>
+                        <p className="mt-2 text-sm font-semibold text-slate-500">Tracks only University Portal production requirements.</p>
+                    </div>
+                    <div className="rounded-2xl bg-slate-950 px-5 py-4 text-white">
+                        <p className="text-xs font-black uppercase text-white/50">Production score</p>
+                        <p className="mt-1 text-3xl font-black">{score}%</p>
+                    </div>
+                </div>
+            </div>
+            <div className="grid gap-3 md:grid-cols-3">
+                <MiniStat label="Done" value={counts.done || 0} />
+                <MiniStat label="Midway" value={counts.midway || 0} />
+                <MiniStat label="Issues" value={counts.issue || 0} />
+            </div>
+            <div className="grid gap-3">
+                {items.map(([title, status, note]) => (
+                    <article key={title} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                        <div className="flex items-start justify-between gap-3">
+                            <div>
+                                <h3 className="font-black text-slate-950">{title}</h3>
+                                <p className="mt-1 text-sm font-semibold leading-6 text-slate-500">{note}</p>
+                            </div>
+                            <span className={cx('shrink-0 rounded-full px-3 py-1 text-[10px] font-black uppercase', status === 'done' ? 'bg-emerald-50 text-emerald-700' : status === 'midway' ? 'bg-amber-50 text-amber-700' : 'bg-rose-50 text-rose-700')}>{status === 'done' ? 'Done' : status === 'midway' ? 'Midway' : 'Issue'}</span>
+                        </div>
+                    </article>
+                ))}
             </div>
         </section>
     );
@@ -8542,6 +8746,7 @@ function dashboardNavGroups(role) {
             { id: 'calendar', title: 'Schedule', icon: CalendarDays },
             { id: 'insights', title: 'Insights', icon: Brain },
             { id: 'messages', title: 'Communications', icon: Send },
+            { id: 'university-prd', title: 'University PRD', icon: CheckSquare },
             { id: 'settings', title: 'Settings', icon: Command },
         ],
         school: [
@@ -8627,7 +8832,17 @@ function dashboardContent(role, activeId, metrics, actions, context = {}) {
             subtitle: 'Create, publish, and manage the visit experiences your institution hosts.',
             action: 'Create program',
             metrics: baseMetrics,
-            custom: <UniversityVisitsSection csrf={csrf} events={events || []} registrations={registrations || []} errors={errors || {}} old={old || {}} />,
+            custom: <UniversityVisitsSection csrf={csrf} events={events || []} registrations={registrations || []} schools={schools || []} errors={errors || {}} old={old || {}} />,
+        };
+    }
+
+    if (role === 'university' && activeId === 'university-prd') {
+        return {
+            title: 'University PRD',
+            subtitle: 'Temporary production-readiness checklist for the University Portal.',
+            action: 'Review readiness',
+            metrics: baseMetrics,
+            custom: <UniversityPrdTracker events={events || []} registrations={registrations || []} schools={schools || []} visitRequests={visitRequests || []} />,
         };
     }
 

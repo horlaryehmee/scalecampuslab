@@ -1203,14 +1203,22 @@ class DashboardController extends Controller
                 'university' => $event->university?->name,
                 'startsAt' => $event->starts_at?->toIso8601String(),
                 'endsAt' => $event->ends_at?->toIso8601String(),
+                'registrationOpensAt' => $event->registration_opens_at?->toIso8601String(),
+                'registrationClosesAt' => $event->registration_closes_at?->toIso8601String(),
                 'venue' => $event->venue,
                 'location' => $event->location,
                 'latitude' => $event->latitude !== null ? (float) $event->latitude : null,
                 'longitude' => $event->longitude !== null ? (float) $event->longitude : null,
                 'description' => $event->description,
                 'capacity' => $event->capacity,
+                'perSchoolCapacity' => $event->per_school_capacity,
+                'perGroupCapacity' => $event->per_group_capacity,
                 'confirmedSeats' => (int) ($event->confirmed_seats ?? 0),
                 'status' => $event->status,
+                'visibility' => $event->visibility ?? 'public',
+                'lifecycleStage' => $event->lifecycle_stage ?? 'planning',
+                'invitedSchoolIds' => $event->invited_school_ids ?: [],
+                'lifecycleLog' => $event->lifecycle_log ?: [],
             ])
             ->toArray();
     }
