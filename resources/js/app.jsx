@@ -6212,8 +6212,21 @@ function MessageCenterSection({ csrf, registrations = [], messages = [], role })
     const threads = messageThreadsForRole(role, messages, registrations);
     const [activeId, setActiveId] = useState(threads[0]?.id || 'general');
     const [filter, setFilter] = useState('active');
+    const [mobileChatOpen, setMobileChatOpen] = useState(false);
+    const [mobileCategory, setMobileCategory] = useState('all');
+    const [draft, setDraft] = useState('');
+    const [channel, setChannel] = useState('email');
+    const [recipientScope, setRecipientScope] = useState('');
+    const [localMessages, setLocalMessages] = useState({});
+    const [sending, setSending] = useState(false);
+    const [sendError, setSendError] = useState('');
     const activeThread = threads.find((thread) => thread.id === activeId) || threads[0];
-    const visibleThreads = threads.filter((thread) => filter === 'archived' ? thread.archived : !thread.archived);
+    const activeMessages = [...(activeThread?.messages || []), ...(localMessages[activeThread?.id] || [])];
+    const visibleThreads = threads.filter((thread) => {
+        const archiveMatch = filter === 'archived' ? thread.archived : !thread.archived;
+        const categoryMatch = mobileCategory === 'all' || thread.category === mobileCategory;
+        return archiveMatch && categoryMatch;
+    });
     const scopeOptions = role === 'admin'
         ? [['all', 'All parties'], ['universities', 'Universities'], ['schools', 'Schools'], ['students', 'Students']]
         : role === 'university'
@@ -6221,12 +6234,82 @@ function MessageCenterSection({ csrf, registrations = [], messages = [], role })
             : role === 'school'
                 ? [['universities', 'Universities'], ['students', 'Students']]
                 : [['universities', 'Universities'], ['schools', 'Schools']];
+    const mobileCategories = [['all', 'All'], ['admissions', 'Admissions'], ['students', 'Students'], ['parents', 'Parents']].filter(([value]) => value === 'all' || threads.some((thread) => thread.category === value));
+    const currentScope = recipientScope || scopeOptions[0][0];
+    const handleThreadOpen = (thread) => {
+        setActiveId(thread.id);
+        setMobileChatOpen(true);
+        setSendError('');
+    };
+    const submitMessage = async (event) => {
+        event.preventDefault();
+        const body = draft.trim();
+        if (!body || sending || !activeThread) return;
+
+        setSending(true);
+        setSendError('');
+
+        try {
+            const payload = new URLSearchParams();
+            payload.set('_token', csrf);
+            payload.set('recipient_scope', currentScope);
+            payload.set('channel', channel);
+            payload.set('content', body);
+
+            const response = await fetch('/dashboard/messages', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Accept': 'text/html, application/xhtml+xml',
+                    'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: payload.toString(),
+            });
+
+            if (!response.ok) {
+                throw new Error('Message could not be sent.');
+            }
+
+            const optimistic = {
+                id: `local-${Date.now()}`,
+                author: 'You',
+                time: 'Now',
+                body,
+                mine: true,
+            };
+            setLocalMessages((current) => ({
+                ...current,
+                [activeThread.id]: [...(current[activeThread.id] || []), optimistic],
+            }));
+            setDraft('');
+        } catch (error) {
+            setSendError(error.message || 'Message could not be sent.');
+        } finally {
+            setSending(false);
+        }
+    };
 
     return (
-        <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-            <div className="grid min-h-[680px] lg:grid-cols-[340px_1fr]">
-                <aside className="border-b border-slate-200 bg-slate-50 lg:border-b-0 lg:border-r">
-                    <div className="flex items-center justify-between border-b border-slate-200 p-4">
+        <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm md:min-h-[680px]">
+            <div className="grid min-h-[calc(100dvh-9rem)] md:min-h-[680px] lg:grid-cols-[340px_1fr]">
+                <aside className={cx('border-b border-slate-200 bg-slate-50 lg:border-b-0 lg:border-r', mobileChatOpen && 'hidden lg:block')}>
+                    <div className="border-b border-slate-200 p-3 md:p-4">
+                        <label className="relative mb-3 block lg:hidden">
+                            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                            <input
+                                type="search"
+                                placeholder="Search conversations..."
+                                className="h-11 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-3 text-sm font-semibold outline-none focus:border-[#006a61] focus:ring-4 focus:ring-emerald-50"
+                                onChange={(event) => {
+                                    const value = event.target.value.trim().toLowerCase();
+                                    if (!value) return;
+                                    const found = threads.find((thread) => `${thread.name} ${thread.subtitle} ${thread.preview}`.toLowerCase().includes(value));
+                                    if (found) setActiveId(found.id);
+                                }}
+                            />
+                        </label>
+                        <div className="flex items-center justify-between">
                         <div className="flex rounded-lg bg-slate-200/70 p-1">
                             {['active', 'archived'].map((item) => (
                                 <button key={item} type="button" onClick={() => setFilter(item)} className={cx('rounded-md px-3 py-1.5 text-xs font-black capitalize', filter === item ? 'bg-slate-950 text-white' : 'text-slate-500')}>
@@ -6235,33 +6318,49 @@ function MessageCenterSection({ csrf, registrations = [], messages = [], role })
                             ))}
                         </div>
                         <button type="button" className="grid h-8 w-8 place-items-center rounded-lg text-blue-700 hover:bg-white" aria-label="Filter messages"><Filter size={15} /></button>
+                        </div>
+                        <div className="mt-3 flex gap-2 overflow-x-auto [scrollbar-width:none] lg:hidden [&::-webkit-scrollbar]:hidden">
+                            {mobileCategories.map(([value, label]) => (
+                                <button key={value} type="button" onClick={() => setMobileCategory(value)} className={cx('shrink-0 rounded-full px-3.5 py-1.5 text-[12px] font-black', mobileCategory === value ? 'bg-[#006a61] text-white' : 'border border-slate-200 bg-white text-slate-600')}>
+                                    {label}
+                                </button>
+                            ))}
+                        </div>
                     </div>
 
-                    <div className="divide-y divide-slate-200">
+                    <div className="divide-y divide-slate-100 p-2 md:p-0">
                         {visibleThreads.map((thread) => (
-                            <button key={thread.id} type="button" onClick={() => setActiveId(thread.id)} className={cx('flex w-full gap-3 px-4 py-4 text-left transition', activeThread?.id === thread.id ? 'bg-white' : 'hover:bg-white/70')}>
-                                <span className={cx('grid h-11 w-11 shrink-0 place-items-center rounded-lg text-xs font-black text-white', thread.color)}>{thread.initials}</span>
+                            <button key={thread.id} type="button" onClick={() => handleThreadOpen(thread)} className={cx('flex w-full gap-3 rounded-xl px-3 py-3 text-left transition md:rounded-none md:px-4 md:py-4', activeThread?.id === thread.id ? 'bg-white shadow-sm md:shadow-none' : 'hover:bg-white/70')}>
+                                <span className={cx('relative grid h-11 w-11 shrink-0 place-items-center rounded-full text-xs font-black text-white md:rounded-lg', thread.color)}>
+                                    {thread.initials}
+                                    {thread.online && <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white bg-[#006a61]" />}
+                                </span>
                                 <span className="min-w-0 flex-1">
                                     <span className="flex items-center justify-between gap-2">
-                                        <span className="truncate text-sm font-black text-slate-950">{thread.name}</span>
+                                        <span className="truncate text-[15px] font-black text-slate-950 md:text-sm">{thread.name}</span>
                                         <span className="shrink-0 text-[11px] font-bold text-blue-700">{thread.time}</span>
                                     </span>
                                     <span className="mt-0.5 block truncate text-xs font-semibold text-slate-500">{thread.subtitle}</span>
-                                    <span className="mt-1 block truncate text-xs text-slate-400">{thread.preview}</span>
+                                    <span className={cx('mt-1 block truncate text-sm md:text-xs', thread.unread ? 'font-bold text-slate-800' : 'text-slate-400')}>{thread.preview}</span>
+                                    <span className="mt-2 inline-flex rounded bg-slate-100 px-2 py-0.5 text-[10px] font-black uppercase text-slate-500 md:hidden">{thread.categoryLabel}</span>
                                 </span>
-                                {thread.unread && <span className="mt-6 h-2 w-2 shrink-0 rounded-full bg-blue-600" />}
+                                {thread.unread && <span className="mt-6 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[#006a61] text-[10px] font-black text-white">{thread.unreadCount || 1}</span>}
                             </button>
                         ))}
+                        {!visibleThreads.length && <div className="p-8 text-center text-sm font-semibold text-slate-500">No conversations match this filter.</div>}
                     </div>
                 </aside>
 
-                <main className="flex min-h-[680px] flex-col bg-slate-100/60">
-                    <header className="flex items-center justify-between border-b border-slate-200 bg-white px-5 py-4">
+                <main className={cx('min-h-[calc(100dvh-9rem)] flex-col bg-slate-100/60 md:min-h-[680px] lg:flex', mobileChatOpen ? 'flex' : 'hidden lg:flex')}>
+                    <header className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-3 py-3 md:px-5 md:py-4">
                         <div className="flex items-center gap-3">
-                            <span className={cx('grid h-10 w-10 place-items-center rounded-lg text-xs font-black text-white', activeThread.color)}>{activeThread.initials}</span>
-                            <div>
-                                <h2 className="font-black text-slate-950">{activeThread.name}</h2>
-                                <p className="text-xs font-semibold text-slate-500">{activeThread.subtitle}</p>
+                            <button type="button" onClick={() => setMobileChatOpen(false)} className="grid h-9 w-9 place-items-center rounded-full text-slate-600 hover:bg-slate-100 lg:hidden" aria-label="Back to conversations">
+                                <ChevronRight size={18} className="rotate-180" />
+                            </button>
+                            <span className={cx('grid h-10 w-10 place-items-center rounded-full text-xs font-black text-white md:rounded-lg', activeThread.color)}>{activeThread.initials}</span>
+                            <div className="min-w-0">
+                                <h2 className="truncate font-black text-slate-950">{activeThread.name}</h2>
+                                <p className="truncate text-xs font-semibold text-slate-500">{activeThread.subtitle}</p>
                             </div>
                         </div>
                         <div className="flex items-center gap-2 text-blue-700">
@@ -6270,14 +6369,14 @@ function MessageCenterSection({ csrf, registrations = [], messages = [], role })
                         </div>
                     </header>
 
-                    <div className="flex-1 space-y-5 overflow-y-auto p-5">
+                    <div className="flex-1 space-y-4 overflow-y-auto p-3 md:space-y-5 md:p-5">
                         <div className="mx-auto w-fit rounded-full bg-white px-3 py-1 text-[11px] font-bold text-slate-400 shadow-sm">Today</div>
-                        {activeThread.messages.map((message) => (
+                        {activeMessages.map((message) => (
                             <div key={message.id} className={cx('flex gap-3', message.mine && 'justify-end')}>
-                                {!message.mine && <span className={cx('grid h-8 w-8 shrink-0 place-items-center rounded-lg text-[10px] font-black text-white', activeThread.color)}>{activeThread.initials}</span>}
-                                <div className={cx('max-w-[72%]', message.mine && 'text-right')}>
+                                {!message.mine && <span className={cx('grid h-8 w-8 shrink-0 place-items-center rounded-full text-[10px] font-black text-white md:rounded-lg', activeThread.color)}>{activeThread.initials}</span>}
+                                <div className={cx('max-w-[78%] md:max-w-[72%]', message.mine && 'text-right')}>
                                     <p className="mb-1 text-[11px] font-bold text-slate-400">{message.author} · {message.time}</p>
-                                    <div className={cx('rounded-xl px-4 py-3 text-sm leading-6 shadow-sm', message.mine ? 'bg-slate-950 text-white' : 'border border-slate-200 bg-white text-slate-700')}>
+                                    <div className={cx('rounded-2xl px-3.5 py-2.5 text-sm leading-6 shadow-sm md:rounded-xl md:px-4 md:py-3', message.mine ? 'bg-slate-950 text-white' : 'border border-slate-200 bg-white text-slate-700')}>
                                         {message.body}
                                     </div>
                                 </div>
@@ -6286,27 +6385,30 @@ function MessageCenterSection({ csrf, registrations = [], messages = [], role })
                         <span className="inline-flex rounded bg-emerald-50 px-2 py-1 text-[11px] font-black text-emerald-700">Sentiment: Positive</span>
                     </div>
 
-                    <form action="/dashboard/messages" method="POST" className="border-t border-slate-200 bg-white p-4">
+                    <form action="/dashboard/messages" method="POST" onSubmit={submitMessage} className="sticky bottom-0 border-t border-slate-200 bg-white p-3 md:p-4">
                         <input type="hidden" name="_token" value={csrf} />
-                        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                        <div className="mb-2 flex flex-wrap items-center justify-between gap-2 md:mb-3 md:gap-3">
                             <label className="flex items-center gap-2 text-xs font-semibold text-slate-500">
                                 <input type="checkbox" className="rounded border-slate-300 text-blue-600" />
                                 Broadcast to selected group
                             </label>
                             <div className="flex items-center gap-2">
-                                <select name="recipient_scope" defaultValue={scopeOptions[0][0]} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-600 outline-none">
+                                <select name="recipient_scope" value={currentScope} onChange={(event) => setRecipientScope(event.target.value)} className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-2 text-xs font-bold text-slate-600 outline-none md:px-3">
                                     {scopeOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                                 </select>
-                                <select name="channel" defaultValue="email" className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-600 outline-none">
+                                <select name="channel" value={channel} onChange={(event) => setChannel(event.target.value)} className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-2 text-xs font-bold text-slate-600 outline-none md:px-3">
                                     <option value="email">Email</option>
                                     <option value="sms">SMS</option>
                                 </select>
-                                <button type="button" className="grid h-9 w-9 place-items-center rounded-lg text-slate-500 hover:bg-slate-50" aria-label="Attach file"><Paperclip size={16} /></button>
+                                <button type="button" className="hidden h-9 w-9 place-items-center rounded-lg text-slate-500 hover:bg-slate-50 md:grid" aria-label="Attach file"><Paperclip size={16} /></button>
                             </div>
                         </div>
-                        <div className="flex gap-3">
-                            <textarea name="content" required rows="2" placeholder="Type your message here..." className="min-h-16 flex-1 resize-none rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-blue-300 focus:ring-4 focus:ring-blue-50" />
-                            <button className="grid h-16 w-14 shrink-0 place-items-center rounded-lg bg-slate-950 text-white hover:bg-blue-700" aria-label="Send message"><Send size={20} /></button>
+                        {sendError && <p className="mb-2 rounded-lg bg-red-50 px-3 py-2 text-xs font-bold text-red-700">{sendError}</p>}
+                        <div className="flex gap-2 md:gap-3">
+                            <textarea name="content" value={draft} onChange={(event) => setDraft(event.target.value)} required rows="1" placeholder="Type your message here..." className="min-h-11 flex-1 resize-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-[#006a61] focus:ring-4 focus:ring-emerald-50 md:min-h-16 md:rounded-lg" />
+                            <button disabled={!draft.trim() || sending} className="grid h-11 w-12 shrink-0 place-items-center rounded-xl bg-slate-950 text-white hover:bg-[#006a61] disabled:cursor-not-allowed disabled:bg-slate-300 md:h-16 md:w-14 md:rounded-lg" aria-label="Send message">
+                                {sending ? <RefreshCcw size={18} className="animate-spin" /> : <Send size={20} />}
+                            </button>
                         </div>
                     </form>
                 </main>
@@ -6324,7 +6426,11 @@ function messageThreadsForRole(role, dbMessages, registrations) {
         time: formatShortTime(message.createdAt),
         initials: initials(message.recipient || 'PR'),
         color: 'bg-blue-700',
+        category: message.recipientType || 'admissions',
+        categoryLabel: titleCase(message.recipientType || 'Admissions'),
+        online: index === 0,
         unread: index === 0,
+        unreadCount: index === 0 ? 1 : 0,
         archived: false,
         messages: [
             { id: `db-${message.id}-a`, author: 'Platform', time: formatShortTime(message.createdAt), body: message.subject || 'New campus visit message', mine: false },
@@ -6333,28 +6439,29 @@ function messageThreadsForRole(role, dbMessages, registrations) {
     }));
     const roleDefaults = {
         university: [
-            ['sarah', 'Sarah Jenkins', 'Coordinator, Lincoln High School', 'Looking forward to the campus tour...', 'SJ', 'bg-slate-700'],
-            ['marcus', 'Marcus Johnson', 'Westlake Academy', 'Can we add 5 more students to the robotics visit?', 'MJ', 'bg-emerald-700'],
-            ['elena', 'Elena Wong', 'Oakridge High', 'Is parking available for the bus near the east gate?', 'EW', 'bg-blue-500'],
+            ['sarah', 'Sarah Jenkins', 'Coordinator, Lincoln High School', 'Looking forward to the campus tour...', 'SJ', 'bg-slate-700', 'students'],
+            ['marcus', 'Marcus Johnson', 'Westlake Academy', 'Can we add 5 more students to the robotics visit?', 'MJ', 'bg-emerald-700', 'students'],
+            ['elena', 'Elena Wong', 'Oakridge High', 'Is parking available for the bus near the east gate?', 'EW', 'bg-blue-500', 'students'],
         ],
         school: [
-            ['admissions', 'University Admissions', 'Campus visit office', 'We are confirming your visit request details.', 'UA', 'bg-blue-700'],
-            ['events', 'Event Operations', 'Visit logistics', 'Bus arrival and check-in instructions are ready.', 'EO', 'bg-slate-700'],
+            ['admissions', 'University Admissions', 'Campus visit office', 'We are confirming your visit request details.', 'UA', 'bg-blue-700', 'admissions'],
+            ['events', 'Event Operations', 'Visit logistics', 'Bus arrival and check-in instructions are ready.', 'EO', 'bg-slate-700', 'admissions'],
+            ['parent', 'Sarah Thompson (Parent)', 'Parent contact', 'Thank you for the update on the orientation schedule.', 'ST', 'bg-emerald-700', 'parents'],
         ],
         student: [
-            ['advisor', 'Campus Visit Advisor', 'University admissions', 'Your visit reminder and check-in barcode are ready.', 'CA', 'bg-blue-700'],
-            ['school', 'School Counselor', 'Guidance office', 'Please confirm your attendance for the upcoming visit.', 'SC', 'bg-emerald-700'],
+            ['advisor', 'Campus Visit Advisor', 'University admissions', 'Your visit reminder and check-in barcode are ready.', 'CA', 'bg-blue-700', 'admissions'],
+            ['school', 'School Counselor', 'Guidance office', 'Please confirm your attendance for the upcoming visit.', 'SC', 'bg-emerald-700', 'students'],
         ],
         platform: [
-            ['ops', 'Platform Operations', 'System-wide messaging', 'Queued notifications and delivery health are normal.', 'PO', 'bg-slate-700'],
-            ['support', 'University Support', 'Recruiter support desk', 'A school has requested more event capacity.', 'US', 'bg-blue-700'],
+            ['ops', 'Platform Operations', 'System-wide messaging', 'Queued notifications and delivery health are normal.', 'PO', 'bg-slate-700', 'admissions'],
+            ['support', 'University Support', 'Recruiter support desk', 'A school has requested more event capacity.', 'US', 'bg-blue-700', 'admissions'],
         ],
         admin: [
-            ['ops', 'Platform Operations', 'System-wide messaging', 'Queued notifications and delivery health are normal.', 'PO', 'bg-slate-700'],
+            ['ops', 'Platform Operations', 'System-wide messaging', 'Queued notifications and delivery health are normal.', 'PO', 'bg-slate-700', 'admissions'],
         ],
     };
     const defaults = roleDefaults[role] || roleDefaults.platform;
-    const demoThreads = defaults.map(([id, name, subtitle, preview, initialsText, color], index) => ({
+    const demoThreads = defaults.map(([id, name, subtitle, preview, initialsText, color, category], index) => ({
         id,
         name,
         subtitle,
@@ -6362,7 +6469,11 @@ function messageThreadsForRole(role, dbMessages, registrations) {
         time: index === 0 ? '10:42 AM' : 'Yesterday',
         initials: initialsText,
         color,
+        category,
+        categoryLabel: titleCase(category),
+        online: index === 0,
         unread: index === 1,
+        unreadCount: index === 1 ? 1 : 0,
         archived: false,
         messages: [
             { id: `${id}-1`, author: name, time: '2:30 PM', body: preview, mine: false },
@@ -6383,6 +6494,12 @@ function responseForRole(role, registrations) {
 
 function initials(value) {
     return String(value || 'NA').split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase();
+}
+
+function titleCase(value) {
+    return String(value || '')
+        .replace(/[-_]/g, ' ')
+        .replace(/\w\S*/g, (part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase());
 }
 
 function formatShortTime(value) {
