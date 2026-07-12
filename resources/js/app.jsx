@@ -5721,42 +5721,42 @@ function SecurityAccessSection({ csrf, profile = {}, errors = {}, role = 'user' 
     const scoreTone = score >= 85 ? 'emerald' : score >= 65 ? 'blue' : 'amber';
 
     return (
-        <div className="grid gap-6">
+        <div className="grid gap-4 md:gap-6">
             <section>
-                <h1 className="text-3xl font-black text-slate-950">Security & Access</h1>
-                <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">Manage authentication, recovery settings, and database-backed sessions for {user.email || 'this account'}.</p>
+                <h1 className="text-2xl font-black text-slate-950 md:text-3xl">Settings</h1>
+                <p className="mt-1 max-w-3xl text-sm font-semibold leading-6 text-slate-500 md:mt-2">Manage authentication, recovery settings, and database-backed sessions for {user.email || 'this account'}.</p>
             </section>
 
-            <section className="grid gap-4 md:grid-cols-3">
-                <article className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <section className="grid grid-cols-2 gap-2 md:grid-cols-3 md:gap-4">
+                <article className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm md:p-5">
                     <p className="text-xs font-black uppercase tracking-wide text-slate-500">Security score</p>
-                    <p className="mt-3 text-4xl font-black text-slate-950">{score}/100</p>
-                    <div className="mt-4 h-2 rounded-full bg-slate-100"><div className={cx('h-2 rounded-full', scoreTone === 'emerald' ? 'bg-emerald-500' : scoreTone === 'amber' ? 'bg-amber-500' : 'bg-blue-600')} style={{ width: `${Math.min(100, score)}%` }} /></div>
+                    <p className="mt-2 text-2xl font-black text-slate-950 md:mt-3 md:text-4xl">{score}/100</p>
+                    <div className="mt-3 h-1.5 rounded-full bg-slate-100 md:mt-4 md:h-2"><div className={cx('h-full rounded-full', scoreTone === 'emerald' ? 'bg-emerald-500' : scoreTone === 'amber' ? 'bg-amber-500' : 'bg-blue-600')} style={{ width: `${Math.min(100, score)}%` }} /></div>
                 </article>
-                <article className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <article className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm md:p-5">
                     <p className="text-xs font-black uppercase tracking-wide text-slate-500">Active sessions</p>
-                    <p className="mt-3 text-4xl font-black text-slate-950">{profile.sessionCount || sessions.length}</p>
+                    <p className="mt-2 text-2xl font-black text-slate-950 md:mt-3 md:text-4xl">{profile.sessionCount || sessions.length}</p>
                     <p className="mt-2 text-xs font-bold text-slate-500">Stored in the sessions table</p>
                 </article>
-                <article className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <article className="col-span-2 rounded-xl border border-slate-200 bg-white p-3 shadow-sm md:col-span-1 md:p-5">
                     <p className="text-xs font-black uppercase tracking-wide text-slate-500">Account role</p>
-                    <p className="mt-3 text-2xl font-black capitalize text-slate-950">{String(user.role || role).replace('_', ' ')}</p>
+                    <p className="mt-2 text-xl font-black capitalize text-slate-950 md:mt-3 md:text-2xl">{String(user.role || role).replace('_', ' ')}</p>
                     <p className={cx('mt-2 text-xs font-bold', user.emailVerified ? 'text-emerald-700' : 'text-amber-700')}>{user.emailVerified ? 'Email verified' : 'Email not verified'}</p>
                 </article>
             </section>
 
-            <section className="grid gap-6 xl:grid-cols-[1.25fr_0.85fr]">
-                <div className="space-y-6">
-                    <form action="/dashboard/security/password" method="POST" className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+            <section className="grid gap-4 xl:grid-cols-[1.25fr_0.85fr] md:gap-6">
+                <div className="space-y-4 md:space-y-6">
+                    <form action="/dashboard/security/password" method="POST" className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
                         <input type="hidden" name="_token" value={csrf} />
                         <div className="flex items-center gap-3">
-                            <ShieldCheck size={22} className="text-blue-700" />
+                            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#e5eeff] text-blue-700"><ShieldCheck size={20} /></span>
                             <div>
-                                <h2 className="text-xl font-black text-slate-950">Password Management</h2>
+                                <h2 className="text-lg font-black text-slate-950 md:text-xl">Password Management</h2>
                                 <p className="mt-1 text-sm text-slate-500">Require at least 12 characters, mixed case, numbers, and symbols.</p>
                             </div>
                         </div>
-                        <div className="mt-5 grid gap-4">
+                        <div className="mt-4 grid gap-3 md:mt-5 md:gap-4">
                             <LightField label="Current Password" name="current_password" type="password" autoComplete="current-password" error={errors.current_password?.[0]} />
                             <div className="grid gap-4 md:grid-cols-2">
                                 <LightField label="New Password" name="password" type="password" autoComplete="new-password" placeholder="Minimum 12 chars" error={errors.password?.[0]} />
@@ -5764,18 +5764,18 @@ function SecurityAccessSection({ csrf, profile = {}, errors = {}, role = 'user' 
                             </div>
                             <div className="rounded-lg bg-slate-50 p-4 text-sm font-semibold text-slate-600">Last account update: {profile.passwordUpdatedAt || 'Not available'}</div>
                         </div>
-                        <div className="mt-5 flex justify-end">
-                            <button className="rounded-lg bg-slate-950 px-5 py-3 text-sm font-black text-white hover:bg-slate-800">Update Password</button>
+                        <div className="mt-4 flex justify-end md:mt-5">
+                            <button className="w-full rounded-xl bg-slate-950 px-5 py-3 text-sm font-black text-white hover:bg-slate-800 md:w-auto">Update Password</button>
                         </div>
                     </form>
 
-                    <form action="/dashboard/security/preferences" method="POST" className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+                    <form action="/dashboard/security/preferences" method="POST" className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
                         <input type="hidden" name="_token" value={csrf} />
                         <div className="flex items-center justify-between gap-4">
                             <div className="flex items-center gap-3">
-                                <CheckCircle2 size={22} className="text-emerald-600" />
+                                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-emerald-50 text-emerald-600"><CheckCircle2 size={20} /></span>
                                 <div>
-                                    <h2 className="text-xl font-black text-slate-950">Two-Factor Authentication</h2>
+                                    <h2 className="text-lg font-black text-slate-950 md:text-xl">Two-Factor Authentication</h2>
                                     <p className="mt-1 text-sm text-slate-500">The current MVP stores the 2FA requirement and enforces the security posture in account data. Token delivery can be attached later.</p>
                                 </div>
                             </div>
@@ -5787,14 +5787,14 @@ function SecurityAccessSection({ csrf, profile = {}, errors = {}, role = 'user' 
                             <LightField label="Recovery Email" name="recovery_email" type="email" defaultValue={profile.recoveryEmail || ''} placeholder={user.email || 'recovery@example.com'} error={errors.recovery_email?.[0]} />
                         </div>
                         <div className="mt-5 flex justify-end">
-                            <button className="rounded-lg bg-blue-700 px-5 py-3 text-sm font-black text-white hover:bg-blue-800">Save Security Preferences</button>
+                            <button className="w-full rounded-xl bg-[#006a61] px-5 py-3 text-sm font-black text-white hover:opacity-90 md:w-auto">Save Security Preferences</button>
                         </div>
                     </form>
                 </div>
 
-                <aside className="space-y-6">
-                    <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-                        <div className="flex items-center justify-between gap-3 border-b border-slate-100 p-5">
+                <aside className="space-y-4 md:space-y-6">
+                    <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                        <div className="flex items-center justify-between gap-3 border-b border-slate-100 p-4 md:p-5">
                             <div>
                                 <h2 className="text-lg font-black text-slate-950">Active Sessions</h2>
                                 <p className="mt-1 text-xs font-semibold text-slate-500">Database session records for this account.</p>
@@ -5809,8 +5809,8 @@ function SecurityAccessSection({ csrf, profile = {}, errors = {}, role = 'user' 
                             {sessions.length === 0 ? (
                                 <p className="p-5 text-sm font-semibold text-slate-500">No active database sessions found.</p>
                             ) : sessions.map((session) => (
-                                <article key={session.id} className="flex gap-4 p-5">
-                                    <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-slate-100 text-slate-600">
+                                <article key={session.id} className="flex gap-3 p-4 md:gap-4 md:p-5">
+                                    <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-slate-100 text-slate-600 md:h-11 md:w-11">
                                         {/iphone|android/i.test(session.device) ? <Smartphone size={20} /> : <Monitor size={20} />}
                                     </div>
                                     <div className="min-w-0 flex-1">
@@ -5826,7 +5826,7 @@ function SecurityAccessSection({ csrf, profile = {}, errors = {}, role = 'user' 
                         </div>
                     </section>
 
-                    <section className="rounded-lg border border-emerald-200 bg-emerald-50 p-5 shadow-sm">
+                    <section className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm md:p-5">
                         <div className="flex items-start gap-3">
                             <Sparkles size={20} className="mt-0.5 shrink-0 text-emerald-700" />
                             <div>
@@ -5836,7 +5836,7 @@ function SecurityAccessSection({ csrf, profile = {}, errors = {}, role = 'user' 
                         </div>
                     </section>
 
-                    <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                    <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:p-5">
                         <h2 className="text-lg font-black text-slate-950">Recent Security Notifications</h2>
                         <div className="mt-4 space-y-3">
                             {(profile.recentNotifications || []).length === 0 ? (
@@ -5949,48 +5949,48 @@ function UniversityAttendeesSection({ csrf, registrations = [], events = [] }) {
     };
 
     return (
-        <div className="grid gap-5">
-            <section className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div className="grid gap-4 md:gap-5">
+            <section className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                 <div>
-                    <h1 className="text-3xl font-black tracking-tight text-slate-950">Attendees Management</h1>
-                    <p className="mt-1 text-sm text-slate-500">Review and manage registered students and school groups for upcoming campus visits.</p>
+                    <h1 className="text-2xl font-black tracking-tight text-slate-950 md:text-3xl">Attendees</h1>
+                    <p className="mt-1 text-sm font-semibold text-slate-500">Review and manage registered students and school groups for upcoming visits.</p>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                    <button type="button" onClick={exportCsv} className="inline-flex items-center gap-2 rounded-lg border border-blue-600 bg-white px-4 py-2.5 text-sm font-black text-blue-700"><Download size={16} /> Export CSV</button>
-                    <button type="button" onClick={() => setMessageOpen(true)} disabled={selected.length === 0} className="inline-flex items-center gap-2 rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-slate-300"><MailCheck size={16} /> Bulk Message</button>
+                <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+                    <button type="button" onClick={exportCsv} className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#006a61]/30 bg-white px-3 py-2 text-xs font-black text-[#006a61] md:px-4 md:py-2.5 md:text-sm"><Download size={15} /> Export</button>
+                    <button type="button" onClick={() => setMessageOpen(true)} disabled={selected.length === 0} className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-3 py-2 text-xs font-black text-white disabled:cursor-not-allowed disabled:bg-slate-300 md:px-4 md:py-2.5 md:text-sm"><MailCheck size={15} /> Message</button>
                 </div>
             </section>
 
-            <section className="grid gap-4 lg:grid-cols-[1.7fr_1fr]">
-                <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <section className="grid gap-3 lg:grid-cols-[1.7fr_1fr] md:gap-4">
+                <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm md:p-5">
                     <p className="text-xs font-black uppercase tracking-wide text-slate-500">Quick Filters</p>
-                    <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    <div className="mt-3 grid gap-2 md:mt-4 md:grid-cols-2 md:gap-3 xl:grid-cols-4">
                         <div className="relative md:col-span-2 xl:col-span-1">
                             <Search size={16} className="absolute left-3 top-3 text-slate-400" />
-                            <input value={query} onChange={(event) => setQuery(event.target.value)} className="h-11 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm font-semibold outline-none focus:border-blue-500" placeholder="Search attendees, schools..." />
+                            <input value={query} onChange={(event) => setQuery(event.target.value)} className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm font-semibold outline-none focus:border-[#006a61] focus:ring-4 focus:ring-emerald-50 md:h-11" placeholder="Search attendees, schools..." />
                         </div>
-                        <select value={status} onChange={(event) => setStatus(event.target.value)} className="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold">
+                        <select value={status} onChange={(event) => setStatus(event.target.value)} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold md:h-11">
                             <option value="all">All Statuses</option>
                             <option value="confirmed">Confirmed</option>
                             <option value="waitlisted">Waitlisted</option>
                             <option value="cancelled">Cancelled</option>
                         </select>
-                        <select value={program} onChange={(event) => setProgram(event.target.value)} className="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold">
+                        <select value={program} onChange={(event) => setProgram(event.target.value)} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold md:h-11">
                             <option value="all">All Programs</option>
                             {programs.map((item) => <option key={item} value={item}>{item}</option>)}
                         </select>
-                        <select value={interest} onChange={(event) => setInterest(event.target.value)} className="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold">
+                        <select value={interest} onChange={(event) => setInterest(event.target.value)} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold md:h-11">
                             <option value="all">All Interests</option>
                             {interests.map((item) => <option key={item} value={item}>{item}</option>)}
                         </select>
                     </div>
-                    <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                    <div className="mt-3 grid grid-cols-3 gap-2 md:mt-4 md:gap-3">
                         <MiniStat label="Filtered seats" value={totalSeats.toLocaleString()} />
                         <MiniStat label="Confirmed seats" value={confirmedSeats.toLocaleString()} />
                         <MiniStat label="Attendance marked" value={`${Math.round((attendedSeats / Math.max(1, confirmedSeats)) * 100)}%`} />
                     </div>
                 </div>
-                <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-5 shadow-sm">
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm md:p-5">
                     <div className="flex items-center gap-2">
                         <Sparkles size={18} className="text-emerald-700" />
                         <p className="text-xs font-black uppercase tracking-wide text-emerald-800">AI Insight</p>
@@ -6000,8 +6000,37 @@ function UniversityAttendeesSection({ csrf, registrations = [], events = [] }) {
                 </div>
             </section>
 
-            <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-                <div className="overflow-x-auto">
+            <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                <div className="grid gap-2 p-3 md:hidden">
+                    {visible.map((item) => (
+                        <article key={item.id} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+                            <div className="grid grid-cols-[auto_38px_minmax(0,1fr)_auto] items-center gap-2.5">
+                                <input type="checkbox" checked={selected.includes(item.id)} onChange={() => toggleOne(item.id)} className="h-4 w-4 rounded border-slate-300 text-[#006a61]" aria-label={`Select ${item.name}`} />
+                                <span className="grid h-9 w-9 place-items-center rounded-full bg-[#e5eeff] text-[11px] font-black text-[#0b1c30]">{initials(item.name)}</span>
+                                <div className="min-w-0">
+                                    <p className="truncate text-sm font-black text-slate-950">{item.name}</p>
+                                    <p className="truncate text-[11px] font-semibold text-slate-500">{item.school || 'Direct student'} • {item.partySize} seat{Number(item.partySize) === 1 ? '' : 's'}</p>
+                                </div>
+                                <AttendeeStatusBadge status={item.status} attended={item.attended} />
+                            </div>
+                            <div className="mt-2 grid grid-cols-2 gap-2 border-y border-slate-100 py-2">
+                                <div><span className="block text-[9px] font-black uppercase tracking-wide text-slate-400">Program</span><span className="mt-0.5 block truncate text-[12px] font-black text-slate-700">{item.event || 'Program TBA'}</span></div>
+                                <div><span className="block text-[9px] font-black uppercase tracking-wide text-slate-400">Interest</span><span className="mt-0.5 block truncate text-[12px] font-black text-slate-700">{item.interest || 'Undeclared'}</span></div>
+                            </div>
+                            <div className="mt-2 flex gap-2">
+                                <button type="button" onClick={() => setEditing(item)} className="flex-1 rounded-lg bg-slate-950 px-3 py-2 text-[12px] font-black text-white">Edit</button>
+                                <button type="button" onClick={() => { setSelected((current) => current.includes(item.id) ? current : [...current, item.id]); setMessageOpen(true); }} className="flex-1 rounded-lg border border-[#006a61]/30 px-3 py-2 text-[12px] font-black text-[#006a61]">Message</button>
+                                <form action={`/dashboard/university/attendees/${item.id}`} method="POST">
+                                    <input type="hidden" name="_token" value={csrf} />
+                                    <input type="hidden" name="_method" value="DELETE" />
+                                    <button className="grid h-8 w-9 place-items-center rounded-lg border border-red-100 text-red-600" aria-label={`Remove ${item.name}`}><Trash2 size={15} /></button>
+                                </form>
+                            </div>
+                        </article>
+                    ))}
+                    {visible.length === 0 && <div className="rounded-xl border border-dashed border-slate-200 p-8 text-center text-sm font-semibold text-slate-500">No attendees match the current filters.</div>}
+                </div>
+                <div className="hidden overflow-x-auto md:block">
                     <table className="w-full min-w-[980px] text-left">
                         <thead className="border-b border-slate-200 bg-slate-50">
                             <tr>
@@ -6055,7 +6084,7 @@ function UniversityAttendeesSection({ csrf, registrations = [], events = [] }) {
                         </tbody>
                     </table>
                 </div>
-                <div className="flex flex-col gap-3 border-t border-slate-100 bg-white px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-col gap-3 border-t border-slate-100 bg-white px-3 py-3 sm:flex-row sm:items-center sm:justify-between md:px-5 md:py-4">
                     <p className="text-sm text-slate-500">Showing {visible.length ? (page - 1) * perPage + 1 : 0} to {Math.min(page * perPage, filtered.length)} of {filtered.length} attendees</p>
                     <div className="flex items-center gap-2">
                         <button type="button" onClick={() => setPage(Math.max(1, page - 1))} disabled={page === 1} className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-black text-slate-600 disabled:opacity-40">Prev</button>
@@ -6847,41 +6876,60 @@ function PartnerSchoolsSection({ csrf, schools, visitRequests, archives = [] }) 
     }
 
     return (
-        <div className="grid gap-6">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-                <div><h1 className="text-3xl font-black tracking-tight text-slate-950">Partner Schools</h1><p className="mt-1 text-sm text-slate-500">Manage institutional relationships and student engagement analytics.</p></div>
-                <button type="button" onClick={() => document.getElementById('partner-school-search')?.focus()} className="inline-flex items-center justify-center gap-2 rounded-lg bg-slate-950 px-4 py-3 text-sm font-black text-white"><Search size={16} /> Find New Schools</button>
+        <div className="grid gap-4 md:gap-6">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+                <div><h1 className="text-2xl font-black tracking-tight text-slate-950 md:text-3xl">Partner Schools</h1><p className="mt-1 text-sm font-semibold text-slate-500">Manage institutional relationships and student engagement analytics.</p></div>
+                <button type="button" onClick={() => document.getElementById('partner-school-search')?.focus()} className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-black text-white"><Search size={16} /> Find Schools</button>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div className="grid grid-cols-2 gap-2 md:grid-cols-2 md:gap-4 xl:grid-cols-4">
                 <PartnerMetric label="Total Partnerships" value={schools.length} detail="Growing network" />
                 <PartnerMetric label="Active Engagements" value={engagementTotal.toLocaleString()} detail="High activity" tone="green" />
                 <PartnerMetric label="Upcoming Visits" value={scheduledVisits} detail="Scheduled or requested" />
-                <section className="rounded-lg bg-emerald-600 p-4 text-white shadow-sm"><p className="text-xs font-black uppercase tracking-wide text-white/70">AI Outreach Readiness</p><p className="mt-2 text-xl font-black">Optimum</p><p className="mt-1 text-xs text-white/80">Strong partner match coverage</p></section>
+                <section className="rounded-xl bg-emerald-600 p-3 text-white shadow-sm md:p-4"><p className="text-[10px] font-black uppercase tracking-wide text-white/70 md:text-xs">AI Outreach</p><p className="mt-2 text-xl font-black">Optimum</p><p className="mt-1 text-xs text-white/80">Strong partner coverage</p></section>
             </div>
 
             <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-                <div className="flex flex-col gap-3 border-b border-slate-200 px-4 py-3 md:flex-row md:items-center md:justify-between">
-                    <div className="flex flex-wrap gap-2">
-                        {[['all', 'All Schools'], ['ivy', 'Ivy League'], ['tech', 'Tech Institutes']].map(([id, label]) => <button key={id} type="button" onClick={() => setTab(id)} className={cx('rounded-lg px-3 py-2 text-xs font-black', tab === id ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100')}>{label}</button>)}
+                <div className="flex flex-col gap-3 border-b border-slate-200 px-3 py-3 md:flex-row md:items-center md:justify-between md:px-4">
+                    <div className="flex gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                        {[['all', 'All Schools'], ['ivy', 'Elite'], ['tech', 'Tech']].map(([id, label]) => <button key={id} type="button" onClick={() => setTab(id)} className={cx('shrink-0 rounded-full px-3 py-1.5 text-[12px] font-black md:rounded-lg md:px-3 md:py-2 md:text-xs', tab === id ? 'bg-[#006a61] text-white md:bg-blue-600' : 'border border-slate-200 bg-white text-slate-500 hover:bg-slate-100 md:border-0')}>{label}</button>)}
                     </div>
                     <button type="button" onClick={() => setAdvancedOpen(!advancedOpen)} className="inline-flex items-center gap-2 text-xs font-bold text-slate-500"><Filter size={14} /> Advanced Filters</button>
                 </div>
-                <div className="grid gap-3 border-b border-slate-100 p-4 md:grid-cols-[1fr_auto]">
-                    <label className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-500"><Search size={15} /><input id="partner-school-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search schools, cities, or states..." className="min-w-0 flex-1 bg-transparent outline-none" /></label>
+                <div className="grid gap-3 border-b border-slate-100 p-3 md:grid-cols-[1fr_auto] md:p-4">
+                    <label className="flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-500"><Search size={15} /><input id="partner-school-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search schools, cities, or states..." className="min-w-0 flex-1 bg-transparent font-semibold outline-none" /></label>
                     {advancedOpen && <button type="button" onClick={() => { setTab('all'); setQuery(''); }} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600">Clear filters</button>}
                 </div>
-                <div className="overflow-x-auto"><table className="w-full min-w-[830px] text-left text-sm"><thead className="bg-slate-50 text-[11px] font-black uppercase tracking-wide text-slate-500"><tr><th className="px-5 py-4">School Name</th><th className="px-5 py-4">Location</th><th className="px-5 py-4">Engagement Score</th><th className="px-5 py-4">No. of Visits</th><th className="px-5 py-4 text-right">Action</th></tr></thead><tbody className="divide-y divide-slate-200">{visibleSchools.length === 0 ? <tr><td colSpan="5" className="px-5 py-12 text-center text-slate-500">No partner schools match these filters.</td></tr> : visibleSchools.map((school) => <tr key={school.id} className="hover:bg-blue-50/30"><td className="px-5 py-4"><div className="flex items-center gap-3"><span className="grid h-8 w-8 place-items-center rounded bg-blue-100 text-xs font-black text-blue-700">{school.name.slice(0, 1)}</span><div><p className="font-black text-slate-950">{school.name}</p><p className="text-xs text-slate-400">{school.type?.replace('_', ' ') || 'Partner school'}</p></div></div></td><td className="px-5 py-4 text-slate-600"><span className="inline-flex items-center gap-1"><MapPin size={13} /> {school.city}, {school.country}</span></td><td className="px-5 py-4"><PartnerScore school={school} /></td><td className="px-5 py-4 font-bold text-slate-700">{schoolVisits(school)}</td><td className="px-5 py-4 text-right"><button type="button" onClick={() => openSchoolDetail(school)} className="text-xs font-black text-blue-700 hover:text-blue-900">View Details</button></td></tr>)}</tbody></table></div>
-                <div className="flex items-center justify-between border-t border-slate-200 px-5 py-4 text-xs text-slate-500"><span>Showing {visibleSchools.length} of {schools.length} partner schools</span><span>Database-backed demo data</span></div>
+                <div className="grid gap-2 p-3 md:hidden">
+                    {visibleSchools.length === 0 ? <div className="rounded-xl border border-dashed border-slate-200 p-8 text-center text-sm font-semibold text-slate-500">No partner schools match these filters.</div> : visibleSchools.map((school) => (
+                        <article key={school.id} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+                            <div className="grid grid-cols-[42px_minmax(0,1fr)_auto] gap-3">
+                                <span className="grid h-10 w-10 place-items-center rounded-xl bg-[#e5eeff] text-xs font-black text-blue-700">{school.name.slice(0, 1)}</span>
+                                <div className="min-w-0">
+                                    <h3 className="truncate text-sm font-black text-slate-950">{school.name}</h3>
+                                    <p className="mt-0.5 truncate text-[11px] font-semibold text-slate-500">{school.city}, {school.country}</p>
+                                </div>
+                                <span className="h-fit rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-700">{school.matchScore}/100</span>
+                            </div>
+                            <div className="mt-2 grid grid-cols-2 gap-2 border-y border-slate-100 py-2">
+                                <div><span className="block text-[9px] font-black uppercase text-slate-400">Type</span><span className="mt-0.5 block truncate text-[12px] font-black text-slate-700">{school.type?.replace('_', ' ') || 'Partner school'}</span></div>
+                                <div><span className="block text-[9px] font-black uppercase text-slate-400">Visits</span><span className="mt-0.5 block text-[12px] font-black text-slate-700">{schoolVisits(school)}</span></div>
+                            </div>
+                            <button type="button" onClick={() => openSchoolDetail(school)} className="mt-2 w-full rounded-lg bg-slate-950 px-3 py-2 text-[12px] font-black text-white">View Profile</button>
+                        </article>
+                    ))}
+                </div>
+                <div className="hidden overflow-x-auto md:block"><table className="w-full min-w-[830px] text-left text-sm"><thead className="bg-slate-50 text-[11px] font-black uppercase tracking-wide text-slate-500"><tr><th className="px-5 py-4">School Name</th><th className="px-5 py-4">Location</th><th className="px-5 py-4">Engagement Score</th><th className="px-5 py-4">No. of Visits</th><th className="px-5 py-4 text-right">Action</th></tr></thead><tbody className="divide-y divide-slate-200">{visibleSchools.length === 0 ? <tr><td colSpan="5" className="px-5 py-12 text-center text-slate-500">No partner schools match these filters.</td></tr> : visibleSchools.map((school) => <tr key={school.id} className="hover:bg-blue-50/30"><td className="px-5 py-4"><div className="flex items-center gap-3"><span className="grid h-8 w-8 place-items-center rounded bg-blue-100 text-xs font-black text-blue-700">{school.name.slice(0, 1)}</span><div><p className="font-black text-slate-950">{school.name}</p><p className="text-xs text-slate-400">{school.type?.replace('_', ' ') || 'Partner school'}</p></div></div></td><td className="px-5 py-4 text-slate-600"><span className="inline-flex items-center gap-1"><MapPin size={13} /> {school.city}, {school.country}</span></td><td className="px-5 py-4"><PartnerScore school={school} /></td><td className="px-5 py-4 font-bold text-slate-700">{schoolVisits(school)}</td><td className="px-5 py-4 text-right"><button type="button" onClick={() => openSchoolDetail(school)} className="text-xs font-black text-blue-700 hover:text-blue-900">View Details</button></td></tr>)}</tbody></table></div>
+                <div className="flex items-center justify-between border-t border-slate-200 px-3 py-3 text-xs text-slate-500 md:px-5 md:py-4"><span>Showing {visibleSchools.length} of {schools.length} partner schools</span><span className="hidden md:inline">Database-backed demo data</span></div>
             </section>
 
-            <section className="rounded-xl border border-blue-200 bg-blue-50 p-6"><div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between"><div><div className="flex items-center gap-2 text-sm font-black text-slate-950"><Sparkles size={18} className="text-blue-600" /> AI-Powered School Matching</div><p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">Your partner-school data indicates strong opportunities in high-engagement regions. Review the highest match scores to prioritize outreach and visits.</p></div><div className="flex gap-2"><button type="button" onClick={() => setTab('ivy')} className="rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-black text-white">Review Recommendations</button><button type="button" onClick={() => setTab('all')} className="rounded-lg border border-blue-300 bg-white px-4 py-2.5 text-sm font-black text-blue-700">Dismiss</button></div></div></section>
+            <section className="rounded-xl border border-blue-200 bg-blue-50 p-4 md:p-6"><div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between"><div><div className="flex items-center gap-2 text-sm font-black text-slate-950"><Sparkles size={18} className="text-blue-600" /> AI-Powered School Matching</div><p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600 md:mt-3">Your partner-school data indicates strong opportunities in high-engagement regions. Review the highest match scores to prioritize outreach and visits.</p></div><div className="grid grid-cols-2 gap-2 md:flex"><button type="button" onClick={() => setTab('ivy')} className="rounded-lg bg-slate-950 px-3 py-2 text-xs font-black text-white md:px-4 md:py-2.5 md:text-sm">Review</button><button type="button" onClick={() => setTab('all')} className="rounded-lg border border-blue-300 bg-white px-3 py-2 text-xs font-black text-blue-700 md:px-4 md:py-2.5 md:text-sm">Dismiss</button></div></div></section>
         </div>
     );
 }
 
 function PartnerMetric({ label, value, detail, tone = 'blue' }) {
-    return <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm"><p className="text-[11px] font-black uppercase tracking-wide text-slate-400">{label}</p><p className="mt-2 text-2xl font-black text-slate-950">{value}</p><p className={cx('mt-1 text-xs font-bold', tone === 'green' ? 'text-emerald-600' : 'text-blue-600')}>{detail}</p></section>;
+    return <section className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm md:p-4"><p className="text-[10px] font-black uppercase tracking-wide text-slate-400 md:text-[11px]">{label}</p><p className="mt-2 text-xl font-black text-slate-950 md:text-2xl">{value}</p><p className={cx('mt-1 text-[11px] font-bold md:text-xs', tone === 'green' ? 'text-emerald-600' : 'text-blue-600')}>{detail}</p></section>;
 }
 
 function PartnerSchoolDetail({ csrf, school, archives, visitsCount, onBack }) {
@@ -7554,38 +7602,38 @@ function AnalyticsForecastSection({ analytics = {}, schools = [] }) {
     };
 
     return (
-        <div className="grid gap-6">
-            <section className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div className="grid gap-4 md:gap-6">
+            <section className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                 <div>
                     <p className="text-xs font-black uppercase tracking-wide text-blue-700">Database intelligence</p>
-                    <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-950">{analytics.title || 'Recruitment Intelligence'}</h1>
-                    <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">{analytics.subtitle || 'Analytics will update as live records are added to the platform.'}</p>
+                    <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950 md:mt-2 md:text-3xl">{analytics.title || 'Recruitment Intelligence'}</h1>
+                    <p className="mt-1 max-w-3xl text-sm font-semibold leading-6 text-slate-500 md:mt-2">{analytics.subtitle || 'Analytics will update as live records are added to the platform.'}</p>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                    <button type="button" onClick={exportReport} className="inline-flex items-center gap-2 rounded-lg border border-blue-600 bg-white px-4 py-2.5 text-sm font-black text-blue-700"><Download size={16} /> Export Report</button>
-                    <span className="inline-flex items-center rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-600">{analytics.cycle || 'Current cycle'}</span>
+                <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+                    <button type="button" onClick={exportReport} className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#006a61]/30 bg-white px-3 py-2 text-xs font-black text-[#006a61] md:px-4 md:py-2.5 md:text-sm"><Download size={15} /> Export</button>
+                    <span className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600 md:px-4 md:py-2.5 md:text-sm">{analytics.cycle || 'Current cycle'}</span>
                 </div>
             </section>
 
-            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <section className="grid grid-cols-2 gap-2 md:grid-cols-2 md:gap-4 xl:grid-cols-4">
                 {kpis.map((item) => (
-                    <article key={item.label} className="overflow-hidden rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                    <article key={item.label} className="overflow-hidden rounded-xl border border-slate-200 bg-white p-3 shadow-sm md:p-5">
                         <div className="flex items-start justify-between gap-3">
-                            <p className="text-[11px] font-black uppercase tracking-wide text-slate-500">{item.label}</p>
-                            <Sparkles size={17} className="text-blue-600" />
+                            <p className="text-[10px] font-black uppercase tracking-wide text-slate-500 md:text-[11px]">{item.label}</p>
+                            <Sparkles size={15} className="text-blue-600 md:size-[17px]" />
                         </div>
-                        <p className="mt-4 text-3xl font-black tracking-tight text-slate-950">{item.value}</p>
+                        <p className="mt-3 text-2xl font-black tracking-tight text-slate-950 md:mt-4 md:text-3xl">{item.value}</p>
                         <p className="mt-2 text-xs font-bold text-emerald-700">{item.trend || 'Live data'}</p>
                     </article>
                 ))}
             </section>
 
-            <section className="grid gap-6 xl:grid-cols-[1.35fr_0.65fr]">
-                <div className="space-y-6">
-                    <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+            <section className="grid gap-4 xl:grid-cols-[1.35fr_0.65fr] md:gap-6">
+                <div className="space-y-4 md:space-y-6">
+                    <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
                         <div className="flex flex-col gap-2 border-b border-slate-100 pb-4 sm:flex-row sm:items-center sm:justify-between">
                             <div>
-                                <h2 className="text-xl font-black text-slate-950">Conversion Funnel Analysis</h2>
+                                <h2 className="text-lg font-black text-slate-950 md:text-xl">Conversion Funnel Analysis</h2>
                                 <p className="mt-1 text-sm text-slate-500">Built from current records scoped to this account.</p>
                             </div>
                             <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-600">{analytics.modelConfidence || 0}% confidence</span>
@@ -7594,10 +7642,10 @@ function AnalyticsForecastSection({ analytics = {}, schools = [] }) {
                             {funnel.length === 0 ? (
                                 <EmptyState message="Funnel data will appear after registrations are recorded." />
                             ) : funnel.map((step, index) => (
-                                <div key={step.label} className="grid gap-3 sm:grid-cols-[110px_1fr_86px] sm:items-center">
+                                <div key={step.label} className="grid gap-2 sm:grid-cols-[110px_1fr_86px] sm:items-center md:gap-3">
                                     <p className="text-sm font-black text-slate-600">{step.label}</p>
-                                    <div className="h-11 overflow-hidden rounded-r-lg bg-slate-100">
-                                        <div className={cx('flex h-11 min-w-[3rem] items-center px-4 text-sm font-black text-white', index === funnel.length - 1 ? 'bg-emerald-600' : 'bg-blue-600')} style={{ width: `${Math.max(5, Math.min(100, Number(step.rate || 0)))}%` }}>
+                                    <div className="h-9 overflow-hidden rounded-r-lg bg-slate-100 md:h-11">
+                                        <div className={cx('flex h-9 min-w-[3rem] items-center px-3 text-xs font-black text-white md:h-11 md:px-4 md:text-sm', index === funnel.length - 1 ? 'bg-emerald-600' : 'bg-blue-600')} style={{ width: `${Math.max(5, Math.min(100, Number(step.rate || 0)))}%` }}>
                                             {formatCompact(step.value || 0)}
                                         </div>
                                     </div>
@@ -7607,28 +7655,28 @@ function AnalyticsForecastSection({ analytics = {}, schools = [] }) {
                         </div>
                     </section>
 
-                    <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+                    <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
                         <div className="flex items-center justify-between gap-3">
                             <div>
-                                <h2 className="text-xl font-black text-slate-950">Engagement Trend</h2>
+                                <h2 className="text-lg font-black text-slate-950 md:text-xl">Engagement Trend</h2>
                                 <p className="mt-1 text-sm text-slate-500">Six-month activity based on registration creation dates.</p>
                             </div>
                             <span className="text-xs font-black uppercase tracking-wide text-slate-400">Monthly</span>
                         </div>
-                        <div className="mt-6 flex h-64 items-end gap-3 border-b border-slate-200 px-2">
+                        <div className="mt-4 flex h-36 items-end gap-2 border-b border-slate-200 px-1 md:mt-6 md:h-64 md:gap-3 md:px-2">
                             {trend.length === 0 ? (
                                 <div className="grid h-full w-full place-items-center text-sm font-semibold text-slate-500">No trend data yet.</div>
                             ) : trend.map((item) => (
                                 <div key={item.label} className="flex h-full flex-1 flex-col justify-end gap-2">
                                     <div className="rounded-t bg-blue-600" style={{ height: `${Math.max(6, (Number(item.value || 0) / maxTrend) * 100)}%` }} title={`${item.label}: ${item.value}`} />
-                                    <p className="text-center text-xs font-bold text-slate-500">{item.label}</p>
+                                    <p className="text-center text-[10px] font-bold text-slate-500 md:text-xs">{item.label}</p>
                                 </div>
                             ))}
                         </div>
                     </section>
 
-                    <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-                        <h2 className="text-xl font-black text-slate-950">Rising Opportunities</h2>
+                    <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
+                        <h2 className="text-lg font-black text-slate-950 md:text-xl">Rising Opportunities</h2>
                         <div className="mt-4 divide-y divide-slate-100">
                             {opportunities.length === 0 ? (
                                 <EmptyState message="Opportunity ranking will appear after schools or visits are available." />
@@ -7646,8 +7694,8 @@ function AnalyticsForecastSection({ analytics = {}, schools = [] }) {
                     </section>
                 </div>
 
-                <aside className="space-y-6">
-                    <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <aside className="space-y-4 md:space-y-6">
+                    <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:p-5">
                         <div className="flex items-center gap-2 border-b border-slate-100 pb-4">
                             <Sparkles size={18} className="text-emerald-600" />
                             <h2 className="text-lg font-black text-slate-950">Predictive Insights</h2>
@@ -7669,7 +7717,7 @@ function AnalyticsForecastSection({ analytics = {}, schools = [] }) {
                         </div>
                     </section>
 
-                    <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                    <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:p-5">
                         <h2 className="text-lg font-black text-slate-950">Signal Strength</h2>
                         <div className="mt-4 grid grid-cols-2 gap-3">
                             <MiniStat label="Confidence" value={`${analytics.modelConfidence || 0}%`} />
@@ -7677,7 +7725,7 @@ function AnalyticsForecastSection({ analytics = {}, schools = [] }) {
                         </div>
                     </section>
 
-                    <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                    <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:p-5">
                         <h2 className="text-lg font-black text-slate-950">Growth Hotspots</h2>
                         <div className="mt-4 space-y-3">
                             {(analytics.hotspots || []).length === 0 ? (
