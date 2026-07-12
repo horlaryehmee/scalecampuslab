@@ -30,4 +30,9 @@ class TargetSchool extends Model
     {
         return $this->hasMany(VisitArchive::class);
     }
+
+    public function partnerTasks(): HasMany
+    {
+        return $this->hasMany(PartnerSchoolTask::class);
+    }
 }

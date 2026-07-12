@@ -8,6 +8,7 @@ use App\Models\Application;
 use App\Models\Message;
 use App\Models\PlatformNotification;
 use App\Models\PlatformSetting;
+use App\Models\PartnerSchoolTask;
 use App\Models\ProjectMilestone;
 use App\Models\SchoolItineraryItem;
 use App\Models\TargetSchool;
@@ -277,6 +278,94 @@ class DashboardController extends Controller
         $school->update(['status' => $validated['status']]);
 
         return back()->with('status', 'School status updated.');
+    }
+
+    public function storeUniversityPartnerSchool(Request $request): RedirectResponse
+    {
+        abort_unless($request->user()?->role === 'university', 403);
+
+        $validated = $this->validateAdminSchool($request);
+        $validated['school_code'] = $validated['school_code'] ?: $this->schoolCodeFromName($validated['name']);
+        $validated['status'] = $validated['status'] ?? 'verified';
+
+        TargetSchool::create($validated);
+
+        return back()->with('status', 'Partner school added.');
+    }
+
+    public function updateUniversityPartnerSchool(Request $request, TargetSchool $school): RedirectResponse
+    {
+        abort_unless($request->user()?->role === 'university', 403);
+
+        $validated = $this->validateAdminSchool($request, $school);
+        $validated['school_code'] = $validated['school_code'] ?: $this->schoolCodeFromName($validated['name'], $school->id);
+
+        $school->update($validated);
+
+        return back()->with('status', 'Partner school relationship updated.');
+    }
+
+    public function destroyUniversityPartnerSchool(Request $request, TargetSchool $school): RedirectResponse
+    {
+        abort_unless($request->user()?->role === 'university', 403);
+
+        if ($school->visitRequests()->exists() || $school->archives()->exists()) {
+            return back()->withErrors(['school' => 'This school has engagement history. Suspend it instead of deleting shared records.']);
+        }
+
+        $school->delete();
+
+        return back()->with('status', 'Partner school removed.');
+    }
+
+    public function contactUniversityPartnerSchool(Request $request, TargetSchool $school): RedirectResponse
+    {
+        abort_unless($request->user()?->role === 'university', 403);
+
+        $validated = $request->validate([
+            'subject' => ['required', 'string', 'max:160'],
+            'message' => ['required', 'string', 'max:2000'],
+        ]);
+
+        Message::create([
+            'user_id' => $request->user()->id,
+            'type' => 'email',
+            'content' => "{$validated['subject']}\n\nTo: {$school->coordinator_email}\n\n{$validated['message']}",
+            'status' => 'pending',
+        ]);
+
+        PartnerSchoolTask::create([
+            'target_school_id' => $school->id,
+            'user_id' => $request->user()->id,
+            'title' => 'Follow up with '.$school->name,
+            'description' => 'Contact action queued: '.$validated['subject'],
+            'status' => 'open',
+            'ai_suggested' => false,
+        ]);
+
+        return back()->with('status', 'Contact action saved and queued.');
+    }
+
+    public function storeUniversityPartnerTask(Request $request, TargetSchool $school): RedirectResponse
+    {
+        abort_unless($request->user()?->role === 'university', 403);
+
+        $validated = $request->validate([
+            'title' => ['required', 'string', 'max:160'],
+            'description' => ['nullable', 'string', 'max:1000'],
+            'ai_suggested' => ['nullable', 'boolean'],
+        ]);
+
+        PartnerSchoolTask::create([
+            'target_school_id' => $school->id,
+            'user_id' => $request->user()->id,
+            'title' => $validated['title'],
+            'description' => $validated['description'] ?? null,
+            'status' => 'open',
+            'ai_suggested' => $request->boolean('ai_suggested'),
+        ]);
+
+        return back()->with('status', 'Partner-school action saved.');
     }
 
     public function destroyAdminSchool(Request $request, TargetSchool $school): RedirectResponse
@@ -1387,7 +1476,8 @@ class DashboardController extends Controller
     private function schools(): array
     {
         return TargetSchool::query()
-            ->withCount(['visitRequests', 'archives'])
+            ->with(['partnerTasks' => fn ($query) => $query->latest()->limit(8)])
+            ->withCount(['visitRequests', 'archives', 'partnerTasks'])
             ->orderByDesc('match_score')
             ->limit(250)
             ->get()
@@ -1412,6 +1502,15 @@ class DashboardController extends Controller
                 'activeApplicants' => $school->active_applicants,
                 'visitRequests' => $school->visit_requests_count,
                 'archiveVisits' => $school->archives_count,
+                'taskCount' => $school->partner_tasks_count,
+                'tasks' => $school->partnerTasks->map(fn (PartnerSchoolTask $task) => [
+                    'id' => $task->id,
+                    'title' => $task->title,
+                    'description' => $task->description,
+                    'status' => $task->status,
+                    'aiSuggested' => $task->ai_suggested,
+                    'createdAt' => $task->created_at?->toIso8601String(),
+                ])->toArray(),
                 'notes' => $school->notes,
                 'isDemo' => $school->is_demo,
                 'createdAt' => $school->created_at?->toIso8601String(),

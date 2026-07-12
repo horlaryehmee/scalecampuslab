@@ -69,6 +69,11 @@ Route::middleware('auth')->group(function (): void {
     Route::post('/dashboard/university/attendees/message', [DashboardController::class, 'messageUniversityAttendees'])->middleware('role:university')->name('dashboard.university.attendees.message');
     Route::post('/dashboard/university/demo-data/populate', [DashboardController::class, 'populateUniversityDemoData'])->middleware('role:university')->name('dashboard.university.demo.populate');
     Route::delete('/dashboard/university/demo-data', [DashboardController::class, 'clearUniversityDemoData'])->middleware('role:university')->name('dashboard.university.demo.clear');
+    Route::post('/dashboard/university/partner-schools', [DashboardController::class, 'storeUniversityPartnerSchool'])->middleware('role:university')->name('dashboard.university.partner-schools.store');
+    Route::put('/dashboard/university/partner-schools/{school}', [DashboardController::class, 'updateUniversityPartnerSchool'])->middleware('role:university')->name('dashboard.university.partner-schools.update');
+    Route::delete('/dashboard/university/partner-schools/{school}', [DashboardController::class, 'destroyUniversityPartnerSchool'])->middleware('role:university')->name('dashboard.university.partner-schools.destroy');
+    Route::post('/dashboard/university/partner-schools/{school}/contact', [DashboardController::class, 'contactUniversityPartnerSchool'])->middleware('role:university')->name('dashboard.university.partner-schools.contact');
+    Route::post('/dashboard/university/partner-schools/{school}/tasks', [DashboardController::class, 'storeUniversityPartnerTask'])->middleware('role:university')->name('dashboard.university.partner-schools.tasks.store');
     Route::post('/dashboard/school/settings', [DashboardController::class, 'updateSchoolSettings'])->middleware('role:school,high_school')->name('dashboard.school.settings.update');
     Route::post('/dashboard/school/students', [DashboardController::class, 'storeSchoolStudent'])->middleware('role:school,high_school')->name('dashboard.school.students.store');
     Route::put('/dashboard/school/students/{student}', [DashboardController::class, 'updateSchoolStudent'])->middleware('role:school,high_school')->name('dashboard.school.students.update');

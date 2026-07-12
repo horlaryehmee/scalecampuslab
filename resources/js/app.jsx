@@ -1935,17 +1935,30 @@ function InviteSchoolsModal({ csrf, event, schools = [], onClose }) {
 
 function UniversityPrdTracker({ events = [], registrations = [], schools = [], visitRequests = [] }) {
     const hasAdvancedFields = events.some((event) => event.visibility || event.registrationOpensAt || event.perSchoolCapacity || event.lifecycleStage);
-    const items = [
-        ['Duplicate/copy programs', 'done', 'Copy action creates draft programs from existing records.'],
-        ['Dedicated program detail page', 'done', 'Detail modal shows roster, logistics, lifecycle, and actions.'],
-        ['Conflict detection before saving', 'midway', 'UI warning and backend venue/time protection exist; richer time overlap UX can improve.'],
-        ['Capacity rules per school/group', hasAdvancedFields ? 'done' : 'midway', 'Per-school and per-group caps are stored and enforced for registration limits.'],
-        ['Custom registration windows', hasAdvancedFields ? 'done' : 'midway', 'Open/close windows are stored and checked during registration.'],
-        ['Visibility control', hasAdvancedFields ? 'done' : 'midway', 'Public, invite-only, and private program visibility is stored.'],
-        ['Invite schools workflow', visitRequests.length > 0 ? 'done' : 'midway', 'Invite action creates visit requests for selected schools.'],
-        ['Program lifecycle tracking', events.some((event) => (event.lifecycleLog || []).length) ? 'done' : 'midway', 'Lifecycle stage and action log are stored on each program.'],
-        ['Production readiness', events.length && schools.length && registrations.length ? 'midway' : 'issue', 'Core structure exists; final readiness needs full QA, notification delivery, and SPA feedback polish.'],
+    const categories = [
+        ['Visit Program Workflow', [
+            ['Duplicate/copy programs', 'done', 'Copy action creates draft programs from existing records.'],
+            ['Dedicated program detail page', 'done', 'Detail modal shows roster, logistics, lifecycle, and actions.'],
+            ['Conflict detection before saving', 'midway', 'UI warning and backend venue/time protection exist; richer time overlap UX can improve.'],
+            ['Capacity rules per school/group', hasAdvancedFields ? 'done' : 'midway', 'Per-school and per-group caps are stored and enforced for registration limits.'],
+            ['Custom registration windows', hasAdvancedFields ? 'done' : 'midway', 'Open/close windows are stored and checked during registration.'],
+            ['Visibility control', hasAdvancedFields ? 'done' : 'midway', 'Public, invite-only, and private program visibility is stored.'],
+            ['Invite schools workflow', visitRequests.length > 0 ? 'done' : 'midway', 'Invite action creates visit requests for selected schools.'],
+            ['Program lifecycle tracking', events.some((event) => (event.lifecycleLog || []).length) ? 'done' : 'midway', 'Lifecycle stage and action log are stored on each program.'],
+        ]],
+        ['Partner School Management', [
+            ['Add and remove partner schools', 'done', 'University users can add schools and remove schools without shared history.'],
+            ['Manual priority or tier assignment', 'done', 'Relationship tier and match score are editable and persisted.'],
+            ['Persistent internal notes', 'done', 'Internal notes are saved on the partner-school database record.'],
+            ['Direct contact actions', 'done', 'Contact actions queue a message record and create a follow-up task.'],
+            ['Engagement history tracking', schools.some((school) => Number(school.archiveVisits || 0) > 0 || Number(school.visitRequests || 0) > 0) ? 'done' : 'midway', 'Profile combines archived visits, requests, and visits count.'],
+            ['AI recommendations saved as tasks', schools.some((school) => Number(school.taskCount || 0) > 0) ? 'done' : 'midway', 'AI recommendation button stores actionable partner-school tasks.'],
+        ]],
+        ['Production Readiness', [
+            ['End-to-end readiness', events.length && schools.length && registrations.length ? 'midway' : 'issue', 'Core structure exists; final readiness needs full QA, notification delivery, and SPA feedback polish.'],
+        ]],
     ];
+    const items = categories.flatMap(([, rows]) => rows);
     const counts = items.reduce((acc, [, status]) => ({ ...acc, [status]: (acc[status] || 0) + 1 }), {});
     const score = Math.round(((counts.done || 0) / items.length) * 100);
 
@@ -1969,17 +1982,24 @@ function UniversityPrdTracker({ events = [], registrations = [], schools = [], v
                 <MiniStat label="Midway" value={counts.midway || 0} />
                 <MiniStat label="Issues" value={counts.issue || 0} />
             </div>
-            <div className="grid gap-3">
-                {items.map(([title, status, note]) => (
-                    <article key={title} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                        <div className="flex items-start justify-between gap-3">
-                            <div>
-                                <h3 className="font-black text-slate-950">{title}</h3>
-                                <p className="mt-1 text-sm font-semibold leading-6 text-slate-500">{note}</p>
-                            </div>
-                            <span className={cx('shrink-0 rounded-full px-3 py-1 text-[10px] font-black uppercase', status === 'done' ? 'bg-emerald-50 text-emerald-700' : status === 'midway' ? 'bg-amber-50 text-amber-700' : 'bg-rose-50 text-rose-700')}>{status === 'done' ? 'Done' : status === 'midway' ? 'Midway' : 'Issue'}</span>
+            <div className="grid gap-5">
+                {categories.map(([category, rows]) => (
+                    <section key={category} className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                        <h2 className="text-lg font-black text-slate-950">{category}</h2>
+                        <div className="mt-3 grid gap-3">
+                            {rows.map(([title, status, note]) => (
+                                <article key={title} className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div>
+                                            <h3 className="font-black text-slate-950">{title}</h3>
+                                            <p className="mt-1 text-sm font-semibold leading-6 text-slate-500">{note}</p>
+                                        </div>
+                                        <span className={cx('shrink-0 rounded-full px-3 py-1 text-[10px] font-black uppercase', status === 'done' ? 'bg-emerald-50 text-emerald-700' : status === 'midway' ? 'bg-amber-50 text-amber-700' : 'bg-rose-50 text-rose-700')}>{status === 'done' ? 'Done' : status === 'midway' ? 'Midway' : 'Issue'}</span>
+                                    </div>
+                                </article>
+                            ))}
                         </div>
-                    </article>
+                    </section>
                 ))}
             </div>
         </section>
@@ -7333,6 +7353,7 @@ function PartnerSchoolsSection({ csrf, schools, visitRequests, archives = [] }) 
     const [tab, setTab] = useState('all');
     const [query, setQuery] = useState('');
     const [selectedSchool, setSelectedSchool] = useState(null);
+    const [editor, setEditor] = useState(null);
     const [advancedOpen, setAdvancedOpen] = useState(false);
     const visibleSchools = schools.filter((school) => {
         const matchesQuery = !query || `${school.name} ${school.city} ${school.region}`.toLowerCase().includes(query.toLowerCase());
@@ -7363,6 +7384,7 @@ function PartnerSchoolsSection({ csrf, schools, visitRequests, archives = [] }) 
                 archives={archives.filter((archive) => archive.schoolId === selectedSchool.id || archive.school === selectedSchool.name)}
                 visitsCount={schoolVisits(selectedSchool)}
                 onBack={() => setSelectedSchool(null)}
+                onEdit={() => { setEditor(selectedSchool); setSelectedSchool(null); }}
             />
         );
     }
@@ -7371,8 +7393,12 @@ function PartnerSchoolsSection({ csrf, schools, visitRequests, archives = [] }) 
         <div className="grid gap-4 md:gap-6">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                 <div><h1 className="text-2xl font-black tracking-tight text-slate-950 md:text-3xl">Partner Schools</h1><p className="mt-1 text-sm font-semibold text-slate-500">Manage institutional relationships and student engagement analytics.</p></div>
-                <button type="button" onClick={() => document.getElementById('partner-school-search')?.focus()} className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-black text-white"><Search size={16} /> Find Schools</button>
+                <div className="grid grid-cols-2 gap-2 sm:flex">
+                    <button type="button" onClick={() => setEditor({})} className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#006a61] px-4 py-2.5 text-sm font-black text-white"><Plus size={16} /> Add School</button>
+                    <button type="button" onClick={() => document.getElementById('partner-school-search')?.focus()} className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-black text-white"><Search size={16} /> Find Schools</button>
+                </div>
             </div>
+            {editor && <PartnerSchoolEditor csrf={csrf} school={editor.id ? editor : null} onClose={() => setEditor(null)} />}
 
             <div className="grid grid-cols-2 gap-2 md:grid-cols-2 md:gap-4 xl:grid-cols-4">
                 <PartnerMetric label="Total Partnerships" value={schools.length} detail="Growing network" />
@@ -7407,11 +7433,14 @@ function PartnerSchoolsSection({ csrf, schools, visitRequests, archives = [] }) 
                                 <div><span className="block text-[9px] font-black uppercase text-slate-400">Type</span><span className="mt-0.5 block truncate text-[12px] font-black text-slate-700">{school.type?.replace('_', ' ') || 'Partner school'}</span></div>
                                 <div><span className="block text-[9px] font-black uppercase text-slate-400">Visits</span><span className="mt-0.5 block text-[12px] font-black text-slate-700">{schoolVisits(school)}</span></div>
                             </div>
-                            <button type="button" onClick={() => openSchoolDetail(school)} className="mt-2 w-full rounded-lg bg-slate-950 px-3 py-2 text-[12px] font-black text-white">View Profile</button>
+                            <div className="mt-2 grid grid-cols-2 gap-2">
+                                <button type="button" onClick={() => openSchoolDetail(school)} className="rounded-lg bg-slate-950 px-3 py-2 text-[12px] font-black text-white">View Profile</button>
+                                <button type="button" onClick={() => setEditor(school)} className="rounded-lg border border-slate-200 px-3 py-2 text-[12px] font-black text-slate-700">Edit</button>
+                            </div>
                         </article>
                     ))}
                 </div>
-                <div className="hidden overflow-x-auto md:block"><table className="w-full min-w-[830px] text-left text-sm"><thead className="bg-slate-50 text-[11px] font-black uppercase tracking-wide text-slate-500"><tr><th className="px-5 py-4">School Name</th><th className="px-5 py-4">Location</th><th className="px-5 py-4">Engagement Score</th><th className="px-5 py-4">No. of Visits</th><th className="px-5 py-4 text-right">Action</th></tr></thead><tbody className="divide-y divide-slate-200">{visibleSchools.length === 0 ? <tr><td colSpan="5" className="px-5 py-12 text-center text-slate-500">No partner schools match these filters.</td></tr> : visibleSchools.map((school) => <tr key={school.id} className="hover:bg-blue-50/30"><td className="px-5 py-4"><div className="flex items-center gap-3"><span className="grid h-8 w-8 place-items-center rounded bg-blue-100 text-xs font-black text-blue-700">{school.name.slice(0, 1)}</span><div><p className="font-black text-slate-950">{school.name}</p><p className="text-xs text-slate-400">{school.type?.replace('_', ' ') || 'Partner school'}</p></div></div></td><td className="px-5 py-4 text-slate-600"><span className="inline-flex items-center gap-1"><MapPin size={13} /> {school.city}, {school.country}</span></td><td className="px-5 py-4"><PartnerScore school={school} /></td><td className="px-5 py-4 font-bold text-slate-700">{schoolVisits(school)}</td><td className="px-5 py-4 text-right"><button type="button" onClick={() => openSchoolDetail(school)} className="text-xs font-black text-blue-700 hover:text-blue-900">View Details</button></td></tr>)}</tbody></table></div>
+                <div className="hidden overflow-x-auto md:block"><table className="w-full min-w-[900px] text-left text-sm"><thead className="bg-slate-50 text-[11px] font-black uppercase tracking-wide text-slate-500"><tr><th className="px-5 py-4">School Name</th><th className="px-5 py-4">Location</th><th className="px-5 py-4">Engagement Score</th><th className="px-5 py-4">Visits</th><th className="px-5 py-4">Tasks</th><th className="px-5 py-4 text-right">Action</th></tr></thead><tbody className="divide-y divide-slate-200">{visibleSchools.length === 0 ? <tr><td colSpan="6" className="px-5 py-12 text-center text-slate-500">No partner schools match these filters.</td></tr> : visibleSchools.map((school) => <tr key={school.id} className="hover:bg-blue-50/30"><td className="px-5 py-4"><div className="flex items-center gap-3"><span className="grid h-8 w-8 place-items-center rounded bg-blue-100 text-xs font-black text-blue-700">{school.name.slice(0, 1)}</span><div><p className="font-black text-slate-950">{school.name}</p><p className="text-xs text-slate-400">{school.type?.replace('_', ' ') || 'Partner school'} - {school.tier}</p></div></div></td><td className="px-5 py-4 text-slate-600"><span className="inline-flex items-center gap-1"><MapPin size={13} /> {school.city}, {school.country}</span></td><td className="px-5 py-4"><PartnerScore school={school} /></td><td className="px-5 py-4 font-bold text-slate-700">{schoolVisits(school)}</td><td className="px-5 py-4 font-bold text-slate-700">{school.taskCount || 0}</td><td className="px-5 py-4 text-right"><div className="flex justify-end gap-2"><button type="button" onClick={() => openSchoolDetail(school)} className="rounded-lg border border-blue-100 px-3 py-2 text-xs font-black text-blue-700 hover:bg-blue-50">View</button><button type="button" onClick={() => setEditor(school)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50">Edit</button></div></td></tr>)}</tbody></table></div>
                 <div className="flex items-center justify-between border-t border-slate-200 px-3 py-3 text-xs text-slate-500 md:px-5 md:py-4"><span>Showing {visibleSchools.length} of {schools.length} partner schools</span><span className="hidden md:inline">Database-backed demo data</span></div>
             </section>
 
@@ -7424,7 +7453,51 @@ function PartnerMetric({ label, value, detail, tone = 'blue' }) {
     return <section className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm md:p-4"><p className="text-[10px] font-black uppercase tracking-wide text-slate-400 md:text-[11px]">{label}</p><p className="mt-2 text-xl font-black text-slate-950 md:text-2xl">{value}</p><p className={cx('mt-1 text-[11px] font-bold md:text-xs', tone === 'green' ? 'text-emerald-600' : 'text-blue-600')}>{detail}</p></section>;
 }
 
-function PartnerSchoolDetail({ csrf, school, archives, visitsCount, onBack }) {
+function PartnerSchoolEditor({ csrf, school, onClose }) {
+    const isEdit = Boolean(school);
+    const value = (key, fallback = '') => school?.[key] ?? fallback;
+
+    return (
+        <section className="fixed inset-0 z-[90] grid place-items-center bg-slate-950/55 px-3 py-5 backdrop-blur-sm">
+            <form action={isEdit ? `/dashboard/university/partner-schools/${school.id}` : '/dashboard/university/partner-schools'} method="POST" className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-3xl border border-white/70 bg-white shadow-2xl">
+                <input type="hidden" name="_token" value={csrf} />
+                {isEdit && <input type="hidden" name="_method" value="PUT" />}
+                <div className="flex items-start justify-between gap-4 border-b border-slate-100 p-4 md:p-5">
+                    <div>
+                        <p className="text-xs font-black uppercase tracking-[0.14em] text-[#006a61]">{isEdit ? 'Edit partner school' : 'Add partner school'}</p>
+                        <h2 className="mt-1 text-xl font-black text-slate-950 md:text-2xl">{isEdit ? school.name : 'New School Relationship'}</h2>
+                        <p className="mt-1 text-sm font-semibold text-slate-500">Manage tier, priority signals, contact details, and internal notes.</p>
+                    </div>
+                    <button type="button" onClick={onClose} className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-slate-200 bg-white text-slate-500 shadow-sm"><X size={18} /></button>
+                </div>
+                <div className="grid gap-4 overflow-y-auto p-4 md:grid-cols-2 md:p-5">
+                    <LightField label="School code" name="school_code" defaultValue={value('code')} />
+                    <LightField label="School name" name="name" defaultValue={value('name')} />
+                    <LightField label="City" name="city" defaultValue={value('city')} />
+                    <LightField label="Region / State" name="region" defaultValue={value('region')} />
+                    <LightField label="Country" name="country" defaultValue={value('country', 'United States')} />
+                    <LightField label="District" name="district" defaultValue={value('district')} />
+                    <LightField label="Coordinator name" name="coordinator_name" defaultValue={value('coordinatorName')} />
+                    <LightField label="Coordinator email" name="coordinator_email" type="email" defaultValue={value('coordinatorEmail')} />
+                    <label className="text-sm font-semibold text-slate-700">Status<select name="status" defaultValue={value('status', 'verified')} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm"><option value="verified">Verified</option><option value="pending">Pending</option><option value="suspended">Suspended</option></select></label>
+                    <label className="text-sm font-semibold text-slate-700">School type<select name="school_type" defaultValue={value('type', 'private')} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm"><option value="public">Public</option><option value="private">Private</option><option value="ib_school">IB School</option><option value="charter">Charter</option></select></label>
+                    <label className="text-sm font-semibold text-slate-700">Relationship tier<select name="performance_tier" defaultValue={value('tier', 'stable')} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm"><option value="elite">Elite</option><option value="high">High</option><option value="emerging">Emerging</option><option value="stable">Stable</option></select></label>
+                    <LightField label="Average SAT" name="average_sat" type="number" min="400" max="1600" defaultValue={value('sat')} />
+                    <LightField label="Yield rate" name="yield_rate" type="number" min="0" max="100" step="0.01" defaultValue={value('yieldRate', 0)} />
+                    <LightField label="Priority / match score" name="match_score" type="number" min="0" max="100" defaultValue={value('matchScore', 75)} />
+                    <LightField label="Active applicants" name="active_applicants" type="number" min="0" defaultValue={value('activeApplicants', 0)} />
+                    <div className="md:col-span-2"><LightTextarea label="Persistent internal notes" name="notes" defaultValue={value('notes')} /></div>
+                </div>
+                <div className="grid grid-cols-2 gap-2 border-t border-slate-100 p-4">
+                    <button type="button" onClick={onClose} className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700">Cancel</button>
+                    <button className="rounded-xl bg-slate-950 px-4 py-3 text-sm font-black text-white">{isEdit ? 'Save Changes' : 'Add School'}</button>
+                </div>
+            </form>
+        </section>
+    );
+}
+
+function PartnerSchoolDetail({ csrf, school, archives, visitsCount, onBack, onEdit }) {
     const insight = partnerSchoolInsight(school, archives);
     const yearlyApplicants = Math.round((Number(school.activeApplicants || 0) * 8) + Number(school.matchScore || 0) * 9);
     const recruited = archives.reduce((total, archive) => total + Number(archive.leads || 0), 0) || Math.round(yearlyApplicants * 0.42);
@@ -7458,6 +7531,9 @@ function PartnerSchoolDetail({ csrf, school, archives, visitsCount, onBack }) {
                     </span>
                     <button type="button" className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-black text-blue-700">
                         <MailCheck size={14} /> Message Counselor
+                    </button>
+                    <button type="button" onClick={onEdit} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700">
+                        <Edit3 size={14} /> Edit Relationship
                     </button>
                     <form action={`/partner-schools/${school.id}/schedule-visit`} method="POST">
                         <input type="hidden" name="_token" value={csrf} />
@@ -7494,7 +7570,13 @@ function PartnerSchoolDetail({ csrf, school, archives, visitsCount, onBack }) {
                             </div>
                         ))}
                     </div>
-                    <button type="button" className="mt-5 w-full rounded-lg border border-white/15 bg-white px-3 py-2 text-xs font-black text-slate-950">Generate Detailed Report</button>
+                    <form action={`/dashboard/university/partner-schools/${school.id}/tasks`} method="POST">
+                        <input type="hidden" name="_token" value={csrf} />
+                        <input type="hidden" name="title" value={`AI follow-up for ${school.name}`} />
+                        <input type="hidden" name="description" value={insight.strategies.join(' ')} />
+                        <input type="hidden" name="ai_suggested" value="1" />
+                        <button className="mt-5 w-full rounded-lg border border-white/15 bg-white px-3 py-2 text-xs font-black text-slate-950">Save AI Recommendation</button>
+                    </form>
                 </section>
 
                 <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
@@ -7541,7 +7623,7 @@ function PartnerSchoolDetail({ csrf, school, archives, visitsCount, onBack }) {
                 <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
                     <h3 className="font-black text-slate-950">Key Contacts</h3>
                     <div className="mt-4 space-y-4">
-                        {contacts.map(([name, title, email]) => (
+                        {[[school.coordinatorName || contacts[0][0], 'Primary Coordinator', school.coordinatorEmail || contacts[0][2]], ...contacts.slice(1)].map(([name, title, email]) => (
                             <div key={email} className="flex items-center gap-3">
                                 <span className="grid h-10 w-10 place-items-center rounded-full bg-slate-100 text-xs font-black text-slate-700">{name.split(' ').map((part) => part[0]).join('').slice(0, 2)}</span>
                                 <div className="min-w-0 flex-1"><p className="text-sm font-black text-slate-950">{name}</p><p className="text-xs text-slate-500">{title}</p></div>
@@ -7561,11 +7643,50 @@ function PartnerSchoolDetail({ csrf, school, archives, visitsCount, onBack }) {
                         <h3 className="font-black text-slate-950">Internal Strategic Notes</h3>
                         <button type="button" className="grid h-8 w-8 place-items-center rounded-lg border border-slate-200 text-slate-500" aria-label="Edit notes"><Command size={14} /></button>
                     </div>
-                    <div className="mt-4 space-y-3">
+                    <form action={`/dashboard/university/partner-schools/${school.id}`} method="POST" className="mt-4 grid gap-3">
+                        <input type="hidden" name="_token" value={csrf} />
+                        <input type="hidden" name="_method" value="PUT" />
+                        <input type="hidden" name="school_code" value={school.code || ''} />
+                        <input type="hidden" name="name" value={school.name || ''} />
+                        <input type="hidden" name="city" value={school.city || ''} />
+                        <input type="hidden" name="region" value={school.region || ''} />
+                        <input type="hidden" name="country" value={school.country || 'United States'} />
+                        <input type="hidden" name="district" value={school.district || ''} />
+                        <input type="hidden" name="coordinator_name" value={school.coordinatorName || ''} />
+                        <input type="hidden" name="coordinator_email" value={school.coordinatorEmail || ''} />
+                        <input type="hidden" name="status" value={school.status || 'verified'} />
+                        <input type="hidden" name="school_type" value={school.type || 'private'} />
+                        <input type="hidden" name="average_sat" value={school.sat || ''} />
+                        <input type="hidden" name="yield_rate" value={school.yieldRate || 0} />
+                        <input type="hidden" name="match_score" value={school.matchScore || 0} />
+                        <input type="hidden" name="active_applicants" value={school.activeApplicants || 0} />
+                        <label className="grid gap-1.5 text-sm font-bold text-slate-700">Relationship tier<select name="performance_tier" defaultValue={school.tier || 'stable'} className="rounded-xl border border-slate-200 px-3 py-2.5 font-normal"><option value="elite">Elite</option><option value="high">High</option><option value="emerging">Emerging</option><option value="stable">Stable</option></select></label>
+                        <label className="grid gap-1.5 text-sm font-bold text-slate-700">Persistent internal notes<textarea name="notes" rows="4" defaultValue={school.notes || ''} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 font-normal outline-none focus:border-blue-300 focus:ring-4 focus:ring-blue-50" placeholder="Add internal notes..." /></label>
+                        <button className="rounded-xl bg-slate-950 px-4 py-3 text-sm font-black text-white">Save Relationship Notes</button>
+                    </form>
+                    <form action={`/dashboard/university/partner-schools/${school.id}/contact`} method="POST" className="mt-5 grid gap-3 rounded-xl border border-slate-200 p-4">
+                        <input type="hidden" name="_token" value={csrf} />
+                        <h4 className="font-black text-slate-950">Direct Contact Action</h4>
+                        <input name="subject" required defaultValue={`Follow-up with ${school.name}`} className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-semibold" />
+                        <textarea name="message" required rows="3" className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm" defaultValue={`Hi ${school.coordinatorName || 'Counselor'}, we'd like to coordinate the next visit opportunity.`} />
+                        <button className="rounded-xl bg-[#006a61] px-4 py-3 text-sm font-black text-white">Queue Contact</button>
+                    </form>
+                    <div className="mt-5 space-y-3">
                         <StrategicNote body={`${school.name} remains a strong source for ${insight.focusArea} talent. Focus on the upcoming cycle with a premium counselor relationship and faculty-led session.`} author={primaryContact} date={latestArchive?.visitedOn || '2026-10-12'} />
                         <StrategicNote body={`Recurring pipeline for ${insight.focusArea.toLowerCase()} roles is trending upward. Suggested engagement: portfolio review, parent briefing, and student application clinic.`} author="AI Recruitment Model" date="2026-09-18" />
+                        {(school.tasks || []).map((task) => <StrategicNote key={task.id} body={task.description || task.title} author={task.aiSuggested ? 'AI Recommendation' : 'Relationship Task'} date={task.createdAt} />)}
                     </div>
-                    <textarea className="mt-4 min-h-24 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-sm outline-none focus:border-blue-300 focus:ring-4 focus:ring-blue-50" placeholder="Add a quick note..." />
+                    <form action={`/dashboard/university/partner-schools/${school.id}/tasks`} method="POST" className="mt-4 grid gap-2">
+                        <input type="hidden" name="_token" value={csrf} />
+                        <input name="title" required placeholder="Add action task..." className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-semibold" />
+                        <textarea name="description" rows="2" placeholder="Task details..." className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm" />
+                        <button className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-black text-slate-700">Save Task</button>
+                    </form>
+                    <form action={`/dashboard/university/partner-schools/${school.id}`} method="POST" onSubmit={(event) => { if (!window.confirm(`Remove ${school.name}?`)) event.preventDefault(); }} className="mt-5">
+                        <input type="hidden" name="_token" value={csrf} />
+                        <input type="hidden" name="_method" value="DELETE" />
+                        <button className="text-xs font-black text-rose-700">Remove school if no history exists</button>
+                    </form>
                 </section>
             </div>
         </section>
