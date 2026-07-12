@@ -1350,58 +1350,101 @@ function UniversityRecruitmentOverview({ csrf, events = [], overview = {}, setSe
     const nextVisit = upcoming[0];
     const cycle = new Intl.DateTimeFormat('en', { month: 'long', year: 'numeric' }).format(new Date());
     const cards = [
-        ['Total Visits', overview.totalVisits || 0, 'Active database programs', CalendarDays],
-        ['Booked Students', Number(overview.bookedStudents || 0).toLocaleString(), 'Confirmed seats', UsersRound],
-        ['Capacity Usage', `${overview.capacityUsage || 0}%`, 'Published program capacity', Activity],
+        ['Visits', overview.totalVisits || 0, '+12%', CalendarDays, 'bg-[#e5eeff] text-[#006a61]'],
+        ['Pending', events.filter((event) => event.status === 'draft').length, 'Review', Clock, 'bg-amber-50 text-amber-700'],
+        ['Conv. Rate', `${overview.attendanceRate || 0}%`, 'Live', CheckCircle2, 'bg-emerald-50 text-emerald-700'],
+        ['Capacity', `${overview.capacityUsage || 0}%`, 'Usage', Activity, 'bg-slate-950 text-white'],
     ];
 
     return (
-        <div className="grid gap-5">
-            <section className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div className="grid gap-4">
+            <section className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                    <h1 className="text-2xl font-black tracking-tight text-slate-950">Recruitment Overview</h1>
-                    <p className="mt-1 text-sm font-semibold text-slate-500">{cycle} recruitment cycle</p>
+                    <h1 className="text-2xl font-black tracking-tight text-slate-950 md:text-3xl">Administrative Overview</h1>
+                    <p className="mt-1 text-sm font-semibold text-slate-500">Recruitment performance summary · {cycle}</p>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                    <button type="button" onClick={() => window.print()} className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-black text-white">Generate Report</button>
+                <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+                    <button type="button" onClick={() => window.print()} className="rounded-xl bg-slate-950 px-3 py-2 text-xs font-black text-white md:px-4 md:py-2.5 md:text-sm">Generate Report</button>
                     <form action="/dashboard/university/demo-data/populate" method="POST">
                         <input type="hidden" name="_token" value={csrf} />
-                        <button className="rounded-xl border border-teal-200 bg-teal-50 px-4 py-2.5 text-sm font-black text-teal-800">Populate demo data</button>
+                        <button className="w-full rounded-xl border border-teal-200 bg-teal-50 px-3 py-2 text-xs font-black text-teal-800 md:px-4 md:py-2.5 md:text-sm">Populate data</button>
                     </form>
                     {Number(overview.demoEvents || 0) > 0 && (
-                        <form action="/dashboard/university/demo-data" method="POST">
+                        <form action="/dashboard/university/demo-data" method="POST" className="col-span-2 sm:col-span-1">
                             <input type="hidden" name="_token" value={csrf} />
                             <input type="hidden" name="_method" value="DELETE" />
-                            <button className="rounded-xl border border-rose-200 bg-white px-4 py-2.5 text-sm font-black text-rose-700">Clear demo data</button>
+                            <button className="w-full rounded-xl border border-rose-200 bg-white px-3 py-2 text-xs font-black text-rose-700 md:px-4 md:py-2.5 md:text-sm">Clear data</button>
                         </form>
                     )}
                 </div>
             </section>
 
-            <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
-                <div className="grid gap-5">
-                    <div className="grid gap-4 sm:grid-cols-3">
-                        {cards.map(([label, value, detail, Icon]) => (
-                            <article key={label} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                                <div className="flex items-start justify-between"><p className="text-xs font-bold text-slate-500">{label}</p><span className="grid h-8 w-8 place-items-center rounded-lg bg-slate-50 text-teal-700"><Icon size={16} /></span></div>
-                                <p className="mt-7 text-3xl font-black text-slate-950">{value}</p>
-                                {label === 'Capacity Usage' && <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-blue-600" style={{ width: `${Math.min(Number(overview.capacityUsage || 0), 100)}%` }} /></div>}
-                                <p className="mt-2 text-xs font-bold text-emerald-600">{detail}</p>
-                            </article>
-                        ))}
-                    </div>
+            <div className="grid grid-cols-2 gap-2 md:grid-cols-4 md:gap-3">
+                {cards.map(([label, value, detail, Icon, tone]) => (
+                    <article key={label} className={cx('rounded-xl border border-slate-200 p-3 shadow-sm md:p-4', label === 'Capacity' ? 'bg-slate-950 text-white' : 'bg-white text-slate-950')}>
+                        <div className="flex items-start justify-between gap-2">
+                            <span className={cx('grid h-7 w-7 place-items-center rounded-lg md:h-8 md:w-8', tone)}><Icon size={16} /></span>
+                            <span className={cx('rounded-full px-2 py-0.5 text-[9px] font-black', label === 'Pending' && Number(value) > 0 ? 'bg-amber-100 text-amber-700' : label === 'Capacity' ? 'bg-white/10 text-emerald-200' : 'bg-emerald-50 text-emerald-700')}>{detail}</span>
+                        </div>
+                        <div className="mt-3">
+                            <p className={cx('text-[10px] font-black uppercase tracking-wide', label === 'Capacity' ? 'text-slate-300' : 'text-slate-500')}>{label}</p>
+                            <p className="mt-1 text-xl font-black md:text-2xl">{value}</p>
+                            {label === 'Capacity' && <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/15"><div className="h-full rounded-full bg-emerald-300" style={{ width: `${Math.min(Number(overview.capacityUsage || 0), 100)}%` }} /></div>}
+                        </div>
+                    </article>
+                ))}
+            </div>
 
-                    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                        <div className="flex items-center justify-between gap-4">
-                            <div><h2 className="font-black text-slate-950">Engagement Trends</h2><p className="mt-1 text-xs text-slate-500">Confirmed students from database registrations</p></div>
-                            <span className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-600">Last 8 weeks</span>
+            <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_300px]">
+                <div className="grid gap-3">
+                    <section className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm md:p-4">
+                        <div className="flex items-center justify-between gap-3">
+                            <div>
+                                <h2 className="text-base font-black text-slate-950">Today's Schedule</h2>
+                                <p className="mt-0.5 text-xs font-semibold text-slate-500">Published visits and next program activity</p>
+                            </div>
+                            <button type="button" onClick={() => setSection('calendar')} className="inline-flex items-center gap-1 text-xs font-black text-[#006a61]">Calendar <ChevronRight size={14} /></button>
+                        </div>
+                        <div className="mt-3 overflow-hidden rounded-lg border border-slate-100">
+                            {(upcoming.length ? upcoming : events.slice(0, 3)).map((event, index) => {
+                                const date = event.startsAt ? new Date(event.startsAt) : null;
+                                const time = date && !Number.isNaN(date.getTime()) ? date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : `${String(9 + (index * 2)).padStart(2, '0')}:00`;
+                                const period = date && !Number.isNaN(date.getTime()) ? date.toLocaleTimeString([], { hour: 'numeric', hour12: true }).split(' ')[1] : 'AM';
+
+                                return (
+                                    <button key={event.id || index} type="button" onClick={() => setSection('events')} className="flex w-full gap-3 border-b border-slate-100 p-2.5 text-left last:border-b-0 hover:bg-slate-50">
+                                        <span className="w-12 shrink-0 pt-0.5 text-center">
+                                            <span className="block text-[11px] font-black text-slate-700">{time}</span>
+                                            <span className="block text-[9px] font-black uppercase text-slate-400">{period}</span>
+                                        </span>
+                                        <span className="min-w-0 flex-1">
+                                            <span className="flex items-start justify-between gap-2">
+                                                <span className="truncate text-[13px] font-black text-slate-950">{event.title}</span>
+                                                <span className={cx('shrink-0 rounded px-1.5 py-0.5 text-[8px] font-black uppercase', event.status === 'published' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700')}>{event.status === 'published' ? 'CONF' : 'PEND'}</span>
+                                            </span>
+                                            <span className="mt-0.5 flex items-center gap-1 truncate text-[11px] font-semibold text-slate-500"><MapPin size={12} /> {event.location || event.venue || 'Location pending'}</span>
+                                        </span>
+                                    </button>
+                                );
+                            })}
+                            {!events.length && <div className="p-8 text-center text-sm font-semibold text-slate-500">No visit programs yet. Populate demo data to preview the dashboard.</div>}
+                        </div>
+                    </section>
+
+                    <section className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm md:p-4">
+                        <div className="flex items-center justify-between gap-3">
+                            <h2 className="text-base font-black text-slate-950">Insights</h2>
+                            <div className="flex gap-1">
+                                <span className="rounded bg-slate-100 px-2 py-1 text-[10px] font-black text-slate-500">W</span>
+                                <span className="rounded bg-emerald-100 px-2 py-1 text-[10px] font-black text-emerald-700">M</span>
+                            </div>
                         </div>
                         {trend.some((item) => Number(item.value) > 0) ? (
-                            <div className="mt-7 flex h-64 items-end gap-3 border-b border-l border-slate-200 px-3 pt-4">
-                                {trend.map((item) => (
-                                    <div key={item.label} className="group flex h-full min-w-0 flex-1 flex-col justify-end">
-                                        <div className="relative flex flex-1 items-end"><div className="w-full rounded-t-md bg-blue-600/85 hover:bg-blue-700" style={{ height: `${Math.max(8, (Number(item.value) / trendMax) * 100)}%` }}><span className="absolute -top-6 left-1/2 hidden -translate-x-1/2 rounded bg-slate-950 px-2 py-1 text-[10px] font-bold text-white group-hover:block">{item.value}</span></div></div>
-                                        <span className="mt-2 truncate text-center text-[10px] font-semibold text-slate-400">{item.label}</span>
+                            <div className="mt-4 flex h-28 items-end gap-1.5 px-1 md:h-40 md:gap-2">
+                                {trend.map((item, index) => (
+                                    <div key={item.label} className="group flex h-full min-w-0 flex-1 flex-col justify-end gap-1">
+                                        <div className={cx('w-full rounded-t-md transition', index === trend.length - 1 ? 'bg-[#006a61]' : 'bg-[#dce9ff]')} style={{ height: `${Math.max(10, (Number(item.value) / trendMax) * 100)}%` }} />
+                                        <span className={cx('truncate text-center text-[8px] font-black', index === trend.length - 1 ? 'text-[#006a61]' : 'text-slate-400')}>{index === trend.length - 1 ? 'CUR' : item.label}</span>
                                     </div>
                                 ))}
                             </div>
@@ -1409,21 +1452,45 @@ function UniversityRecruitmentOverview({ csrf, events = [], overview = {}, setSe
                     </section>
                 </div>
 
-                <aside className="grid content-start gap-5">
-                    <section className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-5 shadow-sm">
-                        <div className="flex items-center gap-2 text-emerald-800"><Sparkles size={17} /><h2 className="font-black">Guide Next</h2></div>
+                <aside className="grid content-start gap-3">
+                    <section className="rounded-xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-3 shadow-sm md:p-4">
+                        <div className="flex items-center gap-2 text-emerald-800"><Sparkles size={16} /><h2 className="font-black">Action Required</h2></div>
+                        <div className="mt-3 grid gap-2">
+                            <article className="rounded-lg border border-amber-100 border-l-4 border-l-amber-500 bg-white p-2.5">
+                                <div className="flex gap-2">
+                                    <ShieldCheck size={18} className="mt-0.5 text-amber-600" />
+                                    <div className="min-w-0">
+                                        <h3 className="truncate text-xs font-black text-slate-950">{events.filter((event) => event.status === 'draft').length} programs need review</h3>
+                                        <p className="mt-0.5 text-[11px] font-semibold leading-4 text-slate-500">Publish drafts or update visit capacity before schools request seats.</p>
+                                        <button type="button" onClick={() => setSection('events')} className="mt-2 rounded-md border border-[#006a61]/30 px-2 py-1 text-[10px] font-black text-[#006a61]">Review</button>
+                                    </div>
+                                </div>
+                            </article>
+                            <button type="button" onClick={() => setSection('visit-requests')} className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-2.5 text-left hover:bg-slate-50">
+                                <span className="flex items-center gap-2 text-xs font-bold text-slate-700"><UserPlus size={17} className="text-slate-400" /> {Number(overview.bookedStudents || 0).toLocaleString()} booked students</span>
+                                <ChevronRight size={15} className="text-slate-400" />
+                            </button>
+                            <button type="button" onClick={() => setSection('messages')} className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-2.5 text-left hover:bg-slate-50">
+                                <span className="flex items-center gap-2 text-xs font-bold text-slate-700"><Send size={17} className="text-slate-400" /> Review communications</span>
+                                <ChevronRight size={15} className="text-slate-400" />
+                            </button>
+                        </div>
+                    </section>
+
+                    <section className="rounded-xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-3 shadow-sm md:p-4">
+                        <div className="flex items-center gap-2 text-emerald-800"><Sparkles size={16} /><h2 className="font-black">Guide Next</h2></div>
                         <div className="mt-4 rounded-xl border border-emerald-100 bg-white/80 p-4">
                             <p className="text-xs font-black text-emerald-700">Itinerary Optimization Suggested</p>
                             <p className="mt-2 text-xs leading-5 text-slate-600">{nextVisit ? `Your next hosted program is ${nextVisit.title} at ${nextVisit.location || nextVisit.venue}. Review capacity and attendee communications before arrival.` : 'Create or populate a visit program to receive database-driven planning guidance.'}</p>
                         </div>
-                        <button type="button" onClick={() => setSection('calendar')} className="mt-4 w-full rounded-lg border border-blue-300 bg-white px-3 py-2 text-xs font-black text-blue-700">Review Schedule</button>
+                        <button type="button" onClick={() => setSection('calendar')} className="mt-3 w-full rounded-lg border border-[#006a61]/30 bg-white px-3 py-2 text-xs font-black text-[#006a61]">Review Adjusted Schedule</button>
                     </section>
 
-                    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <section className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm md:p-4">
                         <div className="flex items-center justify-between"><h2 className="font-black text-slate-950">Upcoming Visits</h2><button type="button" onClick={() => setSection('events')} className="text-xs font-black text-blue-700">View All</button></div>
-                        <div className="mt-4 divide-y divide-slate-100">
+                        <div className="mt-3 divide-y divide-slate-100">
                             {upcoming.length === 0 ? <p className="py-6 text-sm text-slate-500">No upcoming visits.</p> : upcoming.map((event) => (
-                                <button key={event.id} type="button" onClick={() => setSection('events')} className="flex w-full items-start gap-3 py-3 text-left">
+                                <button key={event.id} type="button" onClick={() => setSection('events')} className="flex w-full items-start gap-3 py-2.5 text-left">
                                     <span className="w-11 shrink-0 text-center text-[10px] font-black uppercase text-slate-500">{formatShortDate(event.startsAt)}</span>
                                     <span className="min-w-0"><span className="block truncate text-xs font-black text-slate-900">{event.title}</span><span className="mt-1 block truncate text-[10px] text-slate-500">{event.location || event.venue} · {event.confirmedSeats || 0} attendees</span></span>
                                 </button>

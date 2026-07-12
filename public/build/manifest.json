@@ -68,7 +68,7 @@
     "src": "node_modules/leaflet/dist/images/marker-icon.png"
   },
   "resources/css/app.css": {
-    "file": "assets/app-f_mMhS8C.css",
+    "file": "assets/app-DjBzIBKh.css",
     "name": "app",
     "names": [
       "app.css"
@@ -77,7 +77,7 @@
     "isEntry": true
   },
   "resources/js/app.jsx": {
-    "file": "assets/app-Dql-lsIQ.js",
+    "file": "assets/app-BJYB121G.js",
     "name": "app",
     "src": "resources/js/app.jsx",
     "isEntry": true,
@@ -86,7 +86,7 @@
     ],
     "css": [
       "assets/app-1DTFk8zz.css",
-      "assets/app-f_mMhS8C.css"
+      "assets/app-DjBzIBKh.css"
     ],
     "assets": [
       "assets/layers-BWBAp2CZ.png",
@@ -95,7 +95,7 @@
     ]
   },
   "resources/js/platform.jsx": {
-    "file": "assets/platform-Cgr90soz.js",
+    "file": "assets/platform-CpYWNxq7.js",
     "name": "platform",
     "src": "resources/js/platform.jsx",
     "isEntry": true,
@@ -103,7 +103,7 @@
       "_jsx-runtime-nRZIeipV.js"
     ],
     "css": [
-      "assets/app-f_mMhS8C.css"
+      "assets/app-DjBzIBKh.css"
     ]
   }
 }
