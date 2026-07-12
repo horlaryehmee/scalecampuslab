@@ -745,6 +745,14 @@ function DashboardFrame({ csrf, children, role, title, subtitle, activeId, activ
     const darkSidebar = true;
     const navItems = flatNavItems(navGroups);
     const compactMobilePage = ['school', 'high_school'].includes(role) && activeId === 'bookings';
+    const customHeaderPages = {
+        university: ['overview', 'events', 'visit-requests', 'schools', 'attendees', 'calendar', 'insights', 'messages', 'settings'],
+        school: ['overview', 'events', 'bookings', 'itinerary', 'students', 'calendar', 'messages', 'reports', 'settings'],
+        high_school: ['overview', 'events', 'bookings', 'itinerary', 'students', 'calendar', 'messages', 'reports', 'settings'],
+        admin: ['overview', 'universities', 'schools', 'events', 'users', 'analytics', 'health', 'settings'],
+        student: ['overview', 'events', 'bookings', 'calendar', 'messages'],
+    };
+    const hideMobilePageHeader = compactMobilePage || (customHeaderPages[role] || []).includes(activeId);
 
     useEffect(() => {
         if (!toast) return undefined;
@@ -848,7 +856,7 @@ function DashboardFrame({ csrf, children, role, title, subtitle, activeId, activ
                         </div>
                     </header>
 
-                    {!compactMobilePage && (
+                    {!hideMobilePageHeader && (
                         <div className="border-b border-slate-200 bg-white px-4 py-4 md:hidden">
                             <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">{workspace}</p>
                             <h1 className="mt-1 truncate text-2xl font-black text-slate-950">{activeTitle}</h1>
@@ -856,7 +864,7 @@ function DashboardFrame({ csrf, children, role, title, subtitle, activeId, activ
                         </div>
                     )}
 
-                    <div className={cx('flex-1 overflow-y-auto pb-28 md:p-8', compactMobilePage ? 'p-3 sm:p-4' : 'p-4 sm:p-5')}>
+                    <div className={cx('flex-1 overflow-y-auto pb-28 md:p-8', hideMobilePageHeader ? 'p-3 sm:p-4' : 'p-4 sm:p-5')}>
                         {children}
                     </div>
                 </section>
