@@ -6510,8 +6510,8 @@ function EventCalendarSection({ csrf, events, registrations = [], title = 'Calen
             )}
 
             {pendingDate && selectedEvent && (
-                <section className="sticky bottom-20 z-20 ml-auto w-full rounded-2xl border border-slate-700 bg-slate-950 p-3 text-white shadow-2xl md:bottom-4 md:max-w-2xl">
-                    <form action={`/campus-events/${selectedEvent.id}`} method="POST" onSubmit={handleMoveSubmit} className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <section className="fixed inset-0 z-[90] grid place-items-center bg-slate-950/55 px-4 py-6 backdrop-blur-sm">
+                    <form action={`/campus-events/${selectedEvent.id}`} method="POST" onSubmit={handleMoveSubmit} className="w-full max-w-md rounded-3xl border border-white/70 bg-white p-5 text-slate-950 shadow-2xl md:p-6">
                         <input type="hidden" name="_token" value={csrf} />
                         <input type="hidden" name="_method" value="PUT" />
                         <input type="hidden" name="title" value={selectedEvent.title || ''} />
@@ -6522,10 +6522,23 @@ function EventCalendarSection({ csrf, events, registrations = [], title = 'Calen
                         <input type="hidden" name="status" value={selectedEvent.status || 'published'} />
                         <input type="hidden" name="starts_at" value={toInputDateTime(pendingStart)} />
                         <input type="hidden" name="ends_at" value={toInputDateTime(pendingEnd)} />
-                        <p className="text-sm font-bold">Move "{selectedEvent.title}" to {formatShortDate(pendingStart)}?</p>
-                        <div className="grid grid-cols-2 gap-2 md:flex">
-                            <button type="button" onClick={() => setPendingDate(null)} className="rounded-xl px-3 py-2 text-xs font-black text-white/70 hover:bg-white/10">Cancel</button>
-                            <button disabled={savingMove} className="rounded-xl bg-[#006a61] px-4 py-2 text-xs font-black text-white hover:opacity-90 disabled:opacity-50">{savingMove ? 'Saving...' : 'Confirm'}</button>
+                        <div className="flex items-start gap-3">
+                            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-emerald-50 text-[#006a61]"><CalendarDays size={20} /></span>
+                            <div className="min-w-0 flex-1">
+                                <p className="text-xs font-black uppercase tracking-[0.14em] text-[#006a61]">Confirm move</p>
+                                <h2 className="mt-1 text-xl font-black leading-6 text-slate-950">Move this visit?</h2>
+                                <p className="mt-2 text-sm font-semibold leading-6 text-slate-500">
+                                    Move <span className="font-black text-slate-950">"{selectedEvent.title}"</span> to <span className="font-black text-slate-950">{formatShortDate(pendingStart)}</span>.
+                                </p>
+                            </div>
+                        </div>
+                        <div className="mt-5 rounded-2xl bg-slate-50 p-3 text-xs font-bold text-slate-600">
+                            <p>Time stays the same: {formatTimeRange(pendingStart, pendingEnd)}</p>
+                            <p className="mt-1">Venue: {selectedEvent.venue || 'Venue TBA'}</p>
+                        </div>
+                        <div className="mt-5 grid grid-cols-2 gap-2">
+                            <button type="button" onClick={() => setPendingDate(null)} className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 hover:bg-slate-50">Cancel</button>
+                            <button disabled={savingMove} className="rounded-2xl bg-[#006a61] px-4 py-3 text-sm font-black text-white shadow-lg shadow-emerald-900/15 hover:opacity-90 disabled:opacity-50">{savingMove ? 'Saving...' : 'Confirm Move'}</button>
                         </div>
                     </form>
                 </section>
