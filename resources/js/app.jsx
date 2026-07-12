@@ -6215,88 +6215,182 @@ function StudentNotificationsSection({ registrations }) {
 }
 
 function EventCalendarSection({ csrf, events, registrations = [], title = 'Calendar' }) {
-    const eventDates = events.map((event) => event.startsAt ? new Date(event.startsAt) : null).filter(Boolean);
-    const firstDate = eventDates[0] || new Date();
+    const [localEvents, setLocalEvents] = useState(events || []);
+
+    useEffect(() => {
+        setLocalEvents(events || []);
+    }, [events]);
+
+    const datedEvents = useMemo(
+        () => [...localEvents].filter((event) => event.startsAt).sort((left, right) => new Date(left.startsAt) - new Date(right.startsAt)),
+        [localEvents],
+    );
+    const firstDate = datedEvents[0]?.startsAt ? new Date(datedEvents[0].startsAt) : new Date();
     const [cursor, setCursor] = useState(new Date(firstDate.getFullYear(), firstDate.getMonth(), 1));
-    const [selectedId, setSelectedId] = useState(events[0]?.id || null);
+    const [selectedDate, setSelectedDate] = useState(firstDate);
+    const [selectedId, setSelectedId] = useState(datedEvents[0]?.id || localEvents[0]?.id || null);
     const [pendingDate, setPendingDate] = useState(null);
-    const selectedEvent = events.find((event) => event.id === selectedId) || events[0] || null;
+    const [savingMove, setSavingMove] = useState(false);
+    const [moveMessage, setMoveMessage] = useState('');
+    const selectedEvent = localEvents.find((event) => event.id === selectedId) || datedEvents[0] || localEvents[0] || null;
     const selectedRoster = selectedEvent ? registrations.filter((registration) => registration.event === selectedEvent.title) : [];
     const monthCells = calendarMonthCells(cursor);
-    const eventsForDay = (date) => events.filter((event) => event.startsAt && isSameCalendarDay(new Date(event.startsAt), date));
-    const weekEvents = events.filter((event) => {
-        if (!event.startsAt) return false;
+    const weekStart = addDays(selectedDate, -((selectedDate.getDay() + 6) % 7));
+    const weekDays = Array.from({ length: 7 }, (_, index) => addDays(weekStart, index));
+    const eventsForDay = (date) => datedEvents.filter((event) => isSameCalendarDay(new Date(event.startsAt), date));
+    const dayEvents = eventsForDay(selectedDate);
+    const weekEvents = datedEvents.filter((event) => {
         const eventDate = new Date(event.startsAt);
-        const now = new Date();
-        const weekEnd = new Date(now);
-        weekEnd.setDate(now.getDate() + 7);
-        return eventDate >= now && eventDate <= weekEnd;
+        const weekEnd = addDays(weekStart, 7);
+        return eventDate >= weekStart && eventDate < weekEnd;
     }).length;
-    const expectedStudents = events.reduce((total, event) => total + Number(event.confirmedSeats || 0), 0);
-    const busiestDay = busiestCalendarDay(events);
+    const expectedStudents = localEvents.reduce((total, event) => total + Number(event.confirmedSeats || 0), 0);
+    const busiestDay = busiestCalendarDay(localEvents);
     const pendingStart = pendingDate && selectedEvent ? moveEventToDate(selectedEvent.startsAt, pendingDate) : null;
     const pendingEnd = pendingDate && selectedEvent ? moveEventToDate(selectedEvent.endsAt || selectedEvent.startsAt, pendingDate) : null;
 
+    const selectEvent = (event) => {
+        setSelectedId(event.id);
+        setPendingDate(null);
+        if (event.startsAt) setSelectedDate(new Date(event.startsAt));
+    };
+
+    const jumpToToday = () => {
+        const today = new Date();
+        setCursor(new Date(today.getFullYear(), today.getMonth(), 1));
+        setSelectedDate(today);
+    };
+
+    const handleMoveSubmit = async (event) => {
+        event.preventDefault();
+        if (!selectedEvent || !pendingStart) return;
+
+        const form = event.currentTarget;
+        const formData = new FormData(form);
+        setSavingMove(true);
+        setMoveMessage('');
+
+        try {
+            const response = await fetch(form.action, {
+                method: 'POST',
+                body: formData,
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'same-origin',
+            });
+
+            if (!response.ok) throw new Error('Unable to reschedule visit.');
+
+            setLocalEvents((items) => items.map((item) => (
+                item.id === selectedEvent.id
+                    ? { ...item, startsAt: pendingStart, endsAt: pendingEnd }
+                    : item
+            )));
+            setSelectedDate(new Date(pendingStart));
+            setCursor(new Date(new Date(pendingStart).getFullYear(), new Date(pendingStart).getMonth(), 1));
+            setPendingDate(null);
+            setMoveMessage('Visit rescheduled.');
+        } catch (error) {
+            setMoveMessage(error.message || 'Unable to reschedule visit.');
+        } finally {
+            setSavingMove(false);
+        }
+    };
+
     return (
-        <div className="relative grid gap-6">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div className="relative grid gap-4 md:gap-5">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                 <div>
-                    <h1 className="text-3xl font-black text-slate-950">{title}</h1>
-                    <p className="mt-1 text-sm text-slate-500">Plan event timing, inspect capacity, and reschedule university visits from one calendar workspace.</p>
+                    <h1 className="text-2xl font-black text-slate-950 md:text-3xl">{title}</h1>
+                    <p className="mt-1 max-w-2xl text-sm font-semibold leading-6 text-slate-500">Plan visits, inspect capacity, and move schedule dates without leaving the page.</p>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                    <button type="button" onClick={() => setCursor(new Date())} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-600">Today</button>
-                    <button type="button" onClick={() => selectedEvent && setPendingDate(addDays(new Date(selectedEvent.startsAt || Date.now()), 7))} disabled={!selectedEvent} className="rounded-lg bg-slate-950 px-3 py-2 text-xs font-black text-white disabled:opacity-40">Suggest Next Slot</button>
+                <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+                    <button type="button" onClick={jumpToToday} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 shadow-sm">Today</button>
+                    <button type="button" onClick={() => selectedEvent && setPendingDate(addDays(new Date(selectedEvent.startsAt || Date.now()), 7))} disabled={!selectedEvent} className="rounded-xl bg-slate-950 px-3 py-2 text-xs font-black text-white shadow-sm disabled:opacity-40">Suggest Slot</button>
                 </div>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-3">
-                <PartnerMetric label="Total Events This Week" value={weekEvents || events.length} detail="+12% from last cycle" tone="green" />
-                <PartnerMetric label="Students Expected" value={expectedStudents.toLocaleString()} detail="Confirmed registrations" />
-                <PartnerMetric label="Busy Day Highlight" value={busiestDay.label} detail={busiestDay.detail} />
+            <div className="grid grid-cols-3 gap-2 md:gap-4">
+                <ScheduleMetric label="This week" value={weekEvents || localEvents.length} detail="scheduled visits" tone="green" />
+                <ScheduleMetric label="Expected" value={expectedStudents.toLocaleString()} detail="students" tone="blue" />
+                <ScheduleMetric label="Busiest" value={busiestDay.label} detail={busiestDay.detail} tone="slate" />
             </div>
 
-            <div className="grid gap-6 xl:grid-cols-[1fr_360px]">
-                <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
+            <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm md:hidden">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#006a61]">My Schedule</p>
+                        <h2 className="mt-1 text-lg font-black text-slate-950">{selectedDate.toLocaleDateString([], { month: 'long', year: 'numeric' })}</h2>
+                    </div>
+                    <div className="flex gap-1.5">
+                        <button type="button" onClick={() => setSelectedDate(addDays(selectedDate, -7))} className="grid h-9 w-9 place-items-center rounded-xl border border-slate-200 bg-white"><ChevronRight size={16} className="rotate-180" /></button>
+                        <button type="button" onClick={() => setSelectedDate(addDays(selectedDate, 7))} className="grid h-9 w-9 place-items-center rounded-xl border border-slate-200 bg-white"><ChevronRight size={16} /></button>
+                    </div>
+                </div>
+
+                <div className="mt-3 grid grid-cols-7 gap-1 rounded-2xl bg-[#f8f9ff] p-2">
+                    {weekDays.map((date) => {
+                        const active = isSameCalendarDay(date, selectedDate);
+                        const count = eventsForDay(date).length;
+                        return (
+                            <button key={date.toISOString()} type="button" onClick={() => setSelectedDate(date)} className={cx('relative rounded-xl px-1 py-2 text-center transition', active ? 'bg-[#006a61] text-white shadow-sm' : 'text-slate-500')}>
+                                <span className="block text-[9px] font-black uppercase">{date.toLocaleDateString([], { weekday: 'short' })}</span>
+                                <span className="mt-1 block text-sm font-black">{date.getDate()}</span>
+                                {count > 0 && <span className={cx('mx-auto mt-1 block h-1.5 w-1.5 rounded-full', active ? 'bg-white' : 'bg-[#006a61]')} />}
+                            </button>
+                        );
+                    })}
+                </div>
+
+                <div className="relative mt-4 space-y-3 before:absolute before:bottom-2 before:left-5 before:top-2 before:w-px before:bg-slate-200">
+                    {dayEvents.length === 0 ? (
+                        <button type="button" onClick={() => selectedEvent && setPendingDate(selectedDate)} className="relative z-10 w-full rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm font-black text-slate-500">Free slot - tap to move selected visit here</button>
+                    ) : dayEvents.map((event) => (
+                        <MobileScheduleCard key={event.id} event={event} active={selectedId === event.id} onSelect={() => selectEvent(event)} onMove={() => setPendingDate(selectedDate)} />
+                    ))}
+                </div>
+            </section>
+
+            <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
+                <section className="hidden overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm md:block">
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
                         <div>
-                            <p className="text-xs font-black uppercase text-slate-400">{cursor.getFullYear()}</p>
-                            <h2 className="text-2xl font-black text-slate-950">{cursor.toLocaleDateString([], { month: 'long' })}</h2>
+                            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">{cursor.getFullYear()}</p>
+                            <h2 className="text-xl font-black text-slate-950">{cursor.toLocaleDateString([], { month: 'long' })}</h2>
                         </div>
                         <div className="flex items-center gap-2">
-                            <span className="rounded-lg bg-blue-50 px-3 py-2 text-xs font-black text-blue-700">Month</span>
-                            <span className="rounded-lg px-3 py-2 text-xs font-bold text-slate-400">Week</span>
-                            <button type="button" onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1))} className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600"><ChevronRight size={16} className="rotate-180" /></button>
-                            <button type="button" onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1))} className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600"><ChevronRight size={16} /></button>
+                            <span className="rounded-xl bg-[#e5eeff] px-3 py-2 text-xs font-black text-[#006a61]">Month</span>
+                            <button type="button" onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1))} className="grid h-9 w-9 place-items-center rounded-xl border border-slate-200 bg-white text-slate-600"><ChevronRight size={16} className="rotate-180" /></button>
+                            <button type="button" onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1))} className="grid h-9 w-9 place-items-center rounded-xl border border-slate-200 bg-white text-slate-600"><ChevronRight size={16} /></button>
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50 text-center text-[11px] font-black uppercase tracking-wide text-slate-400">
-                        {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => <div key={day} className="px-2 py-3">{day}</div>)}
+                    <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50 text-center text-[10px] font-black uppercase tracking-wide text-slate-400">
+                        {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => <div key={day} className="px-2 py-2.5">{day}</div>)}
                     </div>
                     <div className="grid grid-cols-7">
                         {monthCells.map((date) => {
-                            const dayEvents = eventsForDay(date);
+                            const dayItems = eventsForDay(date);
                             const inMonth = date.getMonth() === cursor.getMonth();
                             const isTarget = pendingDate && isSameCalendarDay(date, pendingDate);
+                            const isSelectedDay = isSameCalendarDay(date, selectedDate);
 
                             return (
-                                <div key={date.toISOString()} className={cx('min-h-32 border-b border-r border-slate-100 p-2', inMonth ? 'bg-white' : 'bg-slate-50/70', isTarget && 'ring-2 ring-inset ring-blue-500')}>
+                                <div key={date.toISOString()} className={cx('min-h-24 border-b border-r border-slate-100 p-2', inMonth ? 'bg-white' : 'bg-slate-50/70', isSelectedDay && 'bg-emerald-50/40', isTarget && 'ring-2 ring-inset ring-[#006a61]')}>
                                     <div className="flex items-center justify-between">
-                                        <span className={cx('text-xs font-black', inMonth ? 'text-slate-600' : 'text-slate-300')}>{date.getDate()}</span>
-                                        {selectedEvent && inMonth && <button type="button" onClick={() => setPendingDate(date)} className="rounded px-1.5 py-1 text-[10px] font-black text-blue-600 hover:bg-blue-50">Move</button>}
+                                        <button type="button" onClick={() => setSelectedDate(date)} className={cx('grid h-6 w-6 place-items-center rounded-full text-xs font-black', isSelectedDay ? 'bg-[#006a61] text-white' : inMonth ? 'text-slate-600 hover:bg-slate-100' : 'text-slate-300')}>{date.getDate()}</button>
+                                        {selectedEvent && inMonth && <button type="button" onClick={() => setPendingDate(date)} className="rounded px-1.5 py-1 text-[10px] font-black text-[#006a61] hover:bg-emerald-50">Move</button>}
                                     </div>
-                                    <div className="mt-2 space-y-1.5">
-                                        {dayEvents.slice(0, 3).map((event) => {
+                                    <div className="mt-1.5 space-y-1">
+                                        {dayItems.slice(0, 2).map((event) => {
                                             const full = Number(event.confirmedSeats || 0) >= Number(event.capacity || 1);
                                             return (
-                                                <button key={event.id} type="button" onClick={() => { setSelectedId(event.id); setPendingDate(null); }} className={cx('w-full rounded-md border-l-4 px-2 py-1.5 text-left text-[11px] font-bold leading-4', selectedId === event.id ? 'border-blue-700 bg-blue-50 text-blue-900' : full ? 'border-red-500 bg-red-50 text-red-700' : 'border-emerald-500 bg-emerald-50 text-emerald-800')}>
+                                                <button key={event.id} type="button" onClick={() => selectEvent(event)} className={cx('w-full rounded-lg border-l-4 px-2 py-1 text-left text-[10px] font-bold leading-4', selectedId === event.id ? 'border-[#006a61] bg-emerald-50 text-[#005049]' : full ? 'border-red-500 bg-red-50 text-red-700' : 'border-blue-500 bg-blue-50 text-blue-800')}>
                                                     <span className="block truncate">{event.title}</span>
-                                                    <span className="text-[10px] opacity-75">{formatTimeRange(event.startsAt, event.endsAt)} - {event.confirmedSeats}/{event.capacity}</span>
+                                                    <span className="opacity-75">{formatTimeRange(event.startsAt, event.endsAt)} · {event.confirmedSeats}/{event.capacity}</span>
                                                 </button>
                                             );
                                         })}
-                                        {dayEvents.length > 3 && <span className="text-[10px] font-bold text-slate-400">+{dayEvents.length - 3} more</span>}
+                                        {dayItems.length > 2 && <span className="text-[10px] font-bold text-slate-400">+{dayItems.length - 2} more</span>}
                                     </div>
                                 </div>
                             );
@@ -6307,9 +6401,11 @@ function EventCalendarSection({ csrf, events, registrations = [], title = 'Calen
                 <CalendarEventDrawer event={selectedEvent} roster={selectedRoster} />
             </div>
 
+            {moveMessage && <p className={cx('rounded-xl px-4 py-3 text-sm font-black', moveMessage.includes('Unable') ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-700')}>{moveMessage}</p>}
+
             {pendingDate && selectedEvent && (
-                <section className="sticky bottom-4 z-20 ml-auto w-full max-w-2xl rounded-lg border border-slate-700 bg-slate-950 p-3 text-white shadow-2xl">
-                    <form action={`/campus-events/${selectedEvent.id}`} method="POST" className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <section className="sticky bottom-20 z-20 ml-auto w-full rounded-2xl border border-slate-700 bg-slate-950 p-3 text-white shadow-2xl md:bottom-4 md:max-w-2xl">
+                    <form action={`/campus-events/${selectedEvent.id}`} method="POST" onSubmit={handleMoveSubmit} className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                         <input type="hidden" name="_token" value={csrf} />
                         <input type="hidden" name="_method" value="PUT" />
                         <input type="hidden" name="title" value={selectedEvent.title || ''} />
@@ -6320,10 +6416,10 @@ function EventCalendarSection({ csrf, events, registrations = [], title = 'Calen
                         <input type="hidden" name="status" value={selectedEvent.status || 'published'} />
                         <input type="hidden" name="starts_at" value={toInputDateTime(pendingStart)} />
                         <input type="hidden" name="ends_at" value={toInputDateTime(pendingEnd)} />
-                        <p className="text-sm font-bold">Reschedule "{selectedEvent.title}" to {formatShortDate(pendingStart)}?</p>
-                        <div className="flex gap-2">
-                            <button type="button" onClick={() => setPendingDate(null)} className="rounded-lg px-3 py-2 text-xs font-black text-white/70 hover:bg-white/10">Cancel</button>
-                            <button className="rounded-lg bg-blue-600 px-4 py-2 text-xs font-black text-white hover:bg-blue-500">Confirm</button>
+                        <p className="text-sm font-bold">Move "{selectedEvent.title}" to {formatShortDate(pendingStart)}?</p>
+                        <div className="grid grid-cols-2 gap-2 md:flex">
+                            <button type="button" onClick={() => setPendingDate(null)} className="rounded-xl px-3 py-2 text-xs font-black text-white/70 hover:bg-white/10">Cancel</button>
+                            <button disabled={savingMove} className="rounded-xl bg-[#006a61] px-4 py-2 text-xs font-black text-white hover:opacity-90 disabled:opacity-50">{savingMove ? 'Saving...' : 'Confirm'}</button>
                         </div>
                     </form>
                 </section>
@@ -6332,10 +6428,49 @@ function EventCalendarSection({ csrf, events, registrations = [], title = 'Calen
     );
 }
 
+function ScheduleMetric({ label, value, detail, tone = 'blue' }) {
+    const toneClass = tone === 'green' ? 'text-emerald-700 bg-emerald-50' : tone === 'slate' ? 'text-slate-700 bg-slate-50' : 'text-blue-700 bg-blue-50';
+    return (
+        <article className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm md:p-4">
+            <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">{label}</p>
+            <p className="mt-1 text-lg font-black text-slate-950 md:text-2xl">{value}</p>
+            <p className={cx('mt-2 rounded-full px-2 py-1 text-[10px] font-black md:inline-block', toneClass)}>{detail}</p>
+        </article>
+    );
+}
+
+function MobileScheduleCard({ event, active, onSelect, onMove }) {
+    const full = Number(event.confirmedSeats || 0) >= Number(event.capacity || 1);
+    return (
+        <article className="relative z-10 grid grid-cols-[40px_minmax(0,1fr)] gap-3">
+            <span className={cx('grid h-10 w-10 place-items-center rounded-full border-2 bg-white', active ? 'border-[#006a61] text-[#006a61]' : full ? 'border-red-400 text-red-600' : 'border-blue-500 text-blue-600')}>
+                {full ? <UsersRound size={18} /> : <School size={18} />}
+            </span>
+            <button type="button" onClick={onSelect} className={cx('rounded-2xl border p-3 text-left shadow-sm transition', active ? 'border-[#006a61] bg-emerald-50' : 'border-slate-200 bg-white')}>
+                <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                        <span className={cx('inline-flex rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wide', full ? 'bg-red-50 text-red-700' : 'bg-[#e5eeff] text-[#006a61]')}>{full ? 'Full' : eventFocus(event)}</span>
+                        <h3 className="mt-1.5 line-clamp-2 text-sm font-black leading-5 text-slate-950">{event.title}</h3>
+                    </div>
+                    <span className="shrink-0 text-[11px] font-black text-slate-500">{formatTimeRange(event.startsAt, event.endsAt).split(' - ')[0]}</span>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-bold text-slate-500">
+                    <span className="inline-flex items-center gap-1"><MapPin size={12} /> {event.venue || event.location || 'Location TBA'}</span>
+                    <span className="inline-flex items-center gap-1"><UsersRound size={12} /> {event.confirmedSeats}/{event.capacity}</span>
+                </div>
+                <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-100 pt-2">
+                    <span className="text-[10px] font-black uppercase tracking-wide text-slate-400">{event.status || 'published'}</span>
+                    <span onClick={(click) => { click.stopPropagation(); onMove(); }} className="rounded-lg bg-slate-950 px-3 py-1.5 text-[11px] font-black text-white">Move here</span>
+                </div>
+            </button>
+        </article>
+    );
+}
+
 function CalendarEventDrawer({ event, roster }) {
     if (!event) {
         return (
-            <aside className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <aside className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-5">
                 <EmptyState message="Select an event to inspect capacity, attending schools, and scheduling notes." />
             </aside>
         );
@@ -6348,19 +6483,24 @@ function CalendarEventDrawer({ event, roster }) {
     const isFull = Number(event.confirmedSeats || 0) >= Number(event.capacity || 1);
 
     return (
-        <aside className="rounded-xl border border-slate-200 bg-white shadow-sm">
-            <div className="border-b border-slate-200 p-5">
-                <div className="flex items-center gap-2">
-                    <span className={cx('h-2.5 w-2.5 rounded-full', isFull ? 'bg-red-500' : 'bg-emerald-500')} />
-                    <span className="text-xs font-black uppercase text-slate-500">{isFull ? 'Full' : 'Confirmed'}</span>
+        <aside className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-200 p-4 md:p-5">
+                <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                        <span className={cx('h-2.5 w-2.5 rounded-full', isFull ? 'bg-red-500' : 'bg-emerald-500')} />
+                        <span className="text-[10px] font-black uppercase tracking-wide text-slate-500">{isFull ? 'Full' : 'Confirmed'}</span>
+                    </div>
+                    <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-black uppercase text-slate-500">{event.status || 'published'}</span>
                 </div>
-                <h2 className="mt-4 text-2xl font-black leading-tight text-slate-950">{event.title}</h2>
-                <p className="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-slate-500"><CalendarDays size={15} /> {formatDateTime(event.startsAt)} - {event.endsAt ? new Date(event.endsAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'End TBA'}</p>
-                <p className="mt-2 text-sm text-slate-500">{event.venue} {event.location ? `- ${event.location}` : ''}</p>
+                <h2 className="mt-3 text-xl font-black leading-tight text-slate-950 md:mt-4 md:text-2xl">{event.title}</h2>
+                <div className="mt-3 grid gap-2 text-xs font-bold text-slate-500">
+                    <p className="inline-flex items-center gap-2"><CalendarDays size={14} /> {formatDateTime(event.startsAt)} - {event.endsAt ? new Date(event.endsAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'End TBA'}</p>
+                    <p className="inline-flex items-center gap-2"><MapPin size={14} /> {event.venue || 'Venue TBA'} {event.location ? `- ${event.location}` : ''}</p>
+                </div>
             </div>
 
-            <div className="space-y-5 p-5">
-                <div className="rounded-lg bg-slate-50 p-4">
+            <div className="space-y-4 p-4 md:p-5">
+                <div className="rounded-2xl bg-slate-50 p-3 md:p-4">
                     <div className="flex items-center justify-between">
                         <p className="text-xs font-black uppercase text-slate-500">Capacity Reach</p>
                         <p className="text-sm font-black text-slate-950">{event.confirmedSeats}/{event.capacity}</p>
@@ -6372,7 +6512,7 @@ function CalendarEventDrawer({ event, roster }) {
 
                 <div>
                     <p className="text-xs font-black uppercase tracking-wide text-slate-500">Attending Schools</p>
-                    <div className="mt-3 flex flex-wrap gap-2">
+                    <div className="mt-2 flex flex-wrap gap-2 md:mt-3">
                         {schools.slice(0, 4).map((school) => <span key={school} className="rounded-md bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">{school}</span>)}
                         {schools.length > 4 && <span className="rounded-md bg-slate-200 px-2.5 py-1 text-xs font-black text-slate-600">+{schools.length - 4} more</span>}
                     </div>
@@ -6380,12 +6520,12 @@ function CalendarEventDrawer({ event, roster }) {
 
                 <div>
                     <p className="text-xs font-black uppercase tracking-wide text-slate-500">AI Notes</p>
-                    <p className={cx('mt-3 border-l-4 p-3 text-xs font-semibold leading-5', isFull ? 'border-red-300 bg-red-50 text-red-800' : 'border-emerald-300 bg-emerald-50 text-emerald-800')}>
+                    <p className={cx('mt-2 rounded-xl border-l-4 p-3 text-xs font-semibold leading-5 md:mt-3', isFull ? 'border-red-300 bg-red-50 text-red-800' : 'border-emerald-300 bg-emerald-50 text-emerald-800')}>
                         {isFull ? 'Capacity pressure is high. Recommended to open a second room, increase virtual capacity, or move overflow to waitlist.' : 'Healthy booking pace. Recommended to keep this slot and trigger counselor reminders seven days before the event.'}
                     </p>
                 </div>
 
-                <button type="button" className="mt-8 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-slate-950 px-4 py-3 text-sm font-black text-white">
+                <button type="button" className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-3 text-sm font-black text-white">
                     <Search size={15} /> View Full Event
                 </button>
             </div>
