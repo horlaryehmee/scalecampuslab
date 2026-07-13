@@ -16,6 +16,10 @@ class ApplicationController extends Controller
             ->with(['student:id,name,email', 'university:id,name,email'])
             ->when($request->user()->role === 'student', fn ($query) => $query->where('student_id', $request->user()->id))
             ->when($request->user()->role === 'university', fn ($query) => $query->where('university_id', $request->user()->id))
+            ->when($request->user()->isSchool(), fn ($query) => $query->whereHas(
+                'student',
+                fn ($students) => $students->where('school_id', $request->user()->school_id)
+            ))
             ->paginate(30);
 
         return response()->json($applications);
@@ -25,12 +29,16 @@ class ApplicationController extends Controller
     {
         $validated = $request->validate([
             'student_id' => ['sometimes', 'exists:users,id'],
-            'university_id' => ['required', 'exists:users,id'],
+            'university_id' => ['required', Rule::exists('users', 'id')->where('role', 'university')],
             'status' => ['sometimes', Rule::in(['applied', 'accepted', 'rejected'])],
         ]);
 
         $studentId = $request->user()->role === 'student' ? $request->user()->id : ($validated['student_id'] ?? null);
         abort_unless($studentId, 422, 'student_id is required.');
+
+        if ($request->user()->role === 'student') {
+            $validated['status'] = 'applied';
+        }
 
         $application = Application::updateOrCreate(
             ['student_id' => $studentId, 'university_id' => $validated['university_id']],

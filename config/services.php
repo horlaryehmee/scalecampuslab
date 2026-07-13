@@ -35,4 +35,19 @@ return [
         ],
     ],
 
+    'paystack' => [
+        'base_url' => env('PAYSTACK_BASE_URL', 'https://api.paystack.co'),
+        'public_key' => env('PAYSTACK_PUBLIC_KEY'),
+        'secret_key' => env('PAYSTACK_SECRET_KEY'),
+        'callback_url' => env('PAYSTACK_CALLBACK_URL'),
+        'supported_currencies' => array_values(array_filter(array_map(
+            static fn (string $currency): string => strtoupper(trim($currency)),
+            explode(',', (string) env('PAYSTACK_SUPPORTED_CURRENCIES', 'NGN')),
+        ))),
+        'timeout' => (int) env('PAYSTACK_TIMEOUT_SECONDS', 15),
+        'retries' => (int) env('PAYSTACK_RETRIES', 2),
+        'retry_delay_ms' => (int) env('PAYSTACK_RETRY_DELAY_MS', 250),
+        'initialization_stale_after_minutes' => (int) env('PAYSTACK_INITIALIZATION_STALE_AFTER_MINUTES', 5),
+    ],
+
 ];

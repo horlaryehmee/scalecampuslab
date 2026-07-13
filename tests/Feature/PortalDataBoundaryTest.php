@@ -254,6 +254,18 @@ class PortalDataBoundaryTest extends TestCase
         $firstEvent = $this->campusEvent($university, 'Engineering Visit', 'published');
         $secondEvent = $this->campusEvent($university, 'Business Visit', 'published');
 
+        foreach ([$firstEvent, $secondEvent] as $event) {
+            VisitRequest::create([
+                'school_id' => $school->id,
+                'campus_event_id' => $event->id,
+                'requested_by_user_id' => $schoolUser->id,
+                'requested_window' => now()->addWeek()->toDateString(),
+                'group_size' => 20,
+                'status' => 'approved',
+                'priority' => 2,
+            ]);
+        }
+
         $this->actingAs($schoolUser)->post('/school-itinerary', ['campus_event_id' => $firstEvent->id])->assertRedirect();
         $this->actingAs($schoolUser)->post('/school-itinerary', ['campus_event_id' => $secondEvent->id])->assertRedirect();
         $items = SchoolItineraryItem::where('user_id', $schoolUser->id)->orderBy('position')->get();

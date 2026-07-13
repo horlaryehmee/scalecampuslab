@@ -19,8 +19,7 @@ class RegistrationController extends Controller
     public function __construct(
         private readonly WaitlistService $waitlist,
         private readonly NotificationService $notifications,
-    ) {
-    }
+    ) {}
 
     public function index(Request $request, Event $event): JsonResponse
     {
@@ -56,6 +55,9 @@ class RegistrationController extends Controller
         if ($request->user()->isSchool()) {
             $validated['school_id'] = $validated['school_id'] ?? $request->user()->school_id;
             abort_unless($validated['school_id'], 422, 'school_id is required for school bookings.');
+
+            $student = User::query()->whereKey($studentId)->where('role', 'student')->firstOrFail();
+            abort_unless($student->school_id === $request->user()->school_id, 403, 'The student does not belong to your school.');
         }
 
         $registration = DB::transaction(function () use ($event, $studentId, $validated) {
@@ -94,33 +96,47 @@ class RegistrationController extends Controller
             'student_ids.*' => ['integer', 'exists:users,id'],
         ]);
 
-        $schoolId = $validated['school_id'] ?? $request->user()->school_id;
+        $actor = $request->user();
+        $schoolId = (int) ($validated['school_id'] ?? $actor->school_id);
         abort_unless($schoolId, 422, 'school_id is required.');
 
-        $registrations = [];
-
-        foreach (array_unique($validated['student_ids']) as $studentId) {
-            $student = User::query()
-                ->whereKey($studentId)
-                ->where('role', 'student')
-                ->firstOrFail();
-
+        if ($actor->isSchool()) {
+            abort_unless($actor->school_id, 422, 'Your school account is not linked to a school.');
             abort_unless(
-                $request->user()->role === 'admin' || $student->school_id === $schoolId,
+                $schoolId === (int) $actor->school_id,
                 403,
-                'One or more students do not belong to your school.'
+                'You can only create group bookings for your own school.'
             );
+        }
 
-            $registrations[] = DB::transaction(function () use ($event, $studentId, $schoolId) {
-                $lockedEvent = Event::query()->whereKey($event->id)->lockForUpdate()->firstOrFail();
+        $studentIds = array_values(array_unique(array_map('intval', $validated['student_ids'])));
+        $students = User::query()
+            ->whereIn('id', $studentIds)
+            ->where('role', 'student')
+            ->get()
+            ->keyBy('id');
+        abort_unless($students->count() === count($studentIds), 404, 'One or more students were not found.');
+
+        foreach ($studentIds as $studentId) {
+            $student = $students->get($studentId);
+            abort_unless($student->school_id === $schoolId, 403, 'One or more students do not belong to the selected school.');
+        }
+
+        $registrations = DB::transaction(function () use ($event, $studentIds, $schoolId) {
+            $lockedEvent = Event::query()->whereKey($event->id)->lockForUpdate()->firstOrFail();
+            $registrations = [];
+
+            foreach ($studentIds as $studentId) {
                 $status = $this->waitlist->statusFor($lockedEvent);
 
-                return Registration::updateOrCreate(
+                $registrations[] = Registration::updateOrCreate(
                     ['event_id' => $lockedEvent->id, 'student_id' => $studentId],
                     ['school_id' => $schoolId, 'status' => $status]
                 );
-            });
-        }
+            }
+
+            return $registrations;
+        });
 
         foreach ($registrations as $registration) {
             $this->log($request, 'booking.group_created', $registration, [

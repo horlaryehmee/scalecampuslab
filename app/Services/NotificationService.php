@@ -10,13 +10,9 @@ class NotificationService
 {
     public function queue(User $user, string $content, string $type = 'email'): Message
     {
-        if (! in_array($type, ['email', 'sms'], true)) {
-            $type = 'email';
-        }
-
         $message = Message::create([
             'user_id' => $user->id,
-            'type' => $type,
+            'type' => 'email',
             'content' => $content,
             'status' => 'pending',
         ]);

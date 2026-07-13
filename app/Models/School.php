@@ -35,4 +35,14 @@ class School extends Model
     {
         return $this->hasMany(Registration::class);
     }
+
+    public function institutionPrograms(): HasMany
+    {
+        return $this->hasMany(InstitutionProgram::class);
+    }
+
+    public function visitRequests(): HasMany
+    {
+        return $this->hasMany(VisitRequest::class);
+    }
 }

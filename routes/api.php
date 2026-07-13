@@ -1,7 +1,7 @@
 <?php
 
-use App\Http\Controllers\Api\AIController;
 use App\Http\Controllers\Api\AdminController;
+use App\Http\Controllers\Api\AIController;
 use App\Http\Controllers\Api\ApplicationController;
 use App\Http\Controllers\Api\AttendanceController;
 use App\Http\Controllers\Api\AuthController;
@@ -12,16 +12,26 @@ use App\Http\Controllers\Api\RegistrationController;
 use App\Http\Controllers\Api\ReportingController;
 use App\Http\Controllers\Api\SchoolController;
 use App\Http\Controllers\Api\StudentController;
+use App\Http\Controllers\ApplicationPaymentController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,1');
+Route::post('/mfa/verify', [AuthController::class, 'verifyMfa'])->middleware('throttle:10,1');
+Route::post('/mfa/resend', [AuthController::class, 'resendMfa'])->middleware('throttle:3,10');
+Route::post('/payments/paystack/webhook', [ApplicationPaymentController::class, 'webhook'])->middleware('throttle:120,1')->name('payments.paystack.webhook');
 
-Route::middleware('auth:sanctum')->group(function (): void {
+Route::middleware(['auth:sanctum', 'active', 'verified'])->group(function (): void {
     Route::post('/logout', [AuthController::class, 'logout']);
 
     Route::get('/calendar', [CalendarController::class, 'index']);
     Route::get('/messages', [MessageController::class, 'index']);
     Route::post('/messages', [MessageController::class, 'store'])->middleware('role:university,admin');
+
+    Route::prefix('student')->middleware('role:student')->group(function (): void {
+        Route::get('/visits', [StudentController::class, 'visits']);
+        Route::get('/visits/{visit}', [StudentController::class, 'visit']);
+    });
+
     Route::middleware('role:school,admin')->group(function (): void {
         Route::get('/students', [StudentController::class, 'index']);
         Route::post('/students', [StudentController::class, 'store']);
@@ -64,13 +74,15 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::get('/reports/export/pdf', [ReportingController::class, 'exportPdf'])->middleware('role:university,admin');
     Route::get('/reports/export/excel', [ReportingController::class, 'exportExcel'])->middleware('role:university,admin');
 
-    Route::prefix('ai')->middleware('role:university,admin')->group(function (): void {
-        Route::post('/school-matches', [AIController::class, 'schoolMatches']);
-        Route::post('/predictive-score', [AIController::class, 'predictiveScore']);
-        Route::post('/itinerary', [AIController::class, 'itinerary']);
-        Route::post('/route-optimization', [AIController::class, 'route']);
-        Route::post('/engagement-prediction', [AIController::class, 'engagement']);
-    });
+    if (config('ai.enabled')) {
+        Route::prefix('ai')->middleware('role:university,admin')->group(function (): void {
+            Route::post('/school-matches', [AIController::class, 'schoolMatches']);
+            Route::post('/predictive-score', [AIController::class, 'predictiveScore']);
+            Route::post('/itinerary', [AIController::class, 'itinerary']);
+            Route::post('/route-optimization', [AIController::class, 'route']);
+            Route::post('/engagement-prediction', [AIController::class, 'engagement']);
+        });
+    }
 
     Route::prefix('admin')->middleware('role:admin')->group(function (): void {
         Route::get('/users', [AdminController::class, 'users']);
@@ -89,3 +101,6 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::delete('/schools/{school}', [SchoolController::class, 'destroy']);
     });
 });
+
+require __DIR__.'/api_auth.php';
+require __DIR__.'/api_workflows.php';

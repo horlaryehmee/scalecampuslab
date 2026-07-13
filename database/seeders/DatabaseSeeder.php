@@ -3,10 +3,12 @@
 namespace Database\Seeders;
 
 use App\Models\CampusEvent;
-use App\Models\School;
-use App\Models\User;
+use App\Models\EventItineraryItem;
+use App\Models\EventRegistration;
 use App\Models\ProjectMilestone;
+use App\Models\School;
 use App\Models\TargetSchool;
+use App\Models\User;
 use App\Models\VisitArchive;
 use App\Models\VisitRequest;
 use App\Models\VisitTask;
@@ -20,6 +22,10 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
+        if (app()->isProduction()) {
+            throw new \LogicException('Demo seeding is disabled in production.');
+        }
+
         $demoSchool = School::updateOrCreate(
             ['name' => 'Lincoln High School'],
             [
@@ -36,7 +42,7 @@ class DatabaseSeeder extends Seeder
             ['name' => 'Platform Admin', 'email' => 'admin@scalecampuslab.test', 'role' => 'admin'],
             ['name' => 'University Demo', 'email' => 'university@scalecampuslab.test', 'role' => 'university'],
             ['name' => 'School Demo', 'email' => 'school@scalecampuslab.test', 'role' => 'school', 'school_id' => $demoSchool->id],
-            ['name' => 'Student Demo', 'email' => 'student@scalecampuslab.test', 'role' => 'student'],
+            ['name' => 'Student Demo', 'email' => 'student@scalecampuslab.test', 'role' => 'student', 'school_id' => $demoSchool->id],
         ];
 
         foreach ($users as $user) {
@@ -138,6 +144,67 @@ class DatabaseSeeder extends Seeder
                         'status' => $status,
                         'priority' => $priority,
                         'notes' => 'Counselor request generated from the school portal.',
+                    ]
+                );
+            }
+        }
+
+        $student = User::where('email', 'student@scalecampuslab.test')->first();
+
+        if ($previewEvent && $university && $schoolUser && $student) {
+            $canonicalVisit = VisitRequest::query()->updateOrCreate(
+                [
+                    'campus_event_id' => $previewEvent->id,
+                    'school_id' => $demoSchool->id,
+                ],
+                [
+                    'target_school_id' => null,
+                    'requested_by_user_id' => $university->id,
+                    'responded_by_user_id' => $schoolUser->id,
+                    'requested_window' => $previewEvent->starts_at->toIso8601String(),
+                    'group_size' => 24,
+                    'status' => 'approved',
+                    'priority' => 2,
+                    'notes' => 'Approved demo visit connecting a real university event and school account.',
+                    'responded_at' => now(),
+                    'decision_note' => 'Approved for the senior student cohort.',
+                ]
+            );
+
+            $registration = EventRegistration::query()->firstOrNew([
+                'campus_event_id' => $previewEvent->id,
+                'registrant_email' => $student->email,
+            ]);
+            $registration->forceFill([
+                'visit_request_id' => $canonicalVisit->id,
+                'user_id' => $student->id,
+                'registrant_name' => $student->name,
+                'registrant_type' => 'student',
+                'party_size' => 1,
+                'status' => 'confirmed',
+                'consent_status' => 'not_required',
+                'is_minor' => false,
+            ])->save();
+
+            foreach ([
+                ['Arrival and check-in', -20, 0, 'Admissions Welcome Center', 'Meet the school coordinator and complete check-in.'],
+                ['Campus welcome', 0, 45, 'Admissions Welcome Center', 'University welcome, safety briefing, and visit overview.'],
+                ['Guided campus experience', 45, 150, 'Main Campus', 'Student-led tour and academic program conversations.'],
+                ['Questions and departure', 150, 180, 'Admissions Welcome Center', 'Final questions, next steps, and coordinated departure.'],
+            ] as $position => [$title, $startMinutes, $endMinutes, $location, $description]) {
+                EventItineraryItem::query()->updateOrCreate(
+                    [
+                        'campus_event_id' => $previewEvent->id,
+                        'visit_request_id' => $canonicalVisit->id,
+                        'title' => $title,
+                    ],
+                    [
+                        'created_by_user_id' => $university->id,
+                        'description' => $description,
+                        'starts_at' => $previewEvent->starts_at->copy()->addMinutes($startMinutes),
+                        'ends_at' => $previewEvent->starts_at->copy()->addMinutes($endMinutes),
+                        'location' => $location,
+                        'position' => $position + 1,
                     ]
                 );
             }

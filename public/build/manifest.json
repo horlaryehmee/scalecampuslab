@@ -1,4 +1,11 @@
 {
+  "_axios-BrfgwHzv.js": {
+    "file": "assets/axios-BrfgwHzv.js",
+    "name": "axios",
+    "imports": [
+      "_jsx-runtime-kwy2aouD.js"
+    ]
+  },
   "_fonts-DkuEHybc.css": {
     "file": "assets/fonts-DkuEHybc.css",
     "src": "_fonts-DkuEHybc.css"
@@ -51,9 +58,23 @@
     "file": "assets/instrument-sans-600-normal-DMks36a2.woff",
     "src": "_instrument-sans-600-normal-DMks36a2.woff"
   },
-  "_jsx-runtime-nRZIeipV.js": {
-    "file": "assets/jsx-runtime-nRZIeipV.js",
+  "_jsx-runtime-kwy2aouD.js": {
+    "file": "assets/jsx-runtime-kwy2aouD.js",
     "name": "jsx-runtime"
+  },
+  "_preload-helper-BKW5HEps.js": {
+    "file": "assets/preload-helper-BKW5HEps.js",
+    "name": "preload-helper",
+    "imports": [
+      "_jsx-runtime-kwy2aouD.js"
+    ]
+  },
+  "_trash-2-BQ7ZvhrT.js": {
+    "file": "assets/trash-2-BQ7ZvhrT.js",
+    "name": "trash-2",
+    "imports": [
+      "_jsx-runtime-kwy2aouD.js"
+    ]
   },
   "node_modules/leaflet/dist/images/layers-2x.png": {
     "file": "assets/layers-2x-Bpkbi35X.png",
@@ -67,8 +88,23 @@
     "file": "assets/marker-icon-hN30_KVU.png",
     "src": "node_modules/leaflet/dist/images/marker-icon.png"
   },
+  "node_modules/leaflet/dist/leaflet-src.js": {
+    "file": "assets/leaflet-src-UU_1UeUi.js",
+    "name": "leaflet-src",
+    "src": "node_modules/leaflet/dist/leaflet-src.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "_jsx-runtime-kwy2aouD.js"
+    ]
+  },
+  "node_modules/three/build/three.module.js": {
+    "file": "assets/three.module-DNw-NF4b.js",
+    "name": "three.module",
+    "src": "node_modules/three/build/three.module.js",
+    "isDynamicEntry": true
+  },
   "resources/css/app.css": {
-    "file": "assets/app-BOZl9VO6.css",
+    "file": "assets/app-BIKdEf3z.css",
     "name": "app",
     "names": [
       "app.css"
@@ -77,16 +113,22 @@
     "isEntry": true
   },
   "resources/js/app.jsx": {
-    "file": "assets/app-CiPGVAX5.js",
+    "file": "assets/app-B9RsGnkV.js",
     "name": "app",
     "src": "resources/js/app.jsx",
     "isEntry": true,
     "imports": [
-      "_jsx-runtime-nRZIeipV.js"
+      "_jsx-runtime-kwy2aouD.js",
+      "_trash-2-BQ7ZvhrT.js",
+      "_preload-helper-BKW5HEps.js"
+    ],
+    "dynamicImports": [
+      "node_modules/leaflet/dist/leaflet-src.js",
+      "node_modules/three/build/three.module.js"
     ],
     "css": [
       "assets/app-1DTFk8zz.css",
-      "assets/app-BOZl9VO6.css"
+      "assets/app-BIKdEf3z.css"
     ],
     "assets": [
       "assets/layers-BWBAp2CZ.png",
@@ -94,16 +136,32 @@
       "assets/marker-icon-hN30_KVU.png"
     ]
   },
+  "resources/js/marketing.jsx": {
+    "file": "assets/marketing-Cxkmn9IE.js",
+    "name": "marketing",
+    "src": "resources/js/marketing.jsx",
+    "isEntry": true,
+    "imports": [
+      "_jsx-runtime-kwy2aouD.js",
+      "_preload-helper-BKW5HEps.js",
+      "_axios-BrfgwHzv.js"
+    ],
+    "css": [
+      "assets/app-BIKdEf3z.css"
+    ]
+  },
   "resources/js/platform.jsx": {
-    "file": "assets/platform-Cn9gJeJw.js",
+    "file": "assets/platform-CaVNi_-o.js",
     "name": "platform",
     "src": "resources/js/platform.jsx",
     "isEntry": true,
     "imports": [
-      "_jsx-runtime-nRZIeipV.js"
+      "_jsx-runtime-kwy2aouD.js",
+      "_trash-2-BQ7ZvhrT.js",
+      "_axios-BrfgwHzv.js"
     ],
     "css": [
-      "assets/app-BOZl9VO6.css"
+      "assets/app-BIKdEf3z.css"
     ]
   }
 }

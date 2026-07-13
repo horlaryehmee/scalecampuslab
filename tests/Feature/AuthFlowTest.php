@@ -81,4 +81,25 @@ class AuthFlowTest extends TestCase
             'password' => 'password',
         ])->assertRedirect('/dashboard/admin');
     }
+
+    public function test_unverified_and_suspended_accounts_cannot_open_the_dashboard_directly(): void
+    {
+        $unverified = User::factory()->unverified()->create(['role' => 'student']);
+
+        $this->actingAs($unverified)
+            ->get('/dashboard/student')
+            ->assertRedirect('/verify-email');
+
+        $suspended = User::factory()->create([
+            'role' => 'student',
+            'access_status' => 'suspended',
+        ]);
+
+        $this->actingAs($suspended)
+            ->get('/dashboard/student')
+            ->assertRedirect('/login')
+            ->assertSessionHasErrors('email');
+
+        $this->assertGuest();
+    }
 }

@@ -12,9 +12,7 @@ use Illuminate\Validation\Rule;
 
 class EventController extends Controller
 {
-    public function __construct(private readonly NotificationService $notifications)
-    {
-    }
+    public function __construct(private readonly NotificationService $notifications) {}
 
     public function index(Request $request): JsonResponse
     {
@@ -35,10 +33,15 @@ class EventController extends Controller
     public function store(Request $request): JsonResponse
     {
         $validated = $this->validateEvent($request);
+        $universityId = $request->user()->role === 'admin'
+            ? (int) ($validated['university_id'] ?? 0)
+            : $request->user()->id;
+        abort_unless($universityId, 422, 'university_id is required when an administrator creates an event.');
+        unset($validated['university_id']);
         $this->ensureNoDoubleBooking($validated['location'], $validated['event_date']);
 
         $event = Event::create($validated + [
-            'university_id' => $request->user()->id,
+            'university_id' => $universityId,
             'status' => $validated['status'] ?? 'draft',
         ]);
         $this->log($request, 'event.created', $event, ['title' => $event->title, 'status' => $event->status]);
@@ -46,8 +49,16 @@ class EventController extends Controller
         return response()->json($event, 201);
     }
 
-    public function show(Event $event): JsonResponse
+    public function show(Request $request, Event $event): JsonResponse
     {
+        $user = $request->user();
+        abort_unless(
+            $event->status === 'published'
+            || $user->role === 'admin'
+            || ($user->role === 'university' && $event->university_id === $user->id),
+            403
+        );
+
         return response()->json($event->load('university:id,name,email'));
     }
 
@@ -55,6 +66,7 @@ class EventController extends Controller
     {
         $this->authorizeUniversityEvent($request, $event);
         $validated = $this->validateEvent($request, updating: true);
+        unset($validated['university_id']);
 
         $this->ensureNoDoubleBooking(
             $validated['location'] ?? $event->location,
@@ -152,6 +164,7 @@ class EventController extends Controller
     private function validateEvent(Request $request, bool $updating = false): array
     {
         return $request->validate([
+            'university_id' => ['sometimes', Rule::exists('users', 'id')->where('role', 'university')],
             'title' => [$updating ? 'sometimes' : 'required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
             'location' => [$updating ? 'sometimes' : 'required', 'string', 'max:255'],

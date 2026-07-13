@@ -1,6 +1,5 @@
 ﻿import React, { Component, useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import {
     Activity,
@@ -55,18 +54,6 @@ import {
     UsersRound,
     X,
 } from 'lucide-react';
-import {
-    AdditiveBlending,
-    DoubleSide,
-    Mesh,
-    PerspectiveCamera,
-    QuadraticBezierCurve3,
-    Scene,
-    ShaderMaterial,
-    TubeGeometry,
-    Vector3,
-    WebGLRenderer,
-} from 'three';
 import '../css/app.css';
 
 const roleLabels = {
@@ -79,6 +66,45 @@ const roleLabels = {
 
 function cx(...classes) {
     return classes.filter(Boolean).join(' ');
+}
+
+async function apiRequest(url, options = {}) {
+    const headers = {
+        Accept: 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+        ...(options.headers || {}),
+    };
+    const response = await fetch(url, { credentials: 'same-origin', ...options, headers });
+    const payload = response.status === 204 ? null : await response.json().catch(() => null);
+
+    if (!response.ok) {
+        const validationMessage = payload?.errors ? Object.values(payload.errors).flat().find(Boolean) : null;
+        throw new Error(validationMessage || payload?.message || `Request failed with status ${response.status}.`);
+    }
+
+    return payload;
+}
+
+function exportRowsToCsv(filename, rows = []) {
+    if (typeof window === 'undefined' || !Array.isArray(rows) || rows.length === 0) return;
+
+    const escapeCell = (value) => {
+        if (value === null || value === undefined) return '';
+        let content = String(value);
+        if (typeof value === 'string' && /^[=+\-@]/.test(content)) content = `'${content}`;
+        return `"${content.replaceAll('"', '""')}"`;
+    };
+    const csv = rows.map((row) => (Array.isArray(row) ? row : [row]).map(escapeCell).join(',')).join('\r\n');
+    const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename || 'export.csv';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
 class AppErrorBoundary extends Component {
@@ -99,7 +125,7 @@ class AppErrorBoundary extends Component {
                     Object.keys(window.sessionStorage || {})
                         .filter((key) => key.startsWith('scalecampus.activeTab.'))
                         .forEach((key) => window.sessionStorage.removeItem(key));
-                    window.location.assign('/dashboard');
+                    window.location.assign(window.location.pathname || '/login');
                 }
             };
 
@@ -116,6 +142,40 @@ class AppErrorBoundary extends Component {
                         <form id="fallback-logout" action="/logout" method="POST" className="hidden"><input type="hidden" name="_token" value={document.querySelector('meta[name=csrf-token]')?.content || ''} /></form>
                     </section>
                 </CenteredShell>
+            );
+        }
+
+        return this.props.children;
+    }
+}
+
+class DashboardSectionBoundary extends Component {
+    constructor(props) {
+        super(props);
+        this.state = { error: null };
+    }
+
+    static getDerivedStateFromError(error) {
+        return { error };
+    }
+
+    componentDidCatch(error, info) {
+        console.error('Dashboard section failed:', error, info);
+    }
+
+    render() {
+        if (this.state.error) {
+            return (
+                <section className="rounded-3xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
+                    <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                        <div>
+                            <p className="text-xs font-black uppercase tracking-[0.14em] text-amber-700">Section recovery</p>
+                            <h2 className="mt-1 text-xl font-black text-slate-950">This section could not render safely.</h2>
+                            <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-amber-900">The workspace is still active. Go back to Overview and continue working while the section error is reviewed.</p>
+                        </div>
+                        <button type="button" onClick={this.props.onReset} className="rounded-xl bg-slate-950 px-4 py-3 text-sm font-black text-white">Back to Overview</button>
+                    </div>
+                </section>
             );
         }
 
@@ -148,6 +208,10 @@ function App() {
         return <LoginPage csrf={csrf} errors={errors} old={old} {...props} />;
     }
 
+    if (page === 'mfa-challenge') {
+        return <MfaChallengePage csrf={csrf} errors={errors} flash={flash} {...props} />;
+    }
+
     if (page === 'forgot-password') {
         return <ForgotPasswordPage csrf={csrf} errors={errors} old={old} flash={JSON.parse(mount.dataset.flash || '{}')} {...props} />;
     }
@@ -159,10 +223,15 @@ function App() {
     return <LandingPage csrf={csrf} errors={errors} old={old} signupCount={props.signupCount} />;
 }
 
-function EmptyState({ message }) {
+function EmptyState({ message, title = 'No records yet', action }) {
     return (
-        <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-7 text-center text-sm font-semibold text-slate-500">
-            {message}
+        <div className="grid place-items-center rounded-2xl border border-dashed border-slate-200 bg-gradient-to-br from-slate-50 to-white px-4 py-8 text-center">
+            <span className="grid h-11 w-11 place-items-center rounded-2xl bg-[#e5eeff] text-[#006a61]">
+                <Inbox size={20} />
+            </span>
+            <p className="mt-3 text-sm font-black text-slate-950">{title}</p>
+            <p className="mt-1 max-w-sm text-sm font-semibold leading-6 text-slate-500">{message}</p>
+            {action && <div className="mt-4">{action}</div>}
         </div>
     );
 }
@@ -419,17 +488,6 @@ function AdminLogin({ csrf, errors }) {
 }
 
 function LoginPage({ csrf, errors, old, title, subtitle, action, mode }) {
-    const demoAccounts = mode === 'admin'
-        ? [
-            ['Admin', 'admin@scalecampuslab.test', '/admin/login'],
-        ]
-        : [
-            ['University', 'university@scalecampuslab.test', '/login'],
-            ['School', 'school@scalecampuslab.test', '/login'],
-            ['Student', 'student@scalecampuslab.test', '/login'],
-            ['Admin', 'admin@scalecampuslab.test', '/admin/login'],
-        ];
-
     return (
         <CenteredShell>
             <div className="mx-auto w-full max-w-md rounded-[2rem] border border-white/15 bg-black/55 p-7 shadow-2xl shadow-black/40 backdrop-blur-2xl">
@@ -460,24 +518,6 @@ function LoginPage({ csrf, errors, old, title, subtitle, action, mode }) {
                         Sign in
                     </button>
                 </form>
-
-                <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.045] p-4">
-                    <p className="text-xs font-black uppercase tracking-normal text-white/45">Demo accounts</p>
-                    <div className="mt-3 grid gap-2">
-                        {demoAccounts.map(([label, email, demoAction]) => (
-                            <form key={email} action={demoAction} method="POST">
-                                <input type="hidden" name="_token" value={csrf} />
-                                <input type="hidden" name="email" value={email} />
-                                <input type="hidden" name="password" value="password" />
-                                <button className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-black/25 px-3 py-2.5 text-left text-sm font-bold text-white/80 transition hover:border-lime-300/35 hover:bg-lime-300/10 hover:text-white">
-                                    <span>{label}</span>
-                                    <span className="text-xs font-semibold text-white/40">{email}</span>
-                                </button>
-                            </form>
-                        ))}
-                    </div>
-                    <p className="mt-3 text-xs font-semibold text-white/35">Password: password</p>
-                </div>
 
                 <div className="mt-6 text-center text-xs leading-6 text-white/45">
                     {mode === 'admin' ? (
@@ -511,12 +551,12 @@ function ForgotPasswordPage({ csrf, errors, old, action, flash }) {
     );
 }
 
-function RoleDashboard({ csrf, role, title, subtitle, metrics, actions, roadmap = {}, events = [], registrations = [], users = [], schools = [], students = [], visitRequests = [], itineraryItems = [], archives = [], tasks = [], analytics = {}, messages = [], schoolProfile = {}, securityProfile = {}, universityOverview = {}, systemHealth = {}, platformSettings = {}, errors = {}, old = {}, flash = {} }) {
+function RoleDashboard({ csrf, role, title, subtitle, metrics, actions, roadmap = {}, events = [], scheduleEvents = [], registrations = [], users = [], schools = [], schoolAccounts = [], students = [], visitRequests = [], itineraryItems = [], archives = [], tasks = [], analytics = {}, messages = [], schoolProfile = {}, securityProfile = {}, universityOverview = {}, universitySettings = {}, universityCompliance = {}, systemHealth = {}, platformSettings = {}, programs = [], admissionApplications = [], studentPortfolio = {}, notifications = {}, contentManagement = {}, errors = {}, old = {}, flash = {} }) {
     const navGroups = dashboardNavGroups(role);
     const navItems = flatNavItems(navGroups);
     const defaultActiveId = navItems[0]?.id || 'overview';
     const storageKey = `scalecampus.activeTab.${role}`;
-    const [dashboardData, setDashboardData] = useState({ metrics, roadmap, events, registrations, users, schools, students, visitRequests, itineraryItems, archives, tasks, analytics, messages, schoolProfile, securityProfile, universityOverview, systemHealth, platformSettings });
+    const [dashboardData, setDashboardData] = useState({ metrics, roadmap, events, scheduleEvents, registrations, users, schools, schoolAccounts, students, visitRequests, itineraryItems, archives, tasks, analytics, messages, schoolProfile, securityProfile, universityOverview, universitySettings, universityCompliance, systemHealth, platformSettings, programs, admissionApplications, studentPortfolio, notifications, contentManagement });
     const [formErrors, setFormErrors] = useState(errors);
     const [formOld, setFormOld] = useState(old);
     const [localFlash, setLocalFlash] = useState(flash);
@@ -552,52 +592,87 @@ function RoleDashboard({ csrf, role, title, subtitle, metrics, actions, roadmap 
 
             event.preventDefault();
             window.sessionStorage.setItem(storageKey, activeId);
+            const submitter = event.submitter instanceof HTMLButtonElement ? event.submitter : null;
+            const originalText = submitter?.textContent || '';
+            if (submitter) {
+                submitter.disabled = true;
+                submitter.classList.add('cursor-wait', 'opacity-70');
+                submitter.textContent = submitter.dataset.loadingText || 'Working...';
+            }
             setSubmitting(true);
 
             try {
-                const response = await fetch(form.action || window.location.href, {
-                    method: form.method || 'POST',
-                    body: new FormData(form),
-                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                const method = (form.method || 'POST').toUpperCase();
+                const formData = new FormData(form);
+                const requestUrl = new URL(form.action || window.location.href, window.location.origin);
+                if (method === 'GET') {
+                    requestUrl.search = new URLSearchParams(formData).toString();
+                }
+                const response = await fetch(requestUrl, {
+                    method,
+                    body: method === 'GET' || method === 'HEAD' ? undefined : formData,
+                    headers: { 'X-Requested-With': 'XMLHttpRequest', Accept: 'text/html,application/xhtml+xml' },
                     credentials: 'same-origin',
                     redirect: 'follow',
                 });
                 const html = await response.text();
+                if (!response.ok) {
+                    throw new Error(`Action failed with status ${response.status}.`);
+                }
                 const parsed = new DOMParser().parseFromString(html, 'text/html');
                 const nextApp = parsed.getElementById('app');
 
                 if (nextApp?.dataset.props) {
                     const nextProps = JSON.parse(nextApp.dataset.props || '{}');
+                    const nextErrors = JSON.parse(nextApp.dataset.errors || '{}');
+                    const nextOld = JSON.parse(nextApp.dataset.old || '{}');
+                    const nextFlash = JSON.parse(nextApp.dataset.flash || '{}');
+                    const hasErrors = Object.values(nextErrors || {}).flat().filter(Boolean).length > 0;
                     setDashboardData((current) => ({
                         ...current,
-                        metrics: nextProps.metrics || current.metrics,
-                        roadmap: nextProps.roadmap || current.roadmap,
-                        events: nextProps.events || current.events,
-                        registrations: nextProps.registrations || current.registrations,
-                        users: nextProps.users || current.users,
-                        schools: nextProps.schools || current.schools,
-                        students: nextProps.students || current.students,
-                        visitRequests: nextProps.visitRequests || current.visitRequests,
-                        archives: nextProps.archives || current.archives,
-                        tasks: nextProps.tasks || current.tasks,
-                        analytics: nextProps.analytics || current.analytics,
-                        messages: nextProps.messages || current.messages,
-                        schoolProfile: nextProps.schoolProfile || current.schoolProfile,
-                        securityProfile: nextProps.securityProfile || current.securityProfile,
-                        universityOverview: nextProps.universityOverview || current.universityOverview,
-                        systemHealth: nextProps.systemHealth || current.systemHealth,
-                        platformSettings: nextProps.platformSettings || current.platformSettings,
+                        metrics: nextProps.metrics ?? current.metrics,
+                        roadmap: nextProps.roadmap ?? current.roadmap,
+                        events: nextProps.events ?? current.events,
+                        scheduleEvents: nextProps.scheduleEvents ?? current.scheduleEvents,
+                        registrations: nextProps.registrations ?? current.registrations,
+                        users: nextProps.users ?? current.users,
+                        schools: nextProps.schools ?? current.schools,
+                        schoolAccounts: nextProps.schoolAccounts ?? current.schoolAccounts,
+                        students: nextProps.students ?? current.students,
+                        visitRequests: nextProps.visitRequests ?? current.visitRequests,
+                        itineraryItems: nextProps.itineraryItems ?? current.itineraryItems,
+                        archives: nextProps.archives ?? current.archives,
+                        tasks: nextProps.tasks ?? current.tasks,
+                        analytics: nextProps.analytics ?? current.analytics,
+                        messages: nextProps.messages ?? current.messages,
+                        schoolProfile: nextProps.schoolProfile ?? current.schoolProfile,
+                        securityProfile: nextProps.securityProfile ?? current.securityProfile,
+                        universityOverview: nextProps.universityOverview ?? current.universityOverview,
+                        universitySettings: nextProps.universitySettings ?? current.universitySettings,
+                        universityCompliance: nextProps.universityCompliance ?? current.universityCompliance,
+                        systemHealth: nextProps.systemHealth ?? current.systemHealth,
+                        platformSettings: nextProps.platformSettings ?? current.platformSettings,
+                        programs: nextProps.programs ?? current.programs,
+                        admissionApplications: nextProps.admissionApplications ?? current.admissionApplications,
+                        studentPortfolio: nextProps.studentPortfolio ?? current.studentPortfolio,
+                        notifications: nextProps.notifications ?? current.notifications,
+                        contentManagement: nextProps.contentManagement ?? current.contentManagement,
                     }));
-                    setFormErrors(JSON.parse(nextApp.dataset.errors || '{}'));
-                    setFormOld(JSON.parse(nextApp.dataset.old || '{}'));
-                    setLocalFlash(JSON.parse(nextApp.dataset.flash || '{}'));
-                    form.reset();
-                } else {
-                    window.location.reload();
-                }
+                    setFormErrors(nextErrors);
+                    setFormOld(nextOld);
+                    setLocalFlash(hasErrors ? { status: 'Please fix the highlighted fields before continuing.', type: 'warning' } : nextFlash);
+                    if (!hasErrors) {
+                        form.reset();
+                    }
+                } else throw new Error('The server did not return updated workspace data.');
             } catch (error) {
-                setLocalFlash({ status: 'Action could not complete. Please try again.' });
+                setLocalFlash({ status: 'Action could not complete. Please try again.', type: 'error' });
             } finally {
+                if (submitter?.isConnected) {
+                    submitter.disabled = false;
+                    submitter.classList.remove('cursor-wait', 'opacity-70');
+                    submitter.textContent = originalText || submitter.textContent || 'Submit';
+                }
                 setSubmitting(false);
             }
         };
@@ -619,19 +694,55 @@ function RoleDashboard({ csrf, role, title, subtitle, metrics, actions, roadmap 
             activeTitle={activeTitle}
             navGroups={navGroups}
             onSelect={selectTab}
+            notifications={dashboardData.notifications}
         >
             <div className="flex flex-col gap-6" data-dashboard-app>
                 {submitting && <p className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-800">Saving...</p>}
-                {localFlash?.status && <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800">{localFlash.status}</p>}
+                {localFlash?.status && <p className={cx('rounded-lg border px-4 py-3 text-sm font-semibold', localFlash.type === 'error' ? 'border-rose-200 bg-rose-50 text-rose-800' : localFlash.type === 'warning' ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-emerald-200 bg-emerald-50 text-emerald-800')}>{localFlash.status}</p>}
                 {showMetrics && <MetricGrid metrics={content.metrics} />}
-                {content.custom || (
-                    <div className="grid gap-6 xl:grid-cols-[1.35fr_0.65fr]">
-                        <DataPanel title={content.primary.title} description={content.primary.description} rows={content.primary.rows} columns={content.primary.columns} empty={content.primary.empty} />
-                        <ActionPanel title={content.secondary.title} items={content.secondary.items} />
-                    </div>
-                )}
+                <DashboardSectionBoundary key={`${role}-${activeId}`} onReset={() => selectTab(defaultActiveId)}>
+                    {content.custom || (
+                        <div className="grid gap-6 xl:grid-cols-[1.35fr_0.65fr]">
+                            <DataPanel title={content.primary.title} description={content.primary.description} rows={content.primary.rows} columns={content.primary.columns} empty={content.primary.empty} />
+                            <ActionPanel title={content.secondary.title} items={content.secondary.items} />
+                        </div>
+                    )}
+                </DashboardSectionBoundary>
             </div>
         </DashboardFrame>
+    );
+}
+
+function MfaChallengePage({ csrf, errors, flash, maskedEmail, expiresAt, action, resendAction }) {
+    const challengeError = errors.challenge_token?.[0];
+
+    return (
+        <CenteredShell>
+            <div className="mx-auto w-full max-w-md rounded-[2rem] border border-white/15 bg-black/55 p-7 shadow-2xl shadow-black/40 backdrop-blur-2xl">
+                <div className="flex items-center justify-between">
+                    <BrandMark />
+                    <span className="rounded-full border border-lime-300/20 bg-lime-300/10 px-3 py-1 text-xs font-black uppercase tracking-normal text-lime-200">Secure sign in</span>
+                </div>
+                <div className="mt-8">
+                    <div className="grid h-12 w-12 place-items-center rounded-xl border border-white/15 bg-white/10 text-white"><ShieldCheck size={24} /></div>
+                    <h1 className="mt-5 text-3xl font-semibold tracking-normal text-white">Enter your sign-in code</h1>
+                    <p className="mt-2 text-sm leading-6 text-white/55">We sent a six-digit, one-time code to {maskedEmail || 'your email address'}.</p>
+                    {expiresAt && <p className="mt-1 text-xs font-semibold text-white/40">The code expires shortly and can only be used once.</p>}
+                </div>
+                {flash?.status && <p className="mt-4 rounded-xl border border-lime-300/20 bg-lime-300/10 p-3 text-sm font-semibold text-lime-100">{flash.status}</p>}
+                {challengeError && <p className="mt-4 rounded-xl border border-red-300/25 bg-red-400/10 p-3 text-sm font-semibold text-red-100">{challengeError}</p>}
+                <form action={action} method="POST" className="mt-7 space-y-5">
+                    <input type="hidden" name="_token" value={csrf} />
+                    <Field label="Verification code" name="code" type="text" error={errors.code?.[0]} inputMode="numeric" pattern="[0-9]{6}" maxLength="6" autoComplete="one-time-code" autoFocus />
+                    <button className="w-full rounded-2xl bg-lime-300 px-5 py-3.5 text-sm font-black text-black shadow-[0_0_24px_rgba(217,255,0,.18)] hover:bg-lime-200">Verify and sign in</button>
+                </form>
+                <form action={resendAction} method="POST" className="mt-3 text-center">
+                    <input type="hidden" name="_token" value={csrf} />
+                    <button className="text-sm font-bold text-lime-200 hover:text-lime-100">Send a new code</button>
+                </form>
+                <p className="mt-5 text-center"><a href="/login" className="text-xs font-semibold text-white/45 hover:text-white">Cancel and return to sign in</a></p>
+            </div>
+        </CenteredShell>
     );
 }
 
@@ -736,7 +847,7 @@ function AdminDashboard({ csrf, signups, pagination, stats, role }) {
     );
 }
 
-function DashboardFrame({ csrf, children, role, title, subtitle, activeId, activeTitle, navGroups, onSelect, logoutAction = '/logout' }) {
+function DashboardFrame({ csrf, children, role, title, subtitle, activeId, activeTitle, navGroups, onSelect, notifications = {}, logoutAction = '/logout' }) {
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const [mobileNavOpen, setMobileNavOpen] = useState(false);
     const [searchOpen, setSearchOpen] = useState(false);
@@ -746,11 +857,11 @@ function DashboardFrame({ csrf, children, role, title, subtitle, activeId, activ
     const navItems = flatNavItems(navGroups);
     const compactMobilePage = ['school', 'high_school'].includes(role) && activeId === 'bookings';
     const customHeaderPages = {
-        university: ['overview', 'events', 'visit-requests', 'schools', 'attendees', 'calendar', 'insights', 'messages', 'university-prd', 'settings'],
-        school: ['overview', 'events', 'bookings', 'itinerary', 'students', 'calendar', 'messages', 'reports', 'settings'],
-        high_school: ['overview', 'events', 'bookings', 'itinerary', 'students', 'calendar', 'messages', 'reports', 'settings'],
-        admin: ['overview', 'universities', 'schools', 'events', 'users', 'analytics', 'health', 'settings'],
-        student: ['overview', 'events', 'bookings', 'calendar', 'messages'],
+        university: ['overview', 'events', 'programs', 'applications', 'visit-requests', 'schools', 'attendees', 'calendar', 'insights', 'messages', 'settings'],
+        school: ['overview', 'programs', 'applications', 'events', 'bookings', 'itinerary', 'students', 'calendar', 'messages', 'reports', 'settings'],
+        high_school: ['overview', 'programs', 'applications', 'events', 'bookings', 'itinerary', 'students', 'calendar', 'messages', 'reports', 'settings'],
+        admin: ['overview', 'universities', 'schools', 'applications', 'messages', 'content', 'events', 'users-access', 'analytics', 'system-health', 'settings'],
+        student: ['my-visits', 'search-apply', 'applications', 'documents', 'payments', 'messages', 'itinerary', 'notifications', 'profile', 'settings'],
     };
     const hideMobilePageHeader = compactMobilePage || (customHeaderPages[role] || []).includes(activeId);
 
@@ -760,6 +871,35 @@ function DashboardFrame({ csrf, children, role, title, subtitle, activeId, activ
         return () => window.clearTimeout(timeout);
     }, [toast]);
 
+    useEffect(() => {
+        const lockSubmit = (event) => {
+            const form = event.target;
+            if (!(form instanceof HTMLFormElement) || form.dataset.noSubmitLock === 'true' || form.closest('[data-dashboard-app]')) {
+                return;
+            }
+
+            const submitter = event.submitter;
+            if (!(submitter instanceof HTMLButtonElement)) {
+                return;
+            }
+
+            submitter.dataset.originalText = submitter.textContent || '';
+            submitter.disabled = true;
+            submitter.classList.add('cursor-wait', 'opacity-70');
+            submitter.textContent = submitter.dataset.loadingText || 'Working...';
+
+            window.setTimeout(() => {
+                if (!submitter.isConnected) return;
+                submitter.disabled = false;
+                submitter.classList.remove('cursor-wait', 'opacity-70');
+                submitter.textContent = submitter.dataset.originalText || submitter.textContent || 'Submit';
+            }, 8000);
+        };
+
+        document.addEventListener('submit', lockSubmit, true);
+        return () => document.removeEventListener('submit', lockSubmit, true);
+    }, []);
+
     const handleSelect = (id) => {
         if (id === 'search') {
             setSearchOpen(true);
@@ -768,6 +908,19 @@ function DashboardFrame({ csrf, children, role, title, subtitle, activeId, activ
         }
         onSelect(id);
         setMobileNavOpen(false);
+    };
+    const notificationItems = Array.isArray(notifications?.items) ? notifications.items : [];
+    const unreadCount = Number(notifications?.unreadCount || 0);
+    const openNotifications = () => {
+        if (navItems.some((item) => item.id === 'notifications')) {
+            handleSelect('notifications');
+            return;
+        }
+        const latest = notificationItems.find((item) => item.unread) || notificationItems[0];
+        setToast({
+            title: unreadCount ? `${unreadCount} unread notification${unreadCount === 1 ? '' : 's'}` : 'Notifications',
+            message: latest?.subject || 'You are all caught up.',
+        });
     };
 
     return (
@@ -808,9 +961,9 @@ function DashboardFrame({ csrf, children, role, title, subtitle, activeId, activ
                             >
                                 <Search size={18} />
                             </button>
-                            <button type="button" onClick={() => setToast({ title: 'Notifications', message: 'No new alerts right now.' })} className="relative grid h-10 w-10 place-items-center rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-950" aria-label="Notifications">
+                            <button type="button" onClick={openNotifications} className="relative grid h-10 w-10 place-items-center rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-950" aria-label={`${unreadCount} unread notifications`}>
                                 <Bell size={18} />
-                                <span className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-rose-500" />
+                                {unreadCount > 0 && <span className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-rose-500" />}
                             </button>
                         </div>
                     </header>
@@ -841,9 +994,9 @@ function DashboardFrame({ csrf, children, role, title, subtitle, activeId, activ
                                 <span className="hidden md:inline">Search pages, records, or actions...</span>
                             </button>
                             <div className="flex items-center gap-3">
-                                <button type="button" onClick={() => setToast({ title: 'Notifications', message: 'No new alerts right now.' })} className="relative grid h-10 w-10 place-items-center rounded-xl border border-slate-200 bg-white text-slate-500 hover:border-indigo-200 hover:text-indigo-600">
+                                <button type="button" onClick={openNotifications} className="relative grid h-10 w-10 place-items-center rounded-xl border border-slate-200 bg-white text-slate-500 hover:border-indigo-200 hover:text-indigo-600" aria-label={`${unreadCount} unread notifications`}>
                                     <Bell size={17} />
-                                    <span className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-indigo-500" />
+                                    {unreadCount > 0 && <span className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-indigo-500" />}
                                 </button>
                                 <div className="hidden text-right md:block">
                                     <p className="text-sm font-black text-slate-950">{roleLabels[role]} User</p>
@@ -901,7 +1054,7 @@ function MobileBottomDock({ items, role, activeId, onSelect, onOpenMore }) {
         university: ['overview', 'events', 'visit-requests', 'calendar'],
         school: ['overview', 'events', 'students', 'messages'],
         high_school: ['overview', 'events', 'students', 'messages'],
-        student: ['overview', 'my-visits', 'explore-visits', 'messages'],
+        student: ['my-visits', 'itinerary', 'notifications', 'profile'],
         admin: ['overview', 'universities', 'events', 'analytics'],
     };
     const ids = preferred[role] || preferred.student;
@@ -955,6 +1108,7 @@ function mobileDockLabel(title) {
         'My Schedule': 'Schedule',
         'Explore Visits': 'Explore',
         'My Visits': 'Visits',
+        'Notifications': 'Alerts',
         'Institutions': 'Institutions',
         'Visit Activity': 'Activity',
     };
@@ -1140,14 +1294,16 @@ function SaaSTable({ columns = [], rows = [], empty = 'No records yet.' }) {
     );
 }
 
-function SaaSEmptyState({ title = 'Nothing here yet', description = 'New records will appear here when available.', action }) {
+function SaaSEmptyState({ title = 'Nothing here yet', description, message, action }) {
+    const body = description || message || 'New records will appear here when available.';
+
     return (
         <div className="grid place-items-center px-5 py-12 text-center">
             <div className="grid h-12 w-12 place-items-center rounded-2xl bg-indigo-50 text-indigo-600">
                 <Inbox size={22} />
             </div>
             <p className="mt-4 text-sm font-black text-slate-950">{title}</p>
-            <p className="mt-1 max-w-sm text-sm leading-6 text-slate-500">{description}</p>
+            <p className="mt-1 max-w-sm text-sm font-semibold leading-6 text-slate-500">{body}</p>
             {action && <div className="mt-4">{action}</div>}
         </div>
     );
@@ -1166,9 +1322,9 @@ function Toast({ toast, onClose }) {
     if (!toast) return null;
 
     return (
-        <div className="fixed bottom-5 right-5 z-[60] w-[calc(100vw-2.5rem)] max-w-sm rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl shadow-slate-950/15">
+        <div className="fixed bottom-4 left-1/2 z-[100] w-[calc(100vw-2rem)] max-w-sm -translate-x-1/2 rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl shadow-slate-950/15 md:bottom-5 md:left-auto md:right-5 md:translate-x-0">
             <div className="flex gap-3">
-                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-indigo-50 text-indigo-600"><Bell size={17} /></span>
+                <span className={cx('grid h-9 w-9 shrink-0 place-items-center rounded-xl', toast.type === 'error' ? 'bg-rose-50 text-rose-600' : toast.type === 'warning' ? 'bg-amber-50 text-amber-600' : 'bg-indigo-50 text-indigo-600')}><Bell size={17} /></span>
                 <div className="min-w-0 flex-1">
                     <p className="font-black text-slate-950">{toast.title}</p>
                     <p className="mt-1 text-sm leading-5 text-slate-500">{toast.message}</p>
@@ -1352,15 +1508,21 @@ function EventBuilder({ csrf, errors, old }) {
 }
 
 function UniversityRecruitmentOverview({ csrf, events = [], overview = {}, setSection }) {
-    const upcoming = events.filter((event) => event.status === 'published' && (!event.startsAt || new Date(event.startsAt) >= new Date())).slice(0, 4);
+    const upcoming = events
+        .filter((event) => {
+            const startsAt = new Date(event.startsAt || '').getTime();
+            return event.status === 'published' && Number.isFinite(startsAt) && startsAt >= Date.now();
+        })
+        .sort((left, right) => new Date(left.startsAt) - new Date(right.startsAt))
+        .slice(0, 4);
     const trend = overview.trend || [];
     const trendMax = Math.max(...trend.map((item) => Number(item.value || 0)), 1);
     const nextVisit = upcoming[0];
     const cycle = new Intl.DateTimeFormat('en', { month: 'long', year: 'numeric' }).format(new Date());
     const cards = [
-        ['Visits', overview.totalVisits || 0, '+12%', CalendarDays, 'bg-[#e5eeff] text-[#006a61]'],
+        ['Visits', overview.totalVisits || 0, 'Live', CalendarDays, 'bg-[#e5eeff] text-[#006a61]'],
         ['Pending', events.filter((event) => event.status === 'draft').length, 'Review', Clock, 'bg-amber-50 text-amber-700'],
-        ['Conv. Rate', `${overview.attendanceRate || 0}%`, 'Live', CheckCircle2, 'bg-emerald-50 text-emerald-700'],
+        ['Attendance', `${overview.attendanceRate || 0}%`, 'Live', CheckCircle2, 'bg-emerald-50 text-emerald-700'],
         ['Capacity', `${overview.capacityUsage || 0}%`, 'Usage', Activity, 'bg-slate-950 text-white'],
     ];
 
@@ -1371,19 +1533,8 @@ function UniversityRecruitmentOverview({ csrf, events = [], overview = {}, setSe
                     <h1 className="text-2xl font-black tracking-tight text-slate-950 md:text-3xl">Administrative Overview</h1>
                     <p className="mt-1 text-sm font-semibold text-slate-500">Recruitment performance summary · {cycle}</p>
                 </div>
-                <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+                <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">
                     <button type="button" onClick={() => window.print()} className="rounded-xl bg-slate-950 px-3 py-2 text-xs font-black text-white md:px-4 md:py-2.5 md:text-sm">Generate Report</button>
-                    <form action="/dashboard/university/demo-data/populate" method="POST">
-                        <input type="hidden" name="_token" value={csrf} />
-                        <button className="w-full rounded-xl border border-teal-200 bg-teal-50 px-3 py-2 text-xs font-black text-teal-800 md:px-4 md:py-2.5 md:text-sm">Populate data</button>
-                    </form>
-                    {Number(overview.demoEvents || 0) > 0 && (
-                        <form action="/dashboard/university/demo-data" method="POST" className="col-span-2 sm:col-span-1">
-                            <input type="hidden" name="_token" value={csrf} />
-                            <input type="hidden" name="_method" value="DELETE" />
-                            <button className="w-full rounded-xl border border-rose-200 bg-white px-3 py-2 text-xs font-black text-rose-700 md:px-4 md:py-2.5 md:text-sm">Clear data</button>
-                        </form>
-                    )}
                 </div>
             </section>
 
@@ -1408,16 +1559,16 @@ function UniversityRecruitmentOverview({ csrf, events = [], overview = {}, setSe
                     <section className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm md:p-4">
                         <div className="flex items-center justify-between gap-3">
                             <div>
-                                <h2 className="text-base font-black text-slate-950">Today's Schedule</h2>
+                                <h2 className="text-base font-black text-slate-950">Upcoming Schedule</h2>
                                 <p className="mt-0.5 text-xs font-semibold text-slate-500">Published visits and next program activity</p>
                             </div>
                             <button type="button" onClick={() => setSection('calendar')} className="inline-flex items-center gap-1 text-xs font-black text-[#006a61]">Calendar <ChevronRight size={14} /></button>
                         </div>
                         <div className="mt-3 overflow-hidden rounded-lg border border-slate-100">
-                            {(upcoming.length ? upcoming : events.slice(0, 3)).map((event, index) => {
+                            {upcoming.map((event, index) => {
                                 const date = event.startsAt ? new Date(event.startsAt) : null;
-                                const time = date && !Number.isNaN(date.getTime()) ? date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : `${String(9 + (index * 2)).padStart(2, '0')}:00`;
-                                const period = date && !Number.isNaN(date.getTime()) ? date.toLocaleTimeString([], { hour: 'numeric', hour12: true }).split(' ')[1] : 'AM';
+                                const time = date && !Number.isNaN(date.getTime()) ? date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'TBA';
+                                const period = date && !Number.isNaN(date.getTime()) ? date.toLocaleTimeString([], { hour: 'numeric', hour12: true }).split(' ')[1] : '';
 
                                 return (
                                     <button key={event.id || index} type="button" onClick={() => setSection('events')} className="flex w-full gap-3 border-b border-slate-100 p-2.5 text-left last:border-b-0 hover:bg-slate-50">
@@ -1435,7 +1586,7 @@ function UniversityRecruitmentOverview({ csrf, events = [], overview = {}, setSe
                                     </button>
                                 );
                             })}
-                            {!events.length && <div className="p-8 text-center text-sm font-semibold text-slate-500">No visit programs yet. Populate demo data to preview the dashboard.</div>}
+                            {!upcoming.length && <div className="p-8 text-center text-sm font-semibold text-slate-500">No future published visits are scheduled.</div>}
                         </div>
                     </section>
 
@@ -1456,7 +1607,7 @@ function UniversityRecruitmentOverview({ csrf, events = [], overview = {}, setSe
                                     </div>
                                 ))}
                             </div>
-                        ) : <SaaSEmptyState title="No engagement yet" message="Populate demo data or receive registrations to build this chart." />}
+                        ) : <SaaSEmptyState title="No engagement yet" message="Registration activity will build this chart automatically." />}
                     </section>
                 </div>
 
@@ -1488,10 +1639,10 @@ function UniversityRecruitmentOverview({ csrf, events = [], overview = {}, setSe
                     <section className="rounded-xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-3 shadow-sm md:p-4">
                         <div className="flex items-center gap-2 text-emerald-800"><Sparkles size={16} /><h2 className="font-black">Guide Next</h2></div>
                         <div className="mt-4 rounded-xl border border-emerald-100 bg-white/80 p-4">
-                            <p className="text-xs font-black text-emerald-700">Itinerary Optimization Suggested</p>
+                            <p className="text-xs font-black text-emerald-700">Next Program Checklist</p>
                             <p className="mt-2 text-xs leading-5 text-slate-600">{nextVisit ? `Your next hosted program is ${nextVisit.title} at ${nextVisit.location || nextVisit.venue}. Review capacity and attendee communications before arrival.` : 'Create or populate a visit program to receive database-driven planning guidance.'}</p>
                         </div>
-                        <button type="button" onClick={() => setSection('calendar')} className="mt-3 w-full rounded-lg border border-[#006a61]/30 bg-white px-3 py-2 text-xs font-black text-[#006a61]">Review Adjusted Schedule</button>
+                        <button type="button" onClick={() => setSection('calendar')} className="mt-3 w-full rounded-lg border border-[#006a61]/30 bg-white px-3 py-2 text-xs font-black text-[#006a61]">Review Schedule</button>
                     </section>
 
                     <section className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm md:p-4">
@@ -1600,7 +1751,7 @@ function UniversityOverviewSection({ events, registrations, schools, analytics, 
     );
 }
 
-function UniversityVisitsSection({ csrf, events, registrations, schools = [], errors, old }) {
+function UniversityVisitsSection({ csrf, events, registrations, schools = [], settings = {}, errors, old }) {
     const hasEventFormErrors = Boolean((old?.title || old?.venue || old?.starts_at) && Object.keys(errors || {}).length);
     const [editor, setEditor] = useState(hasEventFormErrors ? {} : null);
     const [detail, setDetail] = useState(null);
@@ -1642,7 +1793,7 @@ function UniversityVisitsSection({ csrf, events, registrations, schools = [], er
                 <button type="button" onClick={() => setEditor({})} className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#006a61] px-4 py-2.5 text-sm font-black text-white shadow-sm hover:opacity-90"><Plus size={16} /> Create Program</button>
             </div>
 
-            {editor && <UniversityEventEditor csrf={csrf} event={editor.id ? editor : null} events={events} errors={errors} old={old} onClose={() => setEditor(null)} />}
+            {editor && <UniversityEventEditor csrf={csrf} event={editor.id ? editor : null} events={events} settings={settings} errors={errors} old={old} onClose={() => setEditor(null)} />}
             {detail && <UniversityProgramDetailModal event={detail} registrations={registrations} schools={schools} onClose={() => setDetail(null)} onEdit={() => { setEditor(detail); setDetail(null); }} onInvite={() => { setInviteProgram(detail); setDetail(null); }} />}
             {inviteProgram && <InviteSchoolsModal csrf={csrf} event={inviteProgram} schools={schools} onClose={() => setInviteProgram(null)} />}
 
@@ -1718,11 +1869,9 @@ function UniversityVisitsSection({ csrf, events, registrations, schools = [], er
                                         </form>
                                         <button type="button" onClick={() => setInviteProgram(event)} className="rounded-xl border border-[#006a61]/25 bg-white px-3 py-2 text-xs font-black text-[#006a61] shadow-sm hover:bg-emerald-50">Invite</button>
                                         <button type="button" onClick={() => setEditor(event)} className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-[#006a61]/40 hover:bg-emerald-50 hover:text-[#006a61]" aria-label={`Edit ${event.title}`} title={`Edit ${event.title}`}><Edit3 size={16} /></button>
-                                        <form action={`/campus-events/${event.id}`} method="POST" onSubmit={(formEvent) => { if (!window.confirm(`Delete ${event.title}? This cannot be undone.`)) formEvent.preventDefault(); }}>
-                                            <input type="hidden" name="_token" value={csrf} />
-                                            <input type="hidden" name="_method" value="DELETE" />
-                                            <button className="grid h-8 w-8 place-items-center rounded-lg border border-red-100 text-red-600 hover:bg-red-50" aria-label={`Delete ${event.title}`}><Trash2 size={15} /></button>
-                                        </form>
+                                        <ConfirmForm csrf={csrf} action={`/campus-events/${event.id}`} method="DELETE" title="Delete visit program?" message={`Delete ${event.title}? This cannot be undone.`} confirmLabel="Delete" className="grid h-8 w-8 place-items-center rounded-lg border border-red-100 text-red-600 hover:bg-red-50" aria-label={`Delete ${event.title}`}>
+                                            <Trash2 size={15} />
+                                        </ConfirmForm>
                                     </div>
                                 </div>
                             </article>
@@ -1739,32 +1888,66 @@ function UniversityVisitsSection({ csrf, events, registrations, schools = [], er
     );
 }
 
+function ConfirmForm({ csrf, action, method = 'POST', title = 'Confirm action', message = 'This action cannot be undone.', confirmLabel = 'Confirm', tone = 'danger', className = '', children, ...buttonProps }) {
+    const [open, setOpen] = useState(false);
+    const [submitting, setSubmitting] = useState(false);
+
+    return (
+        <>
+            <button type="button" onClick={() => setOpen(true)} className={className} {...buttonProps}>
+                {children || confirmLabel}
+            </button>
+            {open && (
+                <section className="fixed inset-0 z-[110] grid place-items-center bg-slate-950/55 px-4 py-6 backdrop-blur-sm">
+                    <div className="w-full max-w-sm rounded-3xl border border-white/70 bg-white p-5 shadow-2xl">
+                        <div className={cx('grid h-11 w-11 place-items-center rounded-2xl', tone === 'danger' ? 'bg-rose-50 text-rose-700' : 'bg-[#e5eeff] text-[#006a61]')}>
+                            {tone === 'danger' ? <Trash2 size={20} /> : <CheckCircle2 size={20} />}
+                        </div>
+                        <h2 className="mt-4 text-lg font-black text-slate-950">{title}</h2>
+                        <p className="mt-2 text-sm font-semibold leading-6 text-slate-500">{message}</p>
+                        <form action={action} method="POST" onSubmit={() => setSubmitting(true)} className="mt-5 grid grid-cols-2 gap-2">
+                            <input type="hidden" name="_token" value={csrf} />
+                            {method.toUpperCase() !== 'POST' && <input type="hidden" name="_method" value={method.toUpperCase()} />}
+                            <button type="button" onClick={() => setOpen(false)} disabled={submitting} className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 disabled:opacity-50">Cancel</button>
+                            <button disabled={submitting} className={cx('rounded-xl px-4 py-3 text-sm font-black text-white disabled:opacity-60', tone === 'danger' ? 'bg-rose-600' : 'bg-[#006a61]')}>
+                                {submitting ? 'Working...' : confirmLabel}
+                            </button>
+                        </form>
+                    </div>
+                </section>
+            )}
+        </>
+    );
+}
+
+function FormErrorSummary({ errors = {} }) {
+    const messages = Object.values(errors || {}).flat().filter(Boolean);
+    if (!messages.length) return null;
+
+    return (
+        <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-800">
+            <p className="font-black">Please fix the highlighted fields.</p>
+            <ul className="mt-2 list-inside list-disc space-y-1">
+                {messages.slice(0, 4).map((message, index) => <li key={`${message}-${index}`}>{message}</li>)}
+            </ul>
+        </div>
+    );
+}
+
 function UniversityEventStatusForm({ csrf, event, status, label, tone = 'primary' }) {
     return (
-        <form action={`/campus-events/${event.id}`} method="POST">
+        <form action={`/campus-events/${event.id}/status`} method="POST">
             <input type="hidden" name="_token" value={csrf} />
-            <input type="hidden" name="_method" value="PUT" />
-            <input type="hidden" name="title" value={event.title || ''} />
-            <input type="hidden" name="starts_at" value={toInputDateTime(event.startsAt)} />
-            <input type="hidden" name="ends_at" value={toInputDateTime(event.endsAt)} />
-            <input type="hidden" name="registration_opens_at" value={toInputDateTime(event.registrationOpensAt)} />
-            <input type="hidden" name="registration_closes_at" value={toInputDateTime(event.registrationClosesAt)} />
-            <input type="hidden" name="venue" value={event.venue || 'Main Campus'} />
-            <input type="hidden" name="location" value={event.location || ''} />
-            <input type="hidden" name="description" value={event.description || ''} />
-            <input type="hidden" name="capacity" value={event.capacity || 50} />
-            <input type="hidden" name="per_school_capacity" value={event.perSchoolCapacity || ''} />
-            <input type="hidden" name="per_group_capacity" value={event.perGroupCapacity || ''} />
-            <input type="hidden" name="visibility" value={event.visibility || 'public'} />
-            <input type="hidden" name="lifecycle_stage" value={status === 'published' ? 'open' : status === 'cancelled' ? 'archived' : (event.lifecycleStage || 'planning')} />
+            <input type="hidden" name="_method" value="PATCH" />
             <input type="hidden" name="status" value={status} />
             <button className={cx('rounded-lg px-3 py-1.5 text-xs font-black', tone === 'primary' ? 'border border-[#006a61]/30 text-[#006a61] hover:bg-emerald-50' : 'border border-slate-200 text-slate-500 hover:bg-slate-50')}>{label}</button>
         </form>
     );
 }
 
-function UniversityEventEditor({ csrf, event, events = [], errors, old, onClose }) {
+function UniversityEventEditor({ csrf, event, events = [], settings = {}, errors, old, onClose }) {
     const isEdit = Boolean(event);
+    const defaults = settings.defaults || {};
     const value = (key, fallback = '') => old[key] || event?.[key] || fallback;
     const selectedVenue = value('venue');
     const selectedStart = value('startsAt') || value('starts_at');
@@ -1785,6 +1968,7 @@ function UniversityEventEditor({ csrf, event, events = [], errors, old, onClose 
                 <form action={isEdit ? `/campus-events/${event.id}` : '/campus-events'} method="POST" className="grid gap-4 overflow-y-auto p-4 md:grid-cols-2 md:p-5">
                     <input type="hidden" name="_token" value={csrf} />
                     {isEdit && <input type="hidden" name="_method" value="PUT" />}
+                    <div className="md:col-span-2"><FormErrorSummary errors={errors} /></div>
                     <LightField label="Program title" name="title" defaultValue={value('title')} error={errors.title?.[0]} />
                     <LightField label="Venue" name="venue" defaultValue={value('venue')} error={errors.venue?.[0]} />
                     {conflict && <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm font-bold text-amber-800 md:col-span-2">Conflict warning: {conflict.title} already uses this venue and start time. The backend will block overlapping schedules.</div>}
@@ -1793,13 +1977,18 @@ function UniversityEventEditor({ csrf, event, events = [], errors, old, onClose 
                     <LightField label="Registration opens" name="registration_opens_at" type="datetime-local" defaultValue={toInputDateTime(value('registrationOpensAt') || value('registration_opens_at'))} error={errors.registration_opens_at?.[0]} />
                     <LightField label="Registration closes" name="registration_closes_at" type="datetime-local" defaultValue={toInputDateTime(value('registrationClosesAt') || value('registration_closes_at'))} error={errors.registration_closes_at?.[0]} />
                     <LightField label="Location" name="location" defaultValue={value('location')} error={errors.location?.[0]} />
-                    <LightField label="Capacity" name="capacity" type="number" min="1" defaultValue={value('capacity', '50')} error={errors.capacity?.[0]} />
-                    <LightField label="Per-school capacity" name="per_school_capacity" type="number" min="1" defaultValue={value('perSchoolCapacity') || value('per_school_capacity')} error={errors.per_school_capacity?.[0]} />
-                    <LightField label="Per-group capacity" name="per_group_capacity" type="number" min="1" defaultValue={value('perGroupCapacity') || value('per_group_capacity')} error={errors.per_group_capacity?.[0]} />
+                    <LightField label="Capacity" name="capacity" type="number" min="1" defaultValue={value('capacity', defaults.capacity || '50')} error={errors.capacity?.[0]} />
+                    <LightField label="Per-school capacity" name="per_school_capacity" type="number" min="1" defaultValue={value('perSchoolCapacity') || value('per_school_capacity') || defaults.per_school_capacity || ''} error={errors.per_school_capacity?.[0]} />
+                    <LightField label="Per-group capacity" name="per_group_capacity" type="number" min="1" defaultValue={value('perGroupCapacity') || value('per_group_capacity') || defaults.per_group_capacity || ''} error={errors.per_group_capacity?.[0]} />
                     <div className="md:col-span-2"><LightTextarea label="Description" name="description" defaultValue={value('description')} error={errors.description?.[0]} /></div>
                     <label className="text-sm font-semibold text-slate-700">Status<select name="status" defaultValue={value('status', 'published')} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-950 outline-none focus:border-[#006a61] focus:ring-4 focus:ring-emerald-50"><option value="published">Active</option><option value="draft">Draft</option><option value="cancelled">Archived</option></select></label>
-                    <label className="text-sm font-semibold text-slate-700">Visibility<select name="visibility" defaultValue={value('visibility', 'public')} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-950 outline-none focus:border-[#006a61] focus:ring-4 focus:ring-emerald-50"><option value="public">Public</option><option value="invite_only">Invite only</option><option value="private">Private</option></select></label>
-                    <label className="text-sm font-semibold text-slate-700">Lifecycle stage<select name="lifecycle_stage" defaultValue={value('lifecycleStage') || value('lifecycle_stage', 'planning')} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-950 outline-none focus:border-[#006a61] focus:ring-4 focus:ring-emerald-50"><option value="planning">Planning</option><option value="inviting">Inviting</option><option value="open">Open</option><option value="full">Full</option><option value="in_progress">In progress</option><option value="completed">Completed</option><option value="archived">Archived</option></select></label>
+                    <label className="text-sm font-semibold text-slate-700">Visibility<select name="visibility" defaultValue={value('visibility', defaults.visibility || 'public')} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-950 outline-none focus:border-[#006a61] focus:ring-4 focus:ring-emerald-50"><option value="public">Public</option><option value="invite_only">Invite only</option><option value="private">Private</option></select></label>
+                    <label className="text-sm font-semibold text-slate-700">Lifecycle stage<select name="lifecycle_stage" defaultValue={value('lifecycleStage') || value('lifecycle_stage', defaults.lifecycle_stage || 'planning')} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-950 outline-none focus:border-[#006a61] focus:ring-4 focus:ring-emerald-50"><option value="planning">Planning</option><option value="inviting">Inviting</option><option value="open">Open</option><option value="full">Full</option><option value="in_progress">In progress</option><option value="completed">Completed</option><option value="archived">Archived</option></select></label>
+                    <label className="text-sm font-semibold text-slate-700">Recurring visit<select name="recurrence_rule" defaultValue={value('recurrenceRule') || value('recurrence_rule', 'none')} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-950 outline-none focus:border-[#006a61] focus:ring-4 focus:ring-emerald-50"><option value="none">Does not repeat</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select></label>
+                    <LightField label="Occurrences" name="recurrence_count" type="number" min="1" max="24" defaultValue={value('recurrenceCount') || value('recurrence_count', '1')} error={errors.recurrence_count?.[0]} />
+                    <label className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-bold text-slate-700"><span>Enable reminders</span><input type="checkbox" name="reminders_enabled" value="1" defaultChecked={event?.remindersEnabled !== false} className="h-4 w-4 rounded border-slate-300 text-[#006a61]" /></label>
+                    <LightField label="Reminder days before" name="reminder_days_before" type="number" min="0" max="60" defaultValue={value('reminderDaysBefore') || value('reminder_days_before', '7')} error={errors.reminder_days_before?.[0]} />
+                    <LightField label="Reminder time" name="reminder_time" type="time" defaultValue={value('reminderTime') || value('reminder_time', '09:00')} error={errors.reminder_time?.[0]} />
                     <div className="grid grid-cols-2 gap-2 md:items-end">
                         <button type="button" onClick={onClose} className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-700 hover:bg-slate-50">Cancel</button>
                         <button className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-black text-white hover:bg-slate-800">{isEdit ? 'Save Changes' : 'Create Program'}</button>
@@ -1887,7 +2076,7 @@ function UniversityProgramDetailModal({ event, registrations = [], schools = [],
                         </section>
                         <section className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
                             <h3 className="text-sm font-black text-emerald-900">Scheduling intelligence</h3>
-                            <p className="mt-2 text-sm font-semibold leading-6 text-emerald-800">{percent >= 90 ? 'Capacity pressure is high. Consider a second session or stricter per-school caps.' : 'Capacity is healthy. Invite high-match schools to improve attendance quality.'}</p>
+                            <p className="mt-2 text-sm font-semibold leading-6 text-emerald-800">{percent >= 90 ? 'Capacity pressure is high. Consider a second session or stricter per-school caps.' : 'Capacity remains available. Invite relevant partner schools when the program fits their students.'}</p>
                         </section>
                     </aside>
                 </div>
@@ -1918,7 +2107,7 @@ function InviteSchoolsModal({ csrf, event, schools = [], onClose }) {
                             <span className="grid h-10 w-10 place-items-center rounded-xl bg-[#e5eeff] text-xs font-black text-[#006a61]">{school.name?.slice(0, 1)}</span>
                             <span className="min-w-0 flex-1">
                                 <span className="block truncate text-sm font-black text-slate-950">{school.name}</span>
-                                <span className="mt-1 block truncate text-xs font-semibold text-slate-500">{school.city}, {school.country} - {school.matchScore || 0}/100 match</span>
+                                <span className="mt-1 block truncate text-xs font-semibold text-slate-500">{school.city}, {school.country} - {school.matchScore || 0}/100 saved priority</span>
                             </span>
                         </label>
                     ))}
@@ -1933,8 +2122,9 @@ function InviteSchoolsModal({ csrf, event, schools = [], onClose }) {
     );
 }
 
-function UniversityPrdTracker({ events = [], registrations = [], schools = [], visitRequests = [] }) {
+function UniversityPrdTracker({ events = [], registrations = [], schools = [], visitRequests = [], analytics = {}, settings = {}, compliance = {}, messages = [] }) {
     const hasAdvancedFields = events.some((event) => event.visibility || event.registrationOpensAt || event.perSchoolCapacity || event.lifecycleStage);
+    const universitySettingsReady = Boolean(settings.profile?.institutionName && settings.branding?.brandColor && settings.defaults?.capacity);
     const categories = [
         ['Visit Program Workflow', [
             ['Duplicate/copy programs', 'done', 'Copy action creates draft programs from existing records.'],
@@ -1950,12 +2140,72 @@ function UniversityPrdTracker({ events = [], registrations = [], schools = [], v
             ['Add and remove partner schools', 'done', 'University users can add schools and remove schools without shared history.'],
             ['Manual priority or tier assignment', 'done', 'Relationship tier and match score are editable and persisted.'],
             ['Persistent internal notes', 'done', 'Internal notes are saved on the partner-school database record.'],
-            ['Direct contact actions', 'done', 'Contact actions queue a message record and create a follow-up task.'],
+            ['Direct contact actions', 'done', 'Contact actions queue a deliverable email notification and create a follow-up task.'],
             ['Engagement history tracking', schools.some((school) => Number(school.archiveVisits || 0) > 0 || Number(school.visitRequests || 0) > 0) ? 'done' : 'midway', 'Profile combines archived visits, requests, and visits count.'],
-            ['AI recommendations saved as tasks', schools.some((school) => Number(school.taskCount || 0) > 0) ? 'done' : 'midway', 'AI recommendation button stores actionable partner-school tasks.'],
+            ['Partner follow-up tasks', schools.some((school) => Number(school.taskCount || 0) > 0) ? 'done' : 'midway', 'University users can store and complete real partner-school follow-up tasks.'],
+        ]],
+        ['Attendee Management', [
+            ['Check-in and check-out system', registrations.some((item) => item.checkedIn || item.checkedOut) ? 'done' : 'midway', 'Attendee records store check-in/check-out timestamps and support direct actions.'],
+            ['Bulk status updates', 'done', 'Selected attendees can be confirmed, waitlisted, cancelled, checked in/out, or marked consent received.'],
+            ['Export attendees by program', 'done', 'Server-backed CSV export supports all attendees or the selected visit program.'],
+            ['Import attendee lists', 'done', 'CSV import creates or updates attendees and automatically waitlists capacity overflow.'],
+            ['Waitlist promotion visibility', registrations.some((item) => item.waitlistPromotedAt || item.status === 'waitlisted') ? 'done' : 'midway', 'Waitlisted and promoted attendees are visible in roster and profile data.'],
+            ['Dedicated attendee profiles', 'done', 'Profile panel shows program, school, consent, emergency, and attendance operations.'],
+            ['Consent and emergency handling', registrations.some((item) => item.isMinor || item.consentStatus) ? 'done' : 'midway', 'Minor, guardian, emergency contact, and medical/access notes are stored per attendee.'],
+            ['Group booking student roster visibility', registrations.some((item) => (item.students || []).length > 0) ? 'done' : 'midway', 'School group bookings remain one booking record but expose individual student profiles grouped by school.'],
+        ]],
+        ['Calendar and Scheduling', [
+            ['Editable time slots', 'done', 'Calendar supports visible start/end time blocks instead of date-only movement.'],
+            ['Conflict detection before confirmation', 'done', 'Client preview and backend schedule endpoint block overlapping venue/time conflicts.'],
+            ['Drag and drop scheduling with time blocks', 'done', 'Desktop drag/drop and mobile move flow both support time-block selection.'],
+            ['Recurring visit support', events.some((event) => event.recurrenceRule && event.recurrenceRule !== 'none') ? 'done' : 'midway', 'Create/edit forms store recurrence rules and create recurring occurrences.'],
+            ['External calendar sync and export', 'done', 'University users can export visit programs as an ICS calendar file.'],
+            ['Automated schedule-change reminders', events.some((event) => event.lastScheduleChangeAt) ? 'done' : 'midway', 'Schedule changes queue attendee notifications tied to the updated program.'],
+        ]],
+        ['Insights and Analytics', [
+            ['Configurable date ranges', analytics.dateRange ? 'done' : 'midway', 'Insights can be scoped by preset or custom start/end date ranges.'],
+            ['Conversion funnel by school and program', (analytics.schoolProgramFunnel || []).length ? 'done' : 'midway', 'Funnel rows are grouped from live registrations by school and visit program.'],
+            ['Trend comparisons across cycles', (analytics.cycleComparisons || []).length ? 'done' : 'midway', 'Current cycle is compared with the previous equivalent date window.'],
+            ['Downloadable reports', 'done', 'University insights export uses the server-side report endpoint.'],
+            ['Saved insights and recommendations', (analytics.savedInsights || []).length ? 'done' : 'midway', 'Generated insights can be saved, completed, or dismissed in the database.'],
+            ['Transparent operational indicators', analytics.predictiveScore ? 'done' : 'midway', 'Indicators are derived from recorded attendance, capacity, and application signals and include their data coverage.'],
+        ]],
+        ['Settings and Configuration', [
+            ['University profile management', settings.profile?.institutionName ? 'done' : 'midway', 'Profile values are stored on the university settings record.'],
+            ['Logo and branding customization', settings.branding?.brandColor ? 'done' : 'midway', 'Logo URL and brand color are persisted and previewed.'],
+            ['Recruiter contact directory', (settings.team || []).length ? 'done' : 'midway', 'Recruiter contact records support add, edit, delete, and status tracking; they do not grant portal access.'],
+            ['Default visit configuration', settings.defaults?.capacity ? 'done' : 'midway', 'Saved defaults are used by the create-program workflow.'],
+            ['Email notification preference', settings.notifications ? 'done' : 'midway', 'The saved email preference controls whether university notifications are queued for email or delivered in-app.'],
+            ['Calendar export', 'done', 'The supported calendar integration exports real visit programs as an ICS feed.'],
+            ['Timezone and calendar preferences', settings.calendar?.timezone ? 'done' : 'midway', 'Timezone and week-start preferences are stored per university.'],
+        ]],
+        ['Notifications and Reminders', [
+            ['Reminder scheduling per visit program', events.some((event) => event.reminderDaysBefore !== undefined) ? 'done' : 'midway', 'Each visit program stores reminder enabled state, days-before timing, and reminder time.'],
+            ['Notification history tracking', 'done', 'University communications show notification records tied to owned visit programs.'],
+            ['Failed notification retry system', 'done', 'Failed notification records can be moved back to queued with retry metadata.'],
+            ['Preview cancellation or update notices', 'done', 'Communications screen previews update, cancellation, and reminder templates before queueing.'],
+            ['Target specific schools or students', 'done', 'Targeting supports all, confirmed, waitlisted, schools only, and students only for the selected program.'],
+        ]],
+        ['Enterprise Readiness Upgrade', [
+            ['Real-time SPA behavior', 'done', 'Dashboard forms submit through the in-place workspace handler, preserve the active tab, show loading state, and refresh database-backed props without a full page navigation.'],
+            ['Complete communication system', messages.length > 0 ? 'done' : 'midway', 'Communications include threaded UI, targeted program notices, reminder rules, delivery history, and retryable failed notifications.'],
+            ['Advanced visit program logistics', events.some((event) => event.venue && event.endsAt && event.visibility && event.lifecycleStage) ? 'done' : 'midway', 'Programs carry venue, time block, capacity, lifecycle, visibility, registration windows, invitations, reminders, and export metadata.'],
+            ['Full partner school relationship management', schools.some((school) => school.notes || school.taskCount || school.tier) ? 'done' : 'midway', 'Partner schools support tiering, notes, contact actions, engagement history, scheduling, and actionable recommendation tasks.'],
+            ['Robust attendee workflows', registrations.some((item) => item.checkedIn || item.consentStatus || (item.students || []).length) ? 'done' : 'midway', 'Attendee workflows cover grouped rosters, check-in/out, bulk updates, import/export, waitlist visibility, consent, emergency, and profile views.'],
+            ['Intelligent scheduling and calendar logic', events.some((event) => event.lastScheduleChangeAt || event.externalCalendarUid || event.recurrenceRule) ? 'done' : 'midway', 'Scheduling includes editable time slots, conflict blocking, drag/move flows, recurrence fields, ICS export, and schedule-change notices.'],
+            ['Deep analytics and reporting', analytics.predictiveScore && (analytics.schoolProgramFunnel || []).length ? 'done' : 'midway', 'Insights use database registrations, attendance, schools, applications, trends, date ranges, saved recommendations, predictive score, and export endpoint.'],
+            ['Notification visibility and automation', messages.some((message) => message.notificationType || message.scheduledFor || message.status === 'failed') ? 'done' : 'midway', 'University users can see automation state, notification history, queued/sent/failed counts, preview notices, queue reminders, and retry failures.'],
+        ]],
+        ['Security, Compliance, and Permissions', [
+            ['Audit log accessible to university users', (compliance.logs || []).length ? 'done' : 'midway', 'University Settings includes searchable audit activity for university-owned operations.'],
+            ['Role and permission management for teams', (settings.team || []).length ? 'done' : 'midway', 'Team members have editable status and scoped permission flags.'],
+            ['Data export and deletion requests', (compliance.requests || []).length ? 'done' : 'midway', 'Compliance requests support data export and deletion workflows.'],
+            ['Consent tracking for student groups', registrations.some((item) => item.consentStatus || (item.students || []).some((student) => student.consentStatus)) ? 'done' : 'midway', 'Group bookings expose individual student consent status and pending consent counts.'],
+            ['Privacy notices for attendee data', compliance.privacyNotice ? 'done' : 'midway', 'University Compliance tab displays attendee data usage notice.'],
+            ['Activity logs for edits, deletes, and messages', (compliance.logs || []).some((log) => /updated|deleted|message|imported|exported/.test(log.action || '')) ? 'done' : 'midway', 'Key attendee and communication operations write SystemLog audit entries.'],
         ]],
         ['Production Readiness', [
-            ['End-to-end readiness', events.length && schools.length && registrations.length ? 'midway' : 'issue', 'Core structure exists; final readiness needs full QA, notification delivery, and SPA feedback polish.'],
+            ['End-to-end readiness', events.length && schools.length && registrations.length && universitySettingsReady && messages.length ? 'midway' : 'issue', 'Core structure is in place; final enterprise readiness still requires full live QA, real provider delivery credentials, and production monitoring validation.'],
         ]],
     ];
     const items = categories.flatMap(([, rows]) => rows);
@@ -2166,24 +2416,16 @@ function EventCards({ csrf, events, role, old, errors }) {
                             <p className="mt-2 font-semibold text-gray-800">{event.location || event.venue || 'Location TBA'}</p>
                         </div>
                     )}
-                    {['student', 'school', 'high_school'].includes(role) && event.status === 'published' && (
+                    {['school', 'high_school'].includes(role) && event.status === 'published' && (
                         <form action={`/campus-events/${event.id}/registrations`} method="POST" className="mt-5 grid gap-3 border-t border-gray-100 pt-4">
                             <input type="hidden" name="_token" value={csrf} />
-                            {role === 'student' ? (
-                                <>
-                                    <input type="hidden" name="party_size" value="1" />
-                                    <button className="rounded-md bg-gray-950 px-4 py-2.5 text-sm font-semibold text-white hover:bg-gray-800">{isFull ? 'Join waitlist' : 'Register'}</button>
-                                </>
-                            ) : (
-                                <>
-                                    <LightField label={['school', 'high_school'].includes(role) ? 'Group name' : 'Registrant name'} name="registrant_name" defaultValue={old.registrant_name || ''} error={errors.registrant_name?.[0]} />
-                                    <LightField label="Email" name="registrant_email" type="email" defaultValue={old.registrant_email || ''} error={errors.registrant_email?.[0]} />
-                                    <LightField label={['school', 'high_school'].includes(role) ? 'Number of students' : 'Seats'} name="party_size" type="number" min="1" defaultValue={['school', 'high_school'].includes(role) ? '10' : '1'} error={errors.party_size?.[0]} />
-                                    <button className="rounded-md bg-gray-950 px-4 py-2.5 text-sm font-semibold text-white hover:bg-gray-800">Register</button>
-                                </>
-                            )}
+                            <LightField label="Group name" name="registrant_name" defaultValue={old.registrant_name || ''} error={errors.registrant_name?.[0]} />
+                            <LightField label="Email" name="registrant_email" type="email" defaultValue={old.registrant_email || ''} error={errors.registrant_email?.[0]} />
+                            <LightField label="Number of students" name="party_size" type="number" min="1" defaultValue="10" error={errors.party_size?.[0]} />
+                            <button className="rounded-md bg-gray-950 px-4 py-2.5 text-sm font-semibold text-white hover:bg-gray-800">Register</button>
                         </form>
                     )}
+                    {role === 'student' && <p className="mt-5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-600">Your school assigns students to visits. Assigned visits will appear in My Visits.</p>}
                 </article>
             ); })}
         </section>
@@ -2197,21 +2439,21 @@ function SchoolAvailableVisitsSection({ csrf, events = [], visitRequests = [], o
     const [focusFilters, setFocusFilters] = useState([]);
     const [availability, setAvailability] = useState('all');
     const [dateFilter, setDateFilter] = useState('');
-    const [sortBy, setSortBy] = useState('match');
+    const [sortBy, setSortBy] = useState('date');
     const [selectedIds, setSelectedIds] = useState([]);
     const [previewId, setPreviewId] = useState(null);
     const [mobileVisibleCount, setMobileVisibleCount] = useState(6);
 
-    const rows = useMemo(() => events.map((event, index) => enrichDiscoverVisit(event, visitRequests, index)), [events, visitRequests]);
+    const rows = useMemo(() => events.map((event) => enrichDiscoverVisit(event, visitRequests)), [events, visitRequests]);
     const universities = [...new Set(rows.map((row) => row.university).filter(Boolean))].sort();
-    const regions = [...new Set(rows.map((row) => row.region).filter(Boolean))].sort();
+    const regions = [...new Set(rows.map((row) => row.filterLocation).filter(Boolean))].sort();
     const focusOptions = [...new Set(rows.map((row) => row.focus).filter(Boolean))].sort();
     const savedHubs = focusOptions.slice(0, 3).map((focus) => ({ focus, count: rows.filter((row) => row.focus === focus).length }));
     const filteredRows = rows
         .filter((row) => {
             const haystack = `${row.university} ${row.title} ${row.description} ${row.location} ${row.venue} ${row.focus}`.toLowerCase();
             const matchesQuery = !query || haystack.includes(query.toLowerCase());
-            const matchesRegion = region === 'all' || row.region === region;
+            const matchesRegion = region === 'all' || row.filterLocation === region;
             const matchesUniversity = universityFilter === 'all' || row.university === universityFilter;
             const matchesFocus = focusFilters.length === 0 || focusFilters.includes(row.focus);
             const matchesAvailability = availability === 'all'
@@ -2226,13 +2468,12 @@ function SchoolAvailableVisitsSection({ csrf, events = [], visitRequests = [], o
             if (sortBy === 'date') return new Date(left.startsAt || 0) - new Date(right.startsAt || 0);
             if (sortBy === 'availability') return right.seatsLeft - left.seatsLeft;
             if (sortBy === 'university') return left.university.localeCompare(right.university);
-            return right.matchScore - left.matchScore;
+            return new Date(left.startsAt || '9999-12-31') - new Date(right.startsAt || '9999-12-31');
         });
     const preview = rows.find((row) => row.id === previewId) || null;
     const selectedRows = rows.filter((row) => selectedIds.includes(String(row.id)));
     const requestedCount = rows.filter((row) => row.existingRequest).length;
     const openCount = rows.filter((row) => row.seatsLeft > 0).length;
-    const avgMatch = rows.length ? Math.round(rows.reduce((sum, row) => sum + row.matchScore, 0) / rows.length) : 0;
     const mobileRows = filteredRows.slice(0, mobileVisibleCount);
     const mobileChips = [
         { label: 'All Visits', active: availability === 'all' && focusFilters.length === 0 && region === 'all', onClick: () => resetFilters() },
@@ -2259,7 +2500,7 @@ function SchoolAvailableVisitsSection({ csrf, events = [], visitRequests = [], o
         setFocusFilters([]);
         setAvailability('all');
         setDateFilter('');
-        setSortBy('match');
+        setSortBy('date');
         setMobileVisibleCount(6);
     };
 
@@ -2300,7 +2541,6 @@ function SchoolAvailableVisitsSection({ csrf, events = [], visitRequests = [], o
             <section className="flex items-center justify-between gap-3">
                 <h2 className="text-xl font-black text-slate-950">Available Programs <span className="text-sm font-semibold text-slate-400">({filteredRows.length})</span></h2>
                 <select value={sortBy} onChange={(event) => setSortBy(event.target.value)} className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-black text-[#006a61] outline-none">
-                    <option value="match">Sort: Match</option>
                     <option value="date">Sort: Date</option>
                     <option value="availability">Sort: Seats</option>
                     <option value="university">Sort: University</option>
@@ -2317,7 +2557,7 @@ function SchoolAvailableVisitsSection({ csrf, events = [], visitRequests = [], o
                             <span className="min-w-0">
                                 <span className="flex min-w-0 items-start justify-between gap-2">
                                     <span className="line-clamp-2 text-[15px] font-black leading-[1.18] text-slate-950">{row.title}</span>
-                                    <span className={cx('max-w-[92px] shrink-0 truncate rounded-full px-2 py-0.5 text-[9px] font-black leading-4', row.matchScore >= 90 ? 'bg-[#86f2e4] text-[#006a61]' : 'bg-[#dce9ff] text-blue-700')}>{row.focus || `${row.matchScore}%`}</span>
+                                    <span className="max-w-[92px] shrink-0 truncate rounded-full bg-[#dce9ff] px-2 py-0.5 text-[9px] font-black leading-4 text-blue-700">{row.focus}</span>
                                 </span>
                                 <span className="mt-1 block truncate text-[12px] font-bold text-slate-500">{row.university}</span>
                             </span>
@@ -2335,12 +2575,12 @@ function SchoolAvailableVisitsSection({ csrf, events = [], visitRequests = [], o
                                 ) : (
                                     <p className="truncate text-[12px] font-black text-rose-600">Waitlist only</p>
                                 )}
-                                <p className="mt-0.5 text-[10px] font-bold text-slate-400">{row.matchScore}% AI match</p>
+                                <p className="mt-0.5 text-[10px] font-bold text-slate-400">{row.confirmedSeats.toLocaleString()} confirmed registration(s)</p>
                             </div>
                             {row.existingRequest ? (
                                 <button type="button" onClick={() => setSection?.('bookings')} className="shrink-0 rounded-lg border border-slate-200 px-3 py-2 text-[11px] font-black text-slate-700">View Request</button>
                             ) : (
-                                <RequestVisitForm csrf={csrf} row={row} old={old} compact />
+                                <RequestVisitForm csrf={csrf} row={row} old={old} compact onReview={() => setPreviewId(row.id)} />
                             )}
                         </div>
                     </article>
@@ -2375,12 +2615,12 @@ function SchoolAvailableVisitsSection({ csrf, events = [], visitRequests = [], o
                     <div className="mt-4 grid grid-cols-3 gap-2 xl:grid-cols-1">
                         <SchoolDiscoveryStat label="Published Visits" value={rows.length} />
                         <SchoolDiscoveryStat label="Open Capacity" value={openCount} />
-                        <SchoolDiscoveryStat label="Avg Match" value={`${avgMatch}%`} />
+                        <SchoolDiscoveryStat label="Existing Requests" value={requestedCount} />
                     </div>
 
                     {savedHubs.length > 0 && (
                         <section className="mt-6">
-                            <p className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-500">Saved Hubs</p>
+                            <p className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-500">Program Focus</p>
                             <div className="mt-2 space-y-1.5">
                                 {savedHubs.map((hub) => (
                                     <button key={hub.focus} type="button" onClick={() => setFocusFilters([hub.focus])} className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm font-bold text-slate-700 hover:bg-white">
@@ -2394,7 +2634,7 @@ function SchoolAvailableVisitsSection({ csrf, events = [], visitRequests = [], o
 
                     <section className="mt-6 space-y-4">
                         <label className="grid gap-1.5 text-xs font-black uppercase tracking-[0.1em] text-slate-500">From Date<input type="date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold normal-case tracking-normal text-slate-900" /></label>
-                        <label className="grid gap-1.5 text-xs font-black uppercase tracking-[0.1em] text-slate-500">Global Region<select value={region} onChange={(event) => setRegion(event.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold normal-case tracking-normal text-slate-900"><option value="all">All Regions</option>{regions.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+                        <label className="grid gap-1.5 text-xs font-black uppercase tracking-[0.1em] text-slate-500">Location<select value={region} onChange={(event) => setRegion(event.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold normal-case tracking-normal text-slate-900"><option value="all">All Locations</option>{regions.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
                         <label className="grid gap-1.5 text-xs font-black uppercase tracking-[0.1em] text-slate-500">University<select value={universityFilter} onChange={(event) => setUniversityFilter(event.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold normal-case tracking-normal text-slate-900"><option value="all">All Universities</option>{universities.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
                         <label className="grid gap-1.5 text-xs font-black uppercase tracking-[0.1em] text-slate-500">Availability<select value={availability} onChange={(event) => setAvailability(event.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold normal-case tracking-normal text-slate-900"><option value="all">All Statuses</option><option value="open">Open Seats</option><option value="limited">Limited Seats</option><option value="waitlist">Waitlist Only</option></select></label>
                     </section>
@@ -2431,7 +2671,6 @@ function SchoolAvailableVisitsSection({ csrf, events = [], visitRequests = [], o
                                 <input value={query} onChange={(event) => setQuery(event.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-10 pr-4 text-sm font-semibold outline-none focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50" placeholder="Global search: institutions, programs, locations..." />
                             </label>
                             <select value={sortBy} onChange={(event) => setSortBy(event.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-black text-slate-700 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-50">
-                                <option value="match">Sort by AI Match</option>
                                 <option value="date">Sort by Date</option>
                                 <option value="availability">Sort by Availability</option>
                                 <option value="university">Sort by University</option>
@@ -2445,8 +2684,8 @@ function SchoolAvailableVisitsSection({ csrf, events = [], visitRequests = [], o
                                 <tr>
                                     <th className="w-12 px-4 py-3 text-center"><input type="checkbox" checked={filteredRows.length > 0 && filteredRows.every((row) => selectedIds.includes(String(row.id)))} onChange={toggleVisible} className="rounded border-slate-300 text-blue-600" /></th>
                                     <th className="w-[34%] px-4 py-3">Institution & Program</th>
-                                    <th className="w-24 px-4 py-3 text-center">AI Match</th>
-                                    <th className="w-32 px-4 py-3">Interest</th>
+                                    <th className="w-24 px-4 py-3 text-center">Starts</th>
+                                    <th className="w-32 px-4 py-3">Program Focus</th>
                                     <th className="w-32 px-4 py-3">Status</th>
                                     <th className="w-36 px-4 py-3">Availability</th>
                                     <th className="w-32 px-4 py-3 text-right">Command</th>
@@ -2465,15 +2704,15 @@ function SchoolAvailableVisitsSection({ csrf, events = [], visitRequests = [], o
                                                 </span>
                                             </div>
                                         </td>
-                                        <td className="px-4 py-3 text-center"><span className={cx('rounded-full px-2 py-1 text-[11px] font-black', row.matchScore >= 90 ? 'bg-emerald-50 text-emerald-700' : 'bg-blue-50 text-blue-700')}>{row.matchScore}%</span></td>
-                                        <td className="px-4 py-3"><InterestBars score={row.matchScore} /></td>
+                                        <td className="px-4 py-3 text-center"><span className="rounded-full bg-blue-50 px-2 py-1 text-[11px] font-black text-blue-700">{formatShortDate(row.startsAt)}</span></td>
+                                        <td className="px-4 py-3 text-xs font-bold text-slate-600">{row.focus}</td>
                                         <td className="px-4 py-3"><span className={cx('rounded border px-2 py-1 text-[10px] font-black uppercase', row.statusTone)}>{row.statusLabel}</span></td>
                                         <td className="px-4 py-3"><span className={cx('text-[11px] font-black', row.seatsLeft > 0 ? 'text-emerald-700' : 'text-slate-400')}>{row.availabilityLabel}</span></td>
                                         <td className="px-4 py-3 text-right" onClick={(event) => event.stopPropagation()}>
                                             {row.existingRequest ? (
                                                 <button type="button" onClick={() => setSection?.('bookings')} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50">View Request</button>
                                             ) : (
-                                                <RequestVisitForm csrf={csrf} row={row} old={old} compact />
+                                                <RequestVisitForm csrf={csrf} row={row} old={old} compact onReview={() => setPreviewId(row.id)} />
                                             )}
                                         </td>
                                     </tr>
@@ -2512,21 +2751,20 @@ function SchoolDiscoveryStat({ label, value }) {
     return <div className="rounded-xl border border-slate-200 bg-white p-3"><p className="text-[10px] font-black uppercase tracking-[0.08em] text-slate-400">{label}</p><p className="mt-1 text-xl font-black text-slate-950">{value}</p></div>;
 }
 
-function InterestBars({ score }) {
-    const bars = [0.55, 0.7, 0.9, 0.8, 1].map((multiplier) => Math.max(18, Math.round(score * multiplier)));
-    return <div className="flex h-4 items-end gap-1">{bars.map((height, index) => <span key={index} className={cx('w-1.5 rounded-t', score >= 88 ? 'bg-emerald-500' : 'bg-blue-500')} style={{ height: `${height}%` }} />)}</div>;
-}
+function RequestVisitForm({ csrf, row, old = {}, compact = false, onReview }) {
+    if (compact) {
+        return <button type="button" onClick={onReview} className="rounded-lg bg-slate-950 px-3 py-2 text-[11px] font-black text-white hover:bg-slate-800">Review Request</button>;
+    }
 
-function RequestVisitForm({ csrf, row, old = {}, compact = false }) {
     return (
-        <form action="/visit-requests" method="POST" className={compact ? '' : 'grid gap-3'}>
+        <form action="/visit-requests" method="POST" className="grid gap-3">
             <input type="hidden" name="_token" value={csrf} />
             <input type="hidden" name="campus_event_id" value={row.id} />
             <input type="hidden" name="requested_window" value={row.startsAt && new Date(row.startsAt) > new Date() ? new Date(row.startsAt).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10)} />
-            <input type="hidden" name="group_size" value={old.party_size || '10'} />
-            <input type="hidden" name="priority" value={row.matchScore >= 90 ? '4' : row.matchScore >= 80 ? '3' : '2'} />
-            <input type="hidden" name="notes" value={`Requested from School Discover Visits. Match score: ${row.matchScore}%. Focus: ${row.focus}.`} />
-            <button className={compact ? 'rounded-lg bg-slate-950 px-3 py-2 text-[11px] font-black text-white hover:bg-slate-800' : 'w-full rounded-xl bg-blue-600 px-4 py-3 text-sm font-black text-white hover:bg-blue-700'}>{row.seatsLeft > 0 ? 'Request Visit' : 'Join Waitlist'}</button>
+            <input type="hidden" name="priority" value="2" />
+            <input type="hidden" name="notes" value={`Requested from School Discover Visits. Program focus: ${row.focus}.`} />
+            <label className="text-sm font-bold text-slate-700">Students in group<input name="group_size" type="number" min="1" max="5000" required defaultValue={old.party_size || old.group_size || '1'} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-400" /></label>
+            <button className="w-full rounded-xl bg-blue-600 px-4 py-3 text-sm font-black text-white hover:bg-blue-700">{row.seatsLeft > 0 ? 'Request Visit' : 'Join Waitlist'}</button>
         </form>
     );
 }
@@ -2548,7 +2786,7 @@ function SchoolVisitPreview({ csrf, row, old, setSection, onClose }) {
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
-                    <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-black text-emerald-700">{row.matchScore}%</span>
+                    <span className="rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-black text-blue-700">{row.focus}</span>
                     <button type="button" onClick={onClose} className="grid h-8 w-8 place-items-center rounded-full border border-slate-200 text-slate-500 hover:bg-slate-50" aria-label="Close university preview"><X size={16} /></button>
                 </div>
             </div>
@@ -2567,10 +2805,10 @@ function SchoolVisitPreview({ csrf, row, old, setSection, onClose }) {
             </section>
 
             <section className="mt-5">
-                <p className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-500">Student Interest Heatmap</p>
+                <p className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-500">Published Availability</p>
                 <div className="mt-3 rounded-xl bg-slate-50 p-4">
-                    <InterestBars score={row.matchScore} />
-                    <p className="mt-3 text-xs text-slate-500">Derived from program focus, capacity pressure, and current visit data.</p>
+                    <p className="text-sm font-black text-slate-950">{row.confirmedSeats.toLocaleString()} confirmed · {row.seatsLeft.toLocaleString()} seats open</p>
+                    <p className="mt-2 text-xs text-slate-500">Calculated directly from the published capacity and confirmed registration count.</p>
                 </div>
             </section>
 
@@ -2586,7 +2824,7 @@ function SchoolVisitPreview({ csrf, row, old, setSection, onClose }) {
     );
 }
 
-function SchoolBookingsSection({ csrf = '', visitRequests = [], registrations = [], events = [], setSection }) {
+function SchoolBookingsSection({ csrf = '', visitRequests = [], registrations = [], events = [], currentUserId = null, setSection }) {
     const [query, setQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
     const [selectedId, setSelectedId] = useState(null);
@@ -2637,6 +2875,9 @@ function SchoolBookingsSection({ csrf = '', visitRequests = [], registrations = 
         if (request.status === 'declined') return 'View Decision';
         return 'View Details';
     };
+    const isIncomingRequest = (request) => request.requesterRole === 'university';
+    const canReviewRequest = (request) => request.status === 'requested' && isIncomingRequest(request);
+    const canCancelRequest = (request) => request.status === 'requested' && Number(request.requesterId) === Number(currentUserId);
 
     return (
         <div className="grid gap-6">
@@ -2684,6 +2925,7 @@ function SchoolBookingsSection({ csrf = '', visitRequests = [], registrations = 
                                     <div className="min-w-0">
                                         <h3 className="truncate text-[15px] font-black leading-5 text-slate-950">{request.university || 'University Partner'}</h3>
                                         <p className="mt-0.5 line-clamp-1 text-[12px] font-semibold text-slate-500">{request.event || 'General campus visit request'}</p>
+                                        <p className="mt-1 text-[10px] font-black uppercase tracking-wide text-slate-400">{isIncomingRequest(request) ? 'Incoming invitation' : 'Sent by your school'}</p>
                                     </div>
                                     <span className={cx('h-fit max-w-[94px] truncate rounded-full px-2 py-1 text-[9px] font-black uppercase ring-1', tone)}>{label}</span>
                                 </div>
@@ -2700,9 +2942,18 @@ function SchoolBookingsSection({ csrf = '', visitRequests = [], registrations = 
                                 </div>
 
                                 <div className="mt-2.5 flex gap-2">
-                                    <button type="button" onClick={() => handleMobileRequestAction(request)} className="flex-1 rounded-lg bg-[#006a61] px-3 py-2 text-[12px] font-black text-white">
-                                        {mobileRequestActionLabel(request)}
-                                    </button>
+                                    {canReviewRequest(request) ? (
+                                        <>
+                                            <DecisionTextButton csrf={csrf} id={request.id} decision="approved" label="Approve" tone="approve" />
+                                            <DecisionTextButton csrf={csrf} id={request.id} decision="declined" label="Decline" tone="deny" />
+                                        </>
+                                    ) : canCancelRequest(request) ? (
+                                        <DecisionTextButton csrf={csrf} id={request.id} decision="declined" label="Cancel request" tone="deny" />
+                                    ) : (
+                                        <button type="button" onClick={() => handleMobileRequestAction(request)} className="flex-1 rounded-lg bg-[#006a61] px-3 py-2 text-[12px] font-black text-white">
+                                            {mobileRequestActionLabel(request)}
+                                        </button>
+                                    )}
                                     <button type="button" onClick={() => setSelectedId(request.id)} className="grid h-8 w-9 place-items-center rounded-lg border border-slate-200 text-slate-600" aria-label="Open request details">
                                         <MoreVertical size={17} />
                                     </button>
@@ -2728,7 +2979,7 @@ function SchoolBookingsSection({ csrf = '', visitRequests = [], registrations = 
             <div className="hidden flex-col gap-4 lg:flex-row lg:items-end lg:justify-between md:flex">
                 <div>
                     <h1 className="text-3xl font-black text-slate-950">My Requests Tracking</h1>
-                    <p className="mt-1 max-w-3xl text-sm text-slate-500">Monitor and manage sent visit inquiries to partner universities. Status updates, student counts, and itinerary readiness stay tied to database records.</p>
+                    <p className="mt-1 max-w-3xl text-sm text-slate-500">Review university invitations and track requests sent by your school. Status updates, student counts, and itinerary readiness stay tied to database records.</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                     <button type="button" onClick={() => setSection?.('events')} className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 hover:bg-slate-50">
@@ -2741,8 +2992,8 @@ function SchoolBookingsSection({ csrf = '', visitRequests = [], registrations = 
             </div>
 
             <div className="hidden gap-4 md:grid md:grid-cols-4">
-                <SchoolRequestMetric label="Total Sent" value={visitRequests.length} helper={`${totalStudents.toLocaleString()} requested students`} icon={Send} tone="blue" />
-                <SchoolRequestMetric label="Pending" value={pendingCount} helper="Awaiting university review" icon={Clock} tone="amber" />
+                <SchoolRequestMetric label="Total Requests" value={visitRequests.length} helper={`${totalStudents.toLocaleString()} requested students`} icon={Send} tone="blue" />
+                <SchoolRequestMetric label="Pending" value={pendingCount} helper={`${visitRequests.filter(canReviewRequest).length} need your decision`} icon={Clock} tone="amber" />
                 <SchoolRequestMetric label="Approved" value={approvedCount} helper="Ready for itinerary planning" icon={CheckCircle2} tone="emerald" />
                 <SchoolRequestMetric label="Scheduled Visits" value={confirmedRegistrations.length} helper="Confirmed attendance records" icon={CalendarDays} tone="slate" />
             </div>
@@ -2794,6 +3045,7 @@ function SchoolBookingsSection({ csrf = '', visitRequests = [], registrations = 
                                                     <div>
                                                         <p className="font-black text-slate-950">{request.university || 'University Partner'}</p>
                                                         <p className="mt-1 text-xs font-semibold text-slate-500">{request.event || 'General campus visit request'}</p>
+                                                        <p className="mt-1 text-[10px] font-black uppercase tracking-wide text-slate-400">{isIncomingRequest(request) ? 'Incoming invitation' : 'Sent by your school'}</p>
                                                     </div>
                                                 </div>
                                             </td>
@@ -2801,7 +3053,11 @@ function SchoolBookingsSection({ csrf = '', visitRequests = [], registrations = 
                                             <td className="px-5 py-4 font-bold text-slate-700">{Number(request.groupSize || 0).toLocaleString()}</td>
                                             <td className="px-5 py-4"><span className={cx('rounded-full px-2.5 py-1 text-[11px] font-black uppercase ring-1', tone)}>{label}</span></td>
                                             <td className="px-5 py-4 text-right">
-                                                <button type="button" onClick={() => setSelectedId(request.id)} className="rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-black text-blue-700 hover:bg-blue-50">View Details</button>
+                                                <div className="flex justify-end gap-1">
+                                                    {canReviewRequest(request) && <><DecisionIconButton csrf={csrf} id={request.id} decision="approved" label="Approve" icon={CheckCircle2} tone="green" /><DecisionIconButton csrf={csrf} id={request.id} decision="declined" label="Decline" icon={X} tone="red" /></>}
+                                                    {canCancelRequest(request) && <DecisionIconButton csrf={csrf} id={request.id} decision="declined" label="Cancel request" icon={X} tone="red" />}
+                                                    <button type="button" onClick={() => setSelectedId(request.id)} className="rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-black text-blue-700 hover:bg-blue-50">View Details</button>
+                                                </div>
                                             </td>
                                         </tr>
                                     );
@@ -2885,7 +3141,7 @@ function SchoolBookingsSection({ csrf = '', visitRequests = [], registrations = 
                 </aside>
             </div>
 
-            <SchoolRequestPreview csrf={csrf} request={selected} statusMeta={statusMeta} setSection={setSection} onClose={() => setSelectedId(null)} />
+            <SchoolRequestPreview csrf={csrf} request={selected} statusMeta={statusMeta} currentUserId={currentUserId} setSection={setSection} onClose={() => setSelectedId(null)} />
 
             {createOpen && (
                 <ModalShell title="New Visit Request" onClose={() => setCreateOpen(false)}>
@@ -2924,8 +3180,8 @@ function SchoolItinerarySection({ csrf, visitRequests = [], registrations = [], 
     const itineraryRows = Array.isArray(itineraryItems) ? itineraryItems : [];
     const liveEvents = eventRows.filter((event) => event && event.status === 'published');
     const eventById = new Map(liveEvents.map((event) => [Number(event.id), event]));
-    const requestedEventIds = new Set(requestRows.map((request) => Number(request?.eventId)).filter(Boolean));
-    const registeredEventIds = new Set(registrationRows.map((registration) => Number(registration?.eventId)).filter(Boolean));
+    const requestedEventIds = new Set(requestRows.filter((request) => request && !['declined', 'cancelled'].includes(request.status)).map((request) => Number(request.eventId)).filter(Boolean));
+    const registeredEventIds = new Set(registrationRows.filter((registration) => registration && ['confirmed', 'waitlisted'].includes(registration.status)).map((registration) => Number(registration.eventId)).filter(Boolean));
     const plannedEventIds = new Set([...requestedEventIds, ...registeredEventIds, ...itineraryRows.map((item) => Number(item.eventId))]);
     const requestStops = requestRows
         .filter((request) => request && ['approved', 'scheduled'].includes(request.status) && request.eventId)
@@ -3002,17 +3258,16 @@ function SchoolItinerarySection({ csrf, visitRequests = [], registrations = [], 
     const totalStudents = upcoming.reduce((sum, stop) => sum + Number(stop.students || 0), 0);
     const confirmedStops = upcoming.filter((stop) => ['confirmed', 'scheduled', 'approved'].includes(stop.status)).length;
     const routePoints = upcoming.map((stop) => ({ label: stop.title, location: stop.location, latitude: stop.latitude, longitude: stop.longitude, meta: `${stop.university} • ${stop.students} student(s)` }));
-    const budgetEstimate = Math.round((totalMiles || upcoming.length * 18) * 2.35 + totalStudents * 4 + upcoming.length * 95);
-    const schoolStudents = studentRows.length || totalStudents;
-    const hasCoordinates = upcoming.some((stop) => stop.latitude !== null && stop.longitude !== null);
+    const routeSegmentCount = Math.max(0, upcoming.length - 1);
+    const hasCompleteCoordinates = upcoming.length > 0 && upcoming.every((stop) => stop.latitude !== null && stop.longitude !== null);
 
     return (
         <div className="grid gap-6">
             <section className="grid gap-4 md:grid-cols-4">
                 <SchoolRequestMetric label="Live Destinations" value={upcoming.length} helper={`${confirmedStops} approved / confirmed`} icon={RouteIcon} tone="blue" />
-                <SchoolRequestMetric label="Students Covered" value={totalStudents.toLocaleString()} helper={`${schoolStudents.toLocaleString()} student records available`} icon={UsersRound} tone="emerald" />
-                <SchoolRequestMetric label="Budget Estimate" value={`$${budgetEstimate.toLocaleString()}`} helper="Travel and coordination estimate" icon={BarChart3} tone="amber" />
-                <SchoolRequestMetric label="Route Distance" value={knownSegments.length ? `${Math.round(totalMiles)}mi` : 'Set coords'} helper={knownSegments.length ? 'Computed from event coordinates' : 'Add event coordinates for mileage'} icon={MapPin} />
+                <SchoolRequestMetric label="Students Covered" value={totalStudents.toLocaleString()} helper={`${studentRows.length.toLocaleString()} student records available`} icon={UsersRound} tone="emerald" />
+                <SchoolRequestMetric label="Confirmed Stops" value={confirmedStops.toLocaleString()} helper="Approved, scheduled, or confirmed" icon={CheckCircle2} tone="amber" />
+                <SchoolRequestMetric label="Straight-line Distance" value={knownSegments.length ? `${totalMiles.toFixed(1)}mi` : 'Set coords'} helper={knownSegments.length ? `${knownSegments.length}/${routeSegmentCount} segment(s) with coordinates` : 'Add event coordinates to calculate'} icon={MapPin} />
             </section>
 
             <section className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
@@ -3020,7 +3275,7 @@ function SchoolItinerarySection({ csrf, visitRequests = [], registrations = [], 
                     <div className="rounded-2xl bg-gradient-to-r from-blue-700 to-indigo-600 p-5 text-white shadow-lg">
                         <div className="flex items-start justify-between gap-4">
                             <div>
-                                <p className="text-xs font-black uppercase tracking-[0.14em] text-white/70">AI itinerary planner</p>
+                                <p className="text-xs font-black uppercase tracking-[0.14em] text-white/70">Database itinerary</p>
                                 <h2 className="mt-2 text-2xl font-black">Live Route Builder</h2>
                                 <p className="mt-2 text-sm leading-6 text-white/80">{upcoming.length ? `Itinerary is built from ${upcoming.length} live event destination(s) in the database.` : 'Approved requests and confirmed registrations will generate the route automatically.'}</p>
                             </div>
@@ -3077,10 +3332,9 @@ function SchoolItinerarySection({ csrf, visitRequests = [], registrations = [], 
                                                                 <button className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-black text-white">Save changes</button>
                                                             </form>
                                                         </details>
-                                                        <form action={`/school-itinerary/${stop.itineraryItemId}`} method="POST" onSubmit={(event) => { if (!window.confirm('Remove this destination from your itinerary?')) event.preventDefault(); }}>
-                                                            <input type="hidden" name="_token" value={csrf} /><input type="hidden" name="_method" value="DELETE" />
-                                                            <button className="rounded-lg border border-rose-200 px-2.5 py-1.5 text-[11px] font-black text-rose-700">Remove</button>
-                                                        </form>
+                                                        <ConfirmForm csrf={csrf} action={`/school-itinerary/${stop.itineraryItemId}`} method="DELETE" title="Remove itinerary stop?" message="Remove this destination from your itinerary?" confirmLabel="Remove" className="rounded-lg border border-rose-200 px-2.5 py-1.5 text-[11px] font-black text-rose-700">
+                                                            Remove
+                                                        </ConfirmForm>
                                                     </div>
                                                 </div>
                                             )}
@@ -3104,15 +3358,15 @@ function SchoolItinerarySection({ csrf, visitRequests = [], registrations = [], 
                                 <h2 className="text-xl font-black text-slate-950">Route Map</h2>
                                 <p className="mt-1 text-sm text-slate-500">OpenStreetMap markers are driven by event locations and coordinates from the database.</p>
                             </div>
-                            <OpenStreetMapLink location={upcoming[0]?.location || 'United States'} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-black text-blue-700">Open Map</OpenStreetMapLink>
+                            {upcoming[0] && <OpenStreetMapLink location={upcoming[0].location} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-black text-blue-700">Open Map</OpenStreetMapLink>}
                         </div>
-                        <OpenStreetMapEmbed location={upcoming[0]?.location || 'United States'} points={routePoints} title="School itinerary route map" className="h-[460px] rounded-none border-0" />
-                        {!hasCoordinates && upcoming.length > 0 && <p className="border-t border-slate-200 bg-amber-50 px-5 py-3 text-xs font-bold text-amber-800">Add latitude/longitude to visit programs for precise map tagging and mileage calculations.</p>}
+                        {upcoming.length > 0 ? <OpenStreetMapEmbed location={upcoming[0].location} points={routePoints} title="School itinerary route map" className="h-[460px] rounded-none border-0" /> : <EmptyState message="Add an approved visit destination to display the route map." />}
+                        {!hasCompleteCoordinates && upcoming.length > 0 && <p className="border-t border-slate-200 bg-amber-50 px-5 py-3 text-xs font-bold text-amber-800">Add latitude/longitude to every visit program for precise markers and complete straight-line distance calculations.</p>}
                     </section>
 
                     <section className="grid gap-6 lg:grid-cols-2">
                         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                            <h2 className="text-lg font-black text-slate-950">Time Allocation</h2>
+                            <h2 className="text-lg font-black text-slate-950">Student Allocation</h2>
                             <div className="mt-5 space-y-4">
                                 {upcoming.slice(0, 4).map((stop, index) => (
                                     <div key={`${stop.id}-time`}>
@@ -3121,7 +3375,7 @@ function SchoolItinerarySection({ csrf, visitRequests = [], registrations = [], 
                                         <p className="mt-1 text-xs font-semibold text-slate-500">{stop.students} student(s) allocated to this destination</p>
                                     </div>
                                 ))}
-                                {upcoming.length === 0 && <p className="text-sm font-semibold text-slate-500">Time allocation will appear when live event destinations exist.</p>}
+                                {upcoming.length === 0 && <p className="text-sm font-semibold text-slate-500">Student allocation will appear when live event destinations exist.</p>}
                             </div>
                         </div>
 
@@ -3201,8 +3455,7 @@ function routeSegment(from, to) {
     if (!Number.isFinite(miles)) {
         return { distanceMiles: null, label: null };
     }
-    const minutes = Math.max(5, Math.round(miles * 2.2));
-    return { distanceMiles: miles, label: `${miles.toFixed(1)} miles • approx. ${minutes} min transit` };
+    return { distanceMiles: miles, label: `${miles.toFixed(1)} miles straight-line` };
 }
 
 function haversineMiles(lat1, lon1, lat2, lon2) {
@@ -3245,12 +3498,14 @@ function SchoolRequestMetric({ label, value, helper, icon: Icon, tone = 'slate' 
     );
 }
 
-function SchoolRequestPreview({ csrf, request, statusMeta = {}, setSection, onClose }) {
+function SchoolRequestPreview({ csrf, request, statusMeta = {}, currentUserId = null, setSection, onClose }) {
     if (!request) {
         return null;
     }
 
     const currentProgress = request.status === 'scheduled' ? 'w-full' : request.status === 'approved' ? 'w-2/3' : request.status === 'declined' ? 'w-1/3 bg-rose-500' : 'w-1/3';
+    const canReview = request.status === 'requested' && request.requesterRole === 'university';
+    const canCancel = request.status === 'requested' && Number(request.requesterId) === Number(currentUserId);
 
     return (
         <div className="fixed inset-0 z-50 bg-slate-950/20 backdrop-blur-[1px]" onClick={onClose}>
@@ -3260,6 +3515,7 @@ function SchoolRequestPreview({ csrf, request, statusMeta = {}, setSection, onCl
                         <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-400">REQ-{String(request.id).padStart(4, '0')}</p>
                         <h2 className="mt-2 text-2xl font-black text-slate-950">{request.event || 'Visit Request'}</h2>
                         <p className="mt-1 text-sm font-semibold text-slate-500">{request.university || 'University Partner'} • {request.eventLocation || 'Location TBA'}</p>
+                        <p className="mt-1 text-[10px] font-black uppercase tracking-wide text-slate-400">{request.requesterRole === 'university' ? 'Incoming invitation' : 'Sent by your school'}</p>
                     </div>
                     <div className="flex items-center gap-2">
                         <span className={cx('rounded-full px-2.5 py-1 text-[11px] font-black uppercase ring-1', statusMeta[request.status]?.[1] || 'bg-slate-50 text-slate-700 ring-slate-200')}>{statusMeta[request.status]?.[0] || request.status}</span>
@@ -3300,7 +3556,8 @@ function SchoolRequestPreview({ csrf, request, statusMeta = {}, setSection, onCl
 
                 <div className="mt-5 flex flex-col gap-2">
                     <button type="button" onClick={() => { onClose?.(); setSection?.('events'); }} className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 hover:bg-slate-50">View Visit Program</button>
-                    {request.status !== 'declined' && (
+                    {canReview && <div className="grid grid-cols-2 gap-2"><DecisionTextButton csrf={csrf} id={request.id} decision="approved" label="Approve" tone="approve" /><DecisionTextButton csrf={csrf} id={request.id} decision="declined" label="Decline" tone="deny" /></div>}
+                    {canCancel && (
                         <form action={`/visit-requests/${request.id}/decision`} method="POST">
                             <input type="hidden" name="_token" value={csrf} />
                             <input type="hidden" name="decision" value="declined" />
@@ -3316,17 +3573,16 @@ function SchoolRequestPreview({ csrf, request, statusMeta = {}, setSection, onCl
 function AdminUniversitiesSection({ csrf, users = [], events = [], registrations = [], errors = {} }) {
     const [query, setQuery] = useState('');
     const [status, setStatus] = useState('all');
-    const [tier, setTier] = useState('all');
     const [region, setRegion] = useState('all');
     const [modal, setModal] = useState(null);
     const [selectedId, setSelectedId] = useState(null);
     const universities = users.filter((user) => user.role === 'university').map((user) => enrichAdminUniversity(user, events, registrations));
     const regions = [...new Set(universities.map((item) => item.region).filter(Boolean))].sort();
+    const mappedRegions = regions.filter((item) => item !== 'Not assigned');
     const filtered = universities.filter((item) => {
         const text = `${item.name} ${item.email} ${item.region} ${item.contact}`.toLowerCase();
         return (!query || text.includes(query.toLowerCase()))
             && (status === 'all' || item.verificationStatus === status)
-            && (tier === 'all' || item.tier === tier)
             && (region === 'all' || item.region === region);
     });
     const selected = universities.find((item) => item.id === selectedId);
@@ -3334,12 +3590,13 @@ function AdminUniversitiesSection({ csrf, users = [], events = [], registrations
     const pendingVerification = universities.filter((item) => item.verificationStatus === 'unverified').length;
     const totalBookings = universities.reduce((total, item) => total + item.bookings, 0);
     const activePrograms = universities.reduce((total, item) => total + item.activePrograms, 0);
-    const institutionMapPoints = filtered.slice(0, 30).map((item) => ({
+    const institutionMapPoints = filtered.filter((item) => item.region !== 'Not assigned').slice(0, 30).map((item) => ({
         label: item.name,
         location: item.region,
         meta: `${item.activePrograms} programs • ${item.bookings} bookings`,
     }));
-    const reset = () => { setQuery(''); setStatus('all'); setTier('all'); setRegion('all'); };
+    const mapLocation = region !== 'all' && region !== 'Not assigned' ? region : mappedRegions[0];
+    const reset = () => { setQuery(''); setStatus('all'); setRegion('all'); };
 
     return (
         <div className="grid gap-6">
@@ -3356,15 +3613,14 @@ function AdminUniversitiesSection({ csrf, users = [], events = [], registrations
                     <div className="mt-5 space-y-5">
                         <label className="grid gap-1.5 text-xs font-black uppercase tracking-[0.1em] text-slate-500">Search<input value={query} onChange={(event) => setQuery(event.target.value)} className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-semibold normal-case tracking-normal text-slate-900" placeholder="Name, email, region..." /></label>
                         <div><p className="text-xs font-black uppercase tracking-[0.1em] text-slate-500">Verification Status</p><div className="mt-2 flex flex-wrap gap-2">{['all', 'verified', 'unverified'].map((item) => <button key={item} type="button" onClick={() => setStatus(item)} className={cx('rounded-full px-3 py-1.5 text-xs font-black capitalize', status === item ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200')}>{item}</button>)}</div></div>
-                        <label className="grid gap-1.5 text-xs font-black uppercase tracking-[0.1em] text-slate-500">Tier Level<select value={tier} onChange={(event) => setTier(event.target.value)} className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-semibold normal-case tracking-normal text-slate-900"><option value="all">All Tiers</option><option value="tier_1">Tier 1 Global Premium</option><option value="tier_2">Tier 2 Regional Elite</option><option value="tier_3">Tier 3 Standard</option></select></label>
                         <label className="grid gap-1.5 text-xs font-black uppercase tracking-[0.1em] text-slate-500">Region<select value={region} onChange={(event) => setRegion(event.target.value)} className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-semibold normal-case tracking-normal text-slate-900"><option value="all">All Regions</option>{regions.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
-                        <div className="rounded-xl border border-blue-100 bg-blue-50 p-4"><MapIcon size={20} className="text-blue-700" /><p className="mt-2 text-xs font-black uppercase text-blue-700">Regional Heatmap</p><p className="mt-1 text-xs leading-5 text-slate-600">{regions.length} region(s) represented by live institution data.</p><div className="mt-3"><OpenStreetMapEmbed location={region === 'all' ? (regions[0] || 'United States') : region} points={institutionMapPoints} title="Institution regional heatmap on OpenStreetMap" className="h-28" /></div><OpenStreetMapLink location={region === 'all' ? (regions[0] || 'United States') : region} className="mt-2 inline-flex text-xs font-black text-blue-700">OpenStreetMap</OpenStreetMapLink></div>
+                        <div className="rounded-xl border border-blue-100 bg-blue-50 p-4"><MapIcon size={20} className="text-blue-700" /><p className="mt-2 text-xs font-black uppercase text-blue-700">Recorded Locations</p><p className="mt-1 text-xs leading-5 text-slate-600">{mappedRegions.length} persisted institution location(s) are available for mapping.</p>{mapLocation ? <><div className="mt-3"><OpenStreetMapEmbed location={mapLocation} points={institutionMapPoints} title="Recorded institution locations on OpenStreetMap" className="h-28" /></div><OpenStreetMapLink location={mapLocation} className="mt-2 inline-flex text-xs font-black text-blue-700">OpenStreetMap</OpenStreetMapLink></> : <p className="mt-3 text-xs font-semibold text-slate-500">No institution locations have been saved yet.</p>}</div>
                     </div>
                 </aside>
 
                 <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-                    <div className="flex flex-col gap-3 border-b border-slate-200 p-5 md:flex-row md:items-center md:justify-between"><div><h2 className="text-xl font-black text-slate-950">University Directory</h2><p className="mt-1 text-sm text-slate-500">{filtered.length} result(s), database-backed institution accounts.</p></div><div className="flex flex-wrap gap-2"><button type="button" onClick={() => exportRowsToCsv('universities.csv', [['Name', 'Email', 'Tier', 'Region', 'Programs', 'Bookings', 'Account Status', 'Verification'], ...filtered.map((item) => [item.name, item.email, item.tierLabel, item.region, item.activePrograms, item.bookings, item.accountStatus, item.verificationStatus])])} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50"><Download size={14} className="inline" /> Export</button><button type="button" onClick={() => setModal({ type: 'create' })} className="rounded-lg bg-slate-950 px-3 py-2 text-xs font-black text-white hover:bg-slate-800"><Plus size={14} className="inline" /> New University</button></div></div>
-                    <div className="overflow-x-auto"><table className="w-full min-w-[1020px] text-left text-sm"><thead className="bg-slate-50 text-[11px] font-black uppercase tracking-[0.08em] text-slate-500"><tr><th className="px-5 py-4">University Name</th><th className="px-5 py-4">Primary Contact</th><th className="px-5 py-4 text-center">Active Programs</th><th className="px-5 py-4 text-center">Total Bookings</th><th className="px-5 py-4">Status</th><th className="px-5 py-4">Verification</th><th className="px-5 py-4 text-right">Actions</th></tr></thead><tbody className="divide-y divide-slate-100">{filtered.map((item) => <tr key={item.id} className="group hover:bg-slate-50"><td className="px-5 py-4"><div className="flex items-center gap-3"><span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-slate-950 text-xs font-black text-white">{item.initials}</span><span><span className="block font-black text-slate-950">{item.name}</span><span className="mt-0.5 block text-xs font-semibold text-slate-500">{item.tierLabel} • {item.region}</span></span></div></td><td className="px-5 py-4"><p className="font-bold text-slate-800">{item.contact}</p><p className="mt-1 text-xs text-slate-500">{item.email}</p></td><td className="px-5 py-4 text-center"><button type="button" onClick={() => setSelectedId(item.id)} className="font-black text-blue-700 hover:underline">{item.activePrograms}</button></td><td className="px-5 py-4 text-center font-black text-slate-800">{item.bookings.toLocaleString()}</td><td className="px-5 py-4"><span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-black uppercase text-emerald-700"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />{item.accountStatus}</span></td><td className="px-5 py-4"><span className={cx('inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-black uppercase', item.verificationStatus === 'verified' ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700')}><span className={cx('h-1.5 w-1.5 rounded-full', item.verificationStatus === 'verified' ? 'bg-blue-500' : 'bg-amber-500')} />{item.verificationStatus}</span></td><td className="px-5 py-4 text-right"><div className="flex justify-end gap-1"><button type="button" onClick={() => setSelectedId(item.id)} className="rounded-lg p-2 text-blue-700 hover:bg-blue-50" title="View Profile"><Search size={17} /></button><button type="button" onClick={() => setModal({ type: 'edit', item })} className="rounded-lg p-2 text-slate-600 hover:bg-slate-100" title="Edit Institution"><Edit3 size={17} /></button><form action={`/dashboard/admin/universities/${item.id}/verification`} method="POST"><input type="hidden" name="_token" value={csrf} /><input type="hidden" name="verified" value={item.verificationStatus === 'verified' ? '0' : '1'} /><button className="rounded-lg p-2 text-emerald-700 hover:bg-emerald-50" title="Toggle Verification"><ShieldCheck size={17} /></button></form><button type="button" onClick={() => setModal({ type: 'delete', item })} className="rounded-lg p-2 text-rose-700 hover:bg-rose-50" title="Delete Institution"><Trash2 size={17} /></button></div></td></tr>)}{filtered.length === 0 && <tr><td colSpan="7" className="px-5 py-14 text-center"><EmptyState message="No institution accounts match these filters." /></td></tr>}</tbody></table></div>
+                    <div className="flex flex-col gap-3 border-b border-slate-200 p-5 md:flex-row md:items-center md:justify-between"><div><h2 className="text-xl font-black text-slate-950">University Directory</h2><p className="mt-1 text-sm text-slate-500">{filtered.length} result(s), database-backed institution accounts.</p></div><div className="flex flex-wrap gap-2"><button type="button" onClick={() => exportRowsToCsv('universities.csv', [['Name', 'Email', 'Location', 'Programs', 'Bookings', 'Account Status', 'Verification'], ...filtered.map((item) => [item.name, item.email, item.region, item.activePrograms, item.bookings, item.accountStatus, item.verificationStatus])])} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50"><Download size={14} className="inline" /> Export</button><button type="button" onClick={() => setModal({ type: 'create' })} className="rounded-lg bg-slate-950 px-3 py-2 text-xs font-black text-white hover:bg-slate-800"><Plus size={14} className="inline" /> New University</button></div></div>
+                    <div className="overflow-x-auto"><table className="w-full min-w-[1020px] text-left text-sm"><thead className="bg-slate-50 text-[11px] font-black uppercase tracking-[0.08em] text-slate-500"><tr><th className="px-5 py-4">University Name</th><th className="px-5 py-4">Primary Contact</th><th className="px-5 py-4 text-center">Active Programs</th><th className="px-5 py-4 text-center">Total Bookings</th><th className="px-5 py-4">Status</th><th className="px-5 py-4">Verification</th><th className="px-5 py-4 text-right">Actions</th></tr></thead><tbody className="divide-y divide-slate-100">{filtered.map((item) => <tr key={item.id} className="group hover:bg-slate-50"><td className="px-5 py-4"><div className="flex items-center gap-3"><span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-slate-950 text-xs font-black text-white">{item.initials}</span><span><span className="block font-black text-slate-950">{item.name}</span><span className="mt-0.5 block text-xs font-semibold text-slate-500">{item.region}</span></span></div></td><td className="px-5 py-4"><p className="font-bold text-slate-800">{item.contact}</p><p className="mt-1 text-xs text-slate-500">{item.email}</p></td><td className="px-5 py-4 text-center"><button type="button" onClick={() => setSelectedId(item.id)} className="font-black text-blue-700 hover:underline">{item.activePrograms}</button></td><td className="px-5 py-4 text-center font-black text-slate-800">{item.bookings.toLocaleString()}</td><td className="px-5 py-4"><span className={cx('inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-black uppercase', item.accountStatus === 'active' ? 'bg-emerald-50 text-emerald-700' : item.accountStatus === 'suspended' ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-700')}><span className={cx('h-1.5 w-1.5 rounded-full', item.accountStatus === 'active' ? 'bg-emerald-500' : item.accountStatus === 'suspended' ? 'bg-rose-500' : 'bg-amber-500')} />{item.accountStatus}</span></td><td className="px-5 py-4"><span className={cx('inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-black uppercase', item.verificationStatus === 'verified' ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700')}><span className={cx('h-1.5 w-1.5 rounded-full', item.verificationStatus === 'verified' ? 'bg-blue-500' : 'bg-amber-500')} />{item.verificationStatus}</span></td><td className="px-5 py-4 text-right"><div className="flex justify-end gap-1"><button type="button" onClick={() => setSelectedId(item.id)} className="rounded-lg p-2 text-blue-700 hover:bg-blue-50" title="View Profile"><Search size={17} /></button><button type="button" onClick={() => setModal({ type: 'edit', item })} className="rounded-lg p-2 text-slate-600 hover:bg-slate-100" title="Edit Institution"><Edit3 size={17} /></button><form action={`/dashboard/admin/universities/${item.id}/verification`} method="POST"><input type="hidden" name="_token" value={csrf} /><input type="hidden" name="verified" value={item.verificationStatus === 'verified' ? '0' : '1'} /><button className="rounded-lg p-2 text-emerald-700 hover:bg-emerald-50" title="Toggle Verification"><ShieldCheck size={17} /></button></form><button type="button" onClick={() => setModal({ type: 'delete', item })} className="rounded-lg p-2 text-rose-700 hover:bg-rose-50" title="Delete Institution"><Trash2 size={17} /></button></div></td></tr>)}{filtered.length === 0 && <tr><td colSpan="7" className="px-5 py-14 text-center"><EmptyState message="No institution accounts match these filters." /></td></tr>}</tbody></table></div>
                 </section>
             </section>
 
@@ -3403,7 +3659,7 @@ function AdminUniversityDrawer({ item, onClose, setModal }) {
     return (
         <div className="fixed inset-0 z-50 bg-slate-950/20 backdrop-blur-[1px]" onClick={onClose}>
             <aside className="absolute right-0 top-0 h-full w-full max-w-[620px] overflow-y-auto border-l border-slate-200 bg-white p-5 shadow-2xl" onClick={(event) => event.stopPropagation()}>
-                <div className="flex items-start justify-between gap-3"><div className="flex items-center gap-3"><span className="grid h-14 w-14 place-items-center rounded-xl bg-slate-950 font-black text-white">{item.initials}</span><div><h2 className="text-xl font-black text-slate-950">{item.name}</h2><p className="mt-1 text-sm text-slate-500">{item.tierLabel} • {item.region}</p></div></div><button type="button" onClick={onClose} className="grid h-8 w-8 place-items-center rounded-full border border-slate-200 text-slate-500 hover:bg-slate-50"><X size={16} /></button></div>
+                <div className="flex items-start justify-between gap-3"><div className="flex items-center gap-3"><span className="grid h-14 w-14 place-items-center rounded-xl bg-slate-950 font-black text-white">{item.initials}</span><div><h2 className="text-xl font-black text-slate-950">{item.name}</h2><p className="mt-1 text-sm text-slate-500">{item.region}</p></div></div><button type="button" onClick={onClose} className="grid h-8 w-8 place-items-center rounded-full border border-slate-200 text-slate-500 hover:bg-slate-50"><X size={16} /></button></div>
                 <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4"><MiniStat label="Programs" value={item.programs.length} /><MiniStat label="Published" value={item.activePrograms} /><MiniStat label="Bookings" value={item.bookings.toLocaleString()} /><MiniStat label="Capacity" value={item.capacity.toLocaleString()} /></div>
                 <div className="mt-3 grid grid-cols-3 gap-3"><MiniStat label="Confirmed Seats" value={item.confirmedSeats.toLocaleString()} /><MiniStat label="Waitlisted Seats" value={item.waitlistedSeats.toLocaleString()} /><MiniStat label="Account" value={item.accountStatus} /></div>
                 <section className="mt-5 rounded-xl border border-slate-200 p-4"><p className="text-xs font-black uppercase tracking-[0.12em] text-slate-400">Primary Contact</p><p className="mt-2 font-black text-slate-950">{item.contact}</p><p className="mt-1 text-sm text-slate-500">{item.email}</p><p className="mt-3 text-xs font-black uppercase text-slate-400">Verification</p><p className="mt-1 text-sm font-bold text-slate-700">{item.verificationStatus}</p></section>
@@ -3425,17 +3681,18 @@ function enrichAdminUniversity(user, events = [], registrations = []) {
     const activePrograms = ownedEvents.filter((event) => event.status === 'published').length;
     const confirmedSeats = bookingRows.filter((registration) => registration.status === 'confirmed').reduce((total, registration) => total + Number(registration.partySize || 0), 0);
     const waitlistedSeats = bookingRows.filter((registration) => registration.status === 'waitlisted').reduce((total, registration) => total + Number(registration.partySize || 0), 0);
-    const tier = capacity >= 300 || activePrograms >= 5 ? 'tier_1' : capacity >= 120 || activePrograms >= 2 ? 'tier_2' : 'tier_3';
-    const region = discoverRegion(ownedEvents[0]?.location || user.email || '');
-    return { ...user, contact: user.name, initials: (user.name || user.email || 'U').split(' ').map((word) => word[0]).slice(0, 3).join('').toUpperCase(), programs: ownedEvents, registrationRows: bookingRows, activePrograms, bookings, confirmedSeats, waitlistedSeats, capacity, tier, tierLabel: tier === 'tier_1' ? 'Tier 1 Global Premium' : tier === 'tier_2' ? 'Tier 2 Regional Elite' : 'Tier 3 Standard', region, accountStatus: 'active', verificationStatus: user.verified ? 'verified' : 'unverified', status: 'active' };
+    const region = user.institutionLocation || user.profileLocation || user.location || 'Not assigned';
+    const accountStatus = user.accessStatus || (user.verified ? 'active' : 'pending');
+    return { ...user, contact: user.name, initials: (user.name || user.email || 'U').split(' ').map((word) => word[0]).slice(0, 3).join('').toUpperCase(), programs: ownedEvents, registrationRows: bookingRows, activePrograms, bookings, confirmedSeats, waitlistedSeats, capacity, region, accountStatus, verificationStatus: user.verified ? 'verified' : 'unverified', status: accountStatus };
 }
 
-function AdminSchoolsSection({ csrf, schools = [], visitRequests = [], archives = [], errors = {} }) {
+function AdminSchoolsSection({ csrf, schools = [], schoolAccounts = [], visitRequests = [], archives = [], errors = {} }) {
     const [query, setQuery] = useState('');
     const [status, setStatus] = useState('all');
     const [region, setRegion] = useState('all');
     const [volume, setVolume] = useState('all');
     const [modal, setModal] = useState(null);
+    const [accountModal, setAccountModal] = useState(null);
     const [selectedId, setSelectedId] = useState(null);
     const rows = schools.map((school) => enrichAdminSchool(school, visitRequests, archives));
     const regions = [...new Set(rows.map((school) => school.region).filter(Boolean))].sort();
@@ -3460,23 +3717,54 @@ function AdminSchoolsSection({ csrf, schools = [], visitRequests = [], archives 
         longitude: school.longitude,
         meta: `${school.activeApplicants || 0} students • ${school.status}`,
     }));
+    const activeSchoolAccounts = schoolAccounts.filter((account) => account.status === 'active').length;
+    const registeredStudentCount = schoolAccounts.reduce((total, account) => total + Number(account.studentCount || 0), 0);
+    const registeredCoordinatorCount = schoolAccounts.reduce((total, account) => total + Number(account.coordinatorCount || 0), 0);
 
     return (
         <div className="grid gap-6">
             <section className="grid gap-4 md:grid-cols-4">
-                <AdminInstitutionMetric label="Verified Schools" value={verified} detail={`${rows.length} total directory rows`} icon={School} tone="emerald" />
-                <AdminInstitutionMetric label="Pending Review" value={pending} detail="Need admin verification" icon={Clock} tone="amber" />
-                <AdminInstitutionMetric label="Active Students" value={activeStudents.toLocaleString()} detail="Demand volume from database" icon={UsersRound} tone="blue" />
-                <AdminInstitutionMetric label="Suspended" value={suspended} detail="Restricted schools" icon={ShieldCheck} />
+                <AdminInstitutionMetric label="Verified Outreach Records" value={verified} detail={`${rows.length} total outreach rows`} icon={School} tone="emerald" />
+                <AdminInstitutionMetric label="Pending Outreach Review" value={pending} detail="Need admin verification" icon={Clock} tone="amber" />
+                <AdminInstitutionMetric label="Active Applicants" value={activeStudents.toLocaleString()} detail="Saved outreach volume" icon={UsersRound} tone="blue" />
+                <AdminInstitutionMetric label="Suspended Outreach" value={suspended} detail="Restricted outreach records" icon={ShieldCheck} />
+            </section>
+
+            <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                <div className="flex flex-col gap-3 border-b border-slate-200 p-5 md:flex-row md:items-center md:justify-between">
+                    <div>
+                        <h2 className="text-xl font-black text-slate-950">Registered School Accounts</h2>
+                        <p className="mt-1 text-sm text-slate-500">{schoolAccounts.length} school record(s) · {activeSchoolAccounts} active · {registeredCoordinatorCount} coordinator account(s) · {registeredStudentCount} student account(s)</p>
+                    </div>
+                    <button type="button" onClick={() => setAccountModal({ type: 'create' })} className="rounded-xl bg-slate-950 px-3 py-2 text-xs font-black text-white"><Plus size={14} className="inline" /> Add School Account</button>
+                </div>
+                <div className="overflow-x-auto">
+                    <table className="w-full min-w-[960px] text-left text-sm">
+                        <thead className="bg-slate-50 text-[11px] font-black uppercase tracking-[0.08em] text-slate-500"><tr><th className="px-5 py-3">School Account</th><th className="px-5 py-3">Primary Coordinator</th><th className="px-5 py-3">Linked Users</th><th className="px-5 py-3">Platform Activity</th><th className="px-5 py-3">Status</th><th className="px-5 py-3 text-right">Actions</th></tr></thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {schoolAccounts.map((account) => (
+                                <tr key={account.id} className="hover:bg-slate-50">
+                                    <td className="px-5 py-4"><p className="font-black text-slate-950">{account.name}</p><p className="mt-1 text-xs font-semibold text-slate-500">{account.location || 'Location not recorded'}</p></td>
+                                    <td className="px-5 py-4"><p className="font-bold text-slate-800">{account.coordinatorName || 'Not assigned'}</p><p className="mt-1 text-xs text-slate-500">{account.coordinatorEmail || 'No coordinator email'}{account.coordinatorPhone ? ` · ${account.coordinatorPhone}` : ''}</p>{(account.coordinators || []).length > 0 && <p className="mt-1 max-w-[260px] truncate text-[10px] font-bold text-slate-400" title={(account.coordinators || []).map((coordinator) => `${coordinator.name} (${coordinator.accessStatus}${coordinator.verified ? ', verified' : ', unverified'})`).join(', ')}>Linked: {(account.coordinators || []).slice(0, 2).map((coordinator) => `${coordinator.name} · ${coordinator.accessStatus}`).join(', ')}</p>}</td>
+                                    <td className="px-5 py-4"><p className="font-black text-slate-900">{Number(account.userCount || 0).toLocaleString()} total</p><p className="mt-1 text-xs text-slate-500">{Number(account.studentCount || 0).toLocaleString()} students · {Number(account.coordinatorCount || 0).toLocaleString()} coordinators</p></td>
+                                    <td className="px-5 py-4"><p className="font-black text-slate-900">{Number(account.programCount || 0).toLocaleString()} programs</p><p className="mt-1 text-xs text-slate-500">{Number(account.visitRequestCount || 0).toLocaleString()} requests · {Number(account.registrationCount || 0).toLocaleString()} registrations</p></td>
+                                    <td className="px-5 py-4"><AdminSchoolAccountStatusBadge status={account.status} /><p className="mt-2 text-[10px] font-black uppercase text-slate-400">Email alerts {account.emailNotifications ? 'on' : 'off'}</p></td>
+                                    <td className="px-5 py-4 text-right"><div className="flex justify-end gap-1"><button type="button" onClick={() => setAccountModal({ type: 'edit', item: account })} className="rounded-lg p-2 text-slate-600 hover:bg-slate-100" title="Edit registered school account"><Edit3 size={17} /></button>{account.canDelete ? <button type="button" onClick={() => setAccountModal({ type: 'delete', item: account })} className="rounded-lg p-2 text-rose-700 hover:bg-rose-50" title="Delete registered school account"><Trash2 size={17} /></button> : <button type="button" disabled className="rounded-lg p-2 text-slate-300" title="Cannot delete while users, programs, requests, or registrations are linked"><Trash2 size={17} /></button>}</div></td>
+                                </tr>
+                            ))}
+                            {schoolAccounts.length === 0 && <tr><td colSpan="6" className="px-5 py-10 text-center"><EmptyState title="No registered school accounts" message="Add a school account before linking coordinators and students." /></td></tr>}
+                        </tbody>
+                    </table>
+                </div>
             </section>
 
             <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
                 <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
                     <div className="flex flex-col gap-4 border-b border-slate-200 p-5 lg:flex-row lg:items-center lg:justify-between">
-                        <div><h2 className="text-xl font-black text-slate-950">Schools Directory</h2><p className="mt-1 text-sm text-slate-500">Shared target-school records used by universities, schools, and admin oversight.</p></div>
+                        <div><h2 className="text-xl font-black text-slate-950">Outreach Directory</h2><p className="mt-1 text-sm text-slate-500">Shared target-school outreach records used for university relationship planning.</p></div>
                         <div className="flex flex-wrap gap-2">
                             <button type="button" onClick={() => exportRowsToCsv('admin-schools.csv', [['Code', 'Name', 'District', 'Coordinator', 'Students', 'Status'], ...filtered.map((school) => [school.code, school.name, school.district, school.coordinatorName, school.activeApplicants, school.status])])} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50"><Download size={14} className="inline" /> Export</button>
-                            <button type="button" onClick={() => setModal({ type: 'create' })} className="rounded-xl bg-slate-950 px-3 py-2 text-xs font-black text-white"><Plus size={14} className="inline" /> New School Entry</button>
+                            <button type="button" onClick={() => setModal({ type: 'create' })} className="rounded-xl bg-slate-950 px-3 py-2 text-xs font-black text-white"><Plus size={14} className="inline" /> New Outreach Entry</button>
                         </div>
                     </div>
                     <div className="grid gap-3 border-b border-slate-200 bg-slate-50/70 p-4 md:grid-cols-4">
@@ -3499,29 +3787,63 @@ function AdminSchoolsSection({ csrf, schools = [], visitRequests = [], archives 
                                         <td className="px-5 py-4 text-right"><div className="flex justify-end gap-1"><button type="button" onClick={() => setSelectedId(school.id)} className="rounded-lg p-2 text-blue-700 hover:bg-blue-50" title="View details"><Search size={17} /></button><button type="button" onClick={() => setModal({ type: 'edit', item: school })} className="rounded-lg p-2 text-slate-600 hover:bg-slate-100" title="Edit school"><Edit3 size={17} /></button>{school.status !== 'verified' && <AdminSchoolStatusForm csrf={csrf} school={school} status="verified" label="Verify" />}{school.status !== 'suspended' && <AdminSchoolStatusForm csrf={csrf} school={school} status="suspended" label="Suspend" />}{school.status === 'suspended' && <AdminSchoolStatusForm csrf={csrf} school={school} status="pending" label="Review" />}<button type="button" onClick={() => setModal({ type: 'delete', item: school })} className="rounded-lg p-2 text-rose-700 hover:bg-rose-50" title="Delete school"><Trash2 size={17} /></button></div></td>
                                     </tr>
                                 ))}
-                                {filtered.length === 0 && <tr><td colSpan="6" className="px-5 py-14 text-center"><EmptyState message="No schools match these filters." /></td></tr>}
+                                {filtered.length === 0 && <tr><td colSpan="6" className="px-5 py-14 text-center"><EmptyState message="No outreach records match these filters." /></td></tr>}
                             </tbody>
                         </table>
                     </div>
-                    <div className="flex items-center justify-between border-t border-slate-200 bg-slate-50 px-5 py-4 text-xs font-bold text-slate-500"><span>Showing {filtered.length} of {rows.length} schools</span><span>Directory is database-backed</span></div>
+                    <div className="flex items-center justify-between border-t border-slate-200 bg-slate-50 px-5 py-4 text-xs font-bold text-slate-500"><span>Showing {filtered.length} of {rows.length} outreach records</span><span>Outreach directory is database-backed</span></div>
                 </div>
 
                 <aside className="space-y-4">
                     <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
                         <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 p-4"><h3 className="font-black text-slate-950">Regional Clusters</h3><OpenStreetMapLink location={topRegion?.name || 'United States'} className="text-xs font-black text-blue-700">Open map</OpenStreetMapLink></div>
-                        <div className="relative h-48"><OpenStreetMapEmbed location={topRegion?.name || 'United States'} points={schoolMapPoints} title="Admin school regional clusters on OpenStreetMap" className="h-48 rounded-none border-0" /><span className="absolute left-8 top-8 grid h-12 w-12 place-items-center rounded-full border-2 border-white bg-blue-600 text-xs font-black text-white shadow-lg">{Math.max(1, Math.round(rows.length * 0.35))}</span><span className="absolute bottom-10 right-10 grid h-14 w-14 place-items-center rounded-full border-2 border-white bg-emerald-500 text-xs font-black text-white shadow-lg">{Math.max(1, Math.round(rows.length * 0.55))}</span></div>
+                        <div className="h-48"><OpenStreetMapEmbed location={topRegion?.name || 'United States'} points={schoolMapPoints} title="Admin school locations on OpenStreetMap" className="h-48 rounded-none border-0" /></div>
                         <div className="p-4"><p className="text-xs font-black uppercase text-slate-400">Top Region</p><p className="mt-1 font-black text-slate-950">{topRegion?.name || 'No region yet'}</p><div className="mt-3 h-2 rounded-full bg-slate-100"><div className="h-full rounded-full bg-blue-600" style={{ width: `${topRegion ? Math.min(100, (topRegion.count / Math.max(1, rows.length)) * 100) : 0}%` }} /></div></div>
                     </div>
-                    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><h3 className="font-black text-slate-950">Directory Analytics</h3><div className="mt-4 space-y-3"><MiniStat label="Engagement Avg." value={`${rows.length ? Math.round(rows.reduce((sum, school) => sum + Number(school.matchScore || 0), 0) / rows.length) : 0}%`} /><MiniStat label="Visit Requests" value={rows.reduce((sum, school) => sum + Number(school.visitRequests || 0), 0)} /><MiniStat label="Archive Visits" value={rows.reduce((sum, school) => sum + Number(school.archiveVisits || 0), 0)} /></div></div>
-                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm"><Sparkles size={18} className="text-emerald-700" /><h3 className="mt-3 font-black text-slate-950">Admin Insight</h3><p className="mt-2 text-sm leading-6 text-slate-600">{pending > 0 ? `${pending} school record(s) need verification before full platform trust.` : 'School directory is verified. Monitor suspended and high-volume schools weekly.'}</p></div>
+                    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><h3 className="font-black text-slate-950">Directory Analytics</h3><div className="mt-4 space-y-3"><MiniStat label="Saved Priority Avg." value={`${rows.length ? Math.round(rows.reduce((sum, school) => sum + Number(school.matchScore || 0), 0) / rows.length) : 0}/100`} /><MiniStat label="Visit Requests" value={rows.reduce((sum, school) => sum + Number(school.visitRequests || 0), 0)} /><MiniStat label="Archive Visits" value={rows.reduce((sum, school) => sum + Number(school.archiveVisits || 0), 0)} /></div></div>
+                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm"><Sparkles size={18} className="text-emerald-700" /><h3 className="mt-3 font-black text-slate-950">Admin Insight</h3><p className="mt-2 text-sm leading-6 text-slate-600">{pending > 0 ? `${pending} outreach record(s) need verification.` : 'The outreach directory is verified. Monitor suspended and high-volume records weekly.'}</p></div>
                 </aside>
             </section>
 
             <AdminSchoolDrawer school={selected} onClose={() => setSelectedId(null)} setModal={setModal} />
-            {modal?.type === 'create' && <AdminSchoolForm csrf={csrf} title="New School Entry" action="/dashboard/admin/schools" errors={errors} onClose={() => setModal(null)} />}
-            {modal?.type === 'edit' && <AdminSchoolForm csrf={csrf} title="Edit School" action={`/dashboard/admin/schools/${modal.item.id}`} method="PUT" item={modal.item} errors={errors} onClose={() => setModal(null)} />}
-            {modal?.type === 'delete' && <ModalShell title="Delete School" onClose={() => setModal(null)}><form action={`/dashboard/admin/schools/${modal.item.id}`} method="POST" className="space-y-4"><input type="hidden" name="_token" value={csrf} /><input type="hidden" name="_method" value="DELETE" /><p className="text-sm leading-6 text-slate-600">Delete <span className="font-black text-slate-950">{modal.item.name}</span>? Schools with shared visit activity cannot be deleted.</p><div className="flex justify-end gap-2"><button type="button" onClick={() => setModal(null)} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-black">Cancel</button><button className="rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-black text-white">Delete</button></div></form></ModalShell>}
+            {modal?.type === 'create' && <AdminSchoolForm csrf={csrf} title="New Outreach Entry" action="/dashboard/admin/schools" errors={errors} onClose={() => setModal(null)} />}
+            {modal?.type === 'edit' && <AdminSchoolForm csrf={csrf} title="Edit Outreach Entry" action={`/dashboard/admin/schools/${modal.item.id}`} method="PUT" item={modal.item} errors={errors} onClose={() => setModal(null)} />}
+            {modal?.type === 'delete' && <ModalShell title="Delete Outreach Entry" onClose={() => setModal(null)}><form action={`/dashboard/admin/schools/${modal.item.id}`} method="POST" className="space-y-4"><input type="hidden" name="_token" value={csrf} /><input type="hidden" name="_method" value="DELETE" /><p className="text-sm leading-6 text-slate-600">Delete <span className="font-black text-slate-950">{modal.item.name}</span>? Outreach records with shared visit activity cannot be deleted.</p><div className="flex justify-end gap-2"><button type="button" onClick={() => setModal(null)} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-black">Cancel</button><button className="rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-black text-white">Delete</button></div></form></ModalShell>}
+            {accountModal?.type === 'create' && <AdminSchoolAccountForm csrf={csrf} title="Add Registered School Account" action="/dashboard/admin/school-accounts" errors={errors} onClose={() => setAccountModal(null)} />}
+            {accountModal?.type === 'edit' && <AdminSchoolAccountForm csrf={csrf} title="Edit Registered School Account" action={`/dashboard/admin/school-accounts/${accountModal.item.id}`} method="PUT" item={accountModal.item} errors={errors} onClose={() => setAccountModal(null)} />}
+            {accountModal?.type === 'delete' && <ModalShell title="Delete Registered School Account" onClose={() => setAccountModal(null)}><form action={`/dashboard/admin/school-accounts/${accountModal.item.id}`} method="POST" className="space-y-4"><input type="hidden" name="_token" value={csrf} /><input type="hidden" name="_method" value="DELETE" /><p className="text-sm leading-6 text-slate-600">Delete <span className="font-black text-slate-950">{accountModal.item.name}</span>? This is available only because the account has no linked users, programs, visit requests, or registrations.</p><div className="flex justify-end gap-2"><button type="button" onClick={() => setAccountModal(null)} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-black">Cancel</button><button className="rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-black text-white">Delete Account</button></div></form></ModalShell>}
         </div>
+    );
+}
+
+function AdminSchoolAccountStatusBadge({ status }) {
+    const styles = {
+        active: 'bg-emerald-50 text-emerald-700',
+        pending: 'bg-amber-50 text-amber-700',
+        suspended: 'bg-rose-50 text-rose-700',
+    };
+    return <span className={cx('inline-flex rounded-full px-2.5 py-1 text-[10px] font-black uppercase', styles[status] || styles.pending)}>{status || 'pending'}</span>;
+}
+
+function AdminSchoolAccountForm({ csrf, title, action, method = 'POST', item = {}, errors = {}, onClose }) {
+    return (
+        <ModalShell title={title} onClose={onClose}>
+            <form action={action} method="POST" className="grid gap-4" onSubmit={() => window.setTimeout(onClose, 0)}>
+                <input type="hidden" name="_token" value={csrf} />
+                {method !== 'POST' && <input type="hidden" name="_method" value={method} />}
+                <LightField label="School Name" name="name" defaultValue={item.name || ''} error={errors.name?.[0]} required />
+                <LightField label="Location" name="location" defaultValue={item.location || ''} error={errors.location?.[0]} required />
+                <div className="grid gap-4 md:grid-cols-2">
+                    <LightField label="Coordinator Name" name="coordinator_name" defaultValue={item.coordinatorName || ''} error={errors.coordinator_name?.[0]} />
+                    <LightField label="Coordinator Email" name="coordinator_email" type="email" defaultValue={item.coordinatorEmail || ''} error={errors.coordinator_email?.[0]} />
+                </div>
+                <LightField label="Coordinator Phone" name="coordinator_phone" type="tel" defaultValue={item.coordinatorPhone || ''} error={errors.coordinator_phone?.[0]} />
+                <input type="hidden" name="email_notifications" value="0" />
+                <label className="flex items-center gap-3 rounded-xl border border-slate-200 p-3 text-sm font-bold text-slate-700"><input type="checkbox" name="email_notifications" value="1" defaultChecked={item.id ? !!item.emailNotifications : true} className="rounded border-slate-300 text-blue-600" /> Send platform email notifications for this school</label>
+                {item.id && <div className="grid grid-cols-3 gap-2 rounded-xl bg-slate-50 p-3"><MiniStat label="Users" value={Number(item.userCount || 0)} /><MiniStat label="Programs" value={Number(item.programCount || 0)} /><MiniStat label="Requests" value={Number(item.visitRequestCount || 0)} /></div>}
+                <div className="flex justify-end gap-2"><button type="button" onClick={onClose} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-black">Cancel</button><button className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-black text-white">Save School Account</button></div>
+            </form>
+        </ModalShell>
     );
 }
 
@@ -3564,7 +3886,7 @@ function AdminSchoolForm({ csrf, title, action, method = 'POST', item = {}, erro
                 <div className="grid gap-4 md:grid-cols-4">
                     <LightField label="Average SAT" name="average_sat" type="number" defaultValue={item.sat || ''} error={errors.average_sat?.[0]} />
                     <LightField label="Yield Rate" name="yield_rate" type="number" step="0.01" defaultValue={item.yieldRate ?? 0} error={errors.yield_rate?.[0]} required />
-                    <LightField label="Match Score" name="match_score" type="number" defaultValue={item.matchScore ?? 0} error={errors.match_score?.[0]} required />
+                    <LightField label="Saved Priority Score" name="match_score" type="number" defaultValue={item.matchScore ?? 0} error={errors.match_score?.[0]} required />
                     <LightField label="Active Students" name="active_applicants" type="number" defaultValue={item.activeApplicants ?? 0} error={errors.active_applicants?.[0]} required />
                 </div>
                 <label className="grid gap-1 text-sm font-bold text-slate-700">Notes<textarea name="notes" defaultValue={item.notes || ''} className="min-h-24 rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium" /></label>
@@ -3584,7 +3906,7 @@ function AdminSchoolDrawer({ school, onClose, setModal }) {
         <div className="fixed inset-0 z-50 bg-slate-950/20 backdrop-blur-[1px]" onClick={onClose}>
             <aside className="absolute right-0 top-0 h-full w-full max-w-[520px] overflow-y-auto border-l border-slate-200 bg-white p-5 shadow-2xl" onClick={(event) => event.stopPropagation()}>
                 <div className="flex items-start justify-between gap-3"><div className="flex items-center gap-3"><span className="grid h-14 w-14 place-items-center rounded-xl bg-blue-50 font-black text-blue-700">{school.initials}</span><div><h2 className="text-xl font-black text-slate-950">{school.name}</h2><p className="mt-1 text-sm text-slate-500">CODE: {school.code} • {school.city}, {school.country}</p></div></div><button type="button" onClick={onClose} className="grid h-8 w-8 place-items-center rounded-full border border-slate-200 text-slate-500 hover:bg-slate-50"><X size={16} /></button></div>
-                <div className="mt-5 grid grid-cols-2 gap-3"><MiniStat label="Active Students" value={Number(school.activeApplicants || 0).toLocaleString()} /><MiniStat label="Match Score" value={`${school.matchScore}/100`} /><MiniStat label="Requests" value={school.visitRequests} /><MiniStat label="Archives" value={school.archiveVisits} /></div>
+                <div className="mt-5 grid grid-cols-2 gap-3"><MiniStat label="Active Students" value={Number(school.activeApplicants || 0).toLocaleString()} /><MiniStat label="Saved Priority" value={`${school.matchScore}/100`} /><MiniStat label="Requests" value={school.visitRequests} /><MiniStat label="Archives" value={school.archiveVisits} /></div>
                 <section className="mt-5 rounded-xl border border-slate-200 p-4"><p className="text-xs font-black uppercase tracking-[0.12em] text-slate-400">Coordinator</p><p className="mt-2 font-black text-slate-950">{school.coordinatorName}</p><p className="mt-1 text-sm text-slate-500">{school.coordinatorEmail || 'No email on file'}</p><div className="mt-4"><AdminSchoolStatusBadge status={school.status} /></div></section>
                 <section className="mt-5 rounded-xl border border-slate-200 p-4"><p className="text-xs font-black uppercase tracking-[0.12em] text-slate-400">Engagement Profile</p><p className="mt-2 text-sm leading-6 text-slate-600">Tier: <span className="font-black capitalize">{school.tier}</span>. Type: <span className="font-black capitalize">{String(school.type || '').replace('_', ' ')}</span>. Yield rate: <span className="font-black">{school.yieldRate}%</span>.</p><p className="mt-3 text-sm leading-6 text-slate-600">{school.notes || 'No internal notes yet.'}</p></section>
                 <section className="mt-5 rounded-xl border border-blue-100 bg-blue-50 p-4"><p className="font-black text-slate-950">Admin controls</p><p className="mt-1 text-sm leading-6 text-slate-600">Edit directory fields, coordinator data, verification status, and engagement signals from this master portal.</p><button type="button" onClick={() => setModal({ type: 'edit', item: school })} className="mt-4 rounded-xl bg-slate-950 px-4 py-3 text-sm font-black text-white">Edit School</button></section>
@@ -3618,7 +3940,7 @@ function AdminVisitActivitySection({ csrf, events = [], visitRequests = [], regi
     const urgentRows = rows.filter((row) => row.severity === 'urgent');
     const warningRows = rows.filter((row) => row.severity === 'warning');
     const activeRows = rows.filter((row) => ['confirmed', 'approved', 'scheduled', 'in_progress', 'action_required'].includes(row.status));
-    const totalSeats = rows.reduce((sum, row) => sum + Number(row.attendees || 0), 0);
+    const bookedSeats = registrations.reduce((sum, registration) => sum + Number(registration.partySize || 0), 0);
     const zonePoints = filtered.slice(0, 20).map((row) => ({
         label: `${row.idLabel} ${row.university}`,
         location: row.location || row.region || row.school,
@@ -3637,7 +3959,7 @@ function AdminVisitActivitySection({ csrf, events = [], visitRequests = [], regi
             <section className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                 <div>
                     <h1 className="text-3xl font-black tracking-tight text-slate-950">Visit Activity & Logistics</h1>
-                    <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-500">Real-time oversight of recruitment operations, shared visit requests, event capacity, and campus outreach across all zones.</p>
+                    <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-500">Current oversight of recruitment operations, shared visit requests, event capacity, and campus outreach across all recorded locations.</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                     <button type="button" onClick={exportActivity} className="rounded-xl border border-blue-200 bg-white px-4 py-2.5 text-sm font-black text-blue-700"><Download size={16} className="inline" /> Export Report</button>
@@ -3648,14 +3970,14 @@ function AdminVisitActivitySection({ csrf, events = [], visitRequests = [], regi
             <section className="grid gap-4 md:grid-cols-4">
                 <AdminInstitutionMetric label="Active Visits" value={activeRows.length} detail="Live and scheduled operations" icon={CalendarDays} tone="blue" />
                 <AdminInstitutionMetric label="Pending Requests" value={rows.filter((row) => row.status === 'requested').length} detail="Need decision" icon={Clock} tone="amber" />
-                <AdminInstitutionMetric label="Attendees" value={totalSeats.toLocaleString()} detail="Seats across activity" icon={UsersRound} tone="emerald" />
-                <AdminInstitutionMetric label="Alerts" value={urgentRows.length + warningRows.length} detail="Logistics watchlist" icon={ShieldCheck} />
+                <AdminInstitutionMetric label="Booked Seats" value={bookedSeats.toLocaleString()} detail="Across registration records" icon={UsersRound} tone="emerald" />
+                <AdminInstitutionMetric label="Alerts" value={urgentRows.length + warningRows.length} detail="Capacity and request review" icon={ShieldCheck} />
             </section>
 
             <section className="grid gap-6 xl:grid-cols-[390px_minmax(0,1fr)]">
                 <aside className="space-y-5">
                     <div className="rounded-2xl border-l-4 border-rose-600 bg-white p-5 shadow-sm">
-                        <div className="flex items-center gap-2 text-rose-700"><ShieldCheck size={18} /><h3 className="text-xs font-black uppercase tracking-[0.16em]">Critical Logistics Warnings</h3></div>
+                        <div className="flex items-center gap-2 text-rose-700"><ShieldCheck size={18} /><h3 className="text-xs font-black uppercase tracking-[0.16em]">Activity Warnings</h3></div>
                         <div className="mt-4 space-y-3">
                             {[...urgentRows, ...warningRows].slice(0, 3).map((row) => (
                                 <button key={row.id} type="button" onClick={() => setSelectedId(row.id)} className={cx('w-full rounded-xl border p-3 text-left', row.severity === 'urgent' ? 'border-rose-100 bg-rose-50' : 'border-slate-200 bg-slate-50')}>
@@ -3663,14 +3985,14 @@ function AdminVisitActivitySection({ csrf, events = [], visitRequests = [], regi
                                     <p className="mt-1 text-xs leading-5 text-slate-600">{row.alertBody}</p>
                                 </button>
                             ))}
-                            {urgentRows.length + warningRows.length === 0 && <p className="rounded-xl bg-emerald-50 p-3 text-sm font-bold text-emerald-700">No critical logistics issues detected.</p>}
+                            {urgentRows.length + warningRows.length === 0 && <p className="rounded-xl bg-emerald-50 p-3 text-sm font-bold text-emerald-700">No activity warnings detected.</p>}
                         </div>
                         <button type="button" onClick={() => setTab('pending')} className="mt-4 w-full border-t border-slate-100 pt-4 text-center text-sm font-black text-blue-700">Resolve pending issues</button>
                     </div>
 
                     <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-                        <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 p-4"><h3 className="font-black text-slate-950">Live Zone Occupancy</h3><span className="text-[10px] font-black text-emerald-600">LIVE FEED</span></div>
-                        <div className="relative h-56"><OpenStreetMapEmbed location={topRegion} points={zonePoints} title="Visit activity tagged on OpenStreetMap" className="h-56 rounded-none border-0" /><div className="absolute left-4 top-4 max-w-[220px] rounded-xl border border-white bg-white/95 p-3 shadow-lg"><p className="text-sm font-black text-slate-950">Active Zone Focus</p><p className="mt-1 text-xs leading-5 text-slate-500">{activeRows.length} active visits • {topRegion}</p></div></div>
+                        <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 p-4"><h3 className="font-black text-slate-950">Recorded Visit Locations</h3><span className="text-[10px] font-black text-emerald-600">CURRENT DATA</span></div>
+                        <div className="relative h-56"><OpenStreetMapEmbed location={topRegion} points={zonePoints} title="Visit activity tagged on OpenStreetMap" className="h-56 rounded-none border-0" /><div className="absolute left-4 top-4 max-w-[220px] rounded-xl border border-white bg-white/95 p-3 shadow-lg"><p className="text-sm font-black text-slate-950">Activity Map</p><p className="mt-1 text-xs leading-5 text-slate-500">{activeRows.length} active records • {topRegion}</p></div></div>
                     </div>
                 </aside>
 
@@ -3693,7 +4015,7 @@ function AdminVisitActivitySection({ csrf, events = [], visitRequests = [], regi
                                         <td className="px-5 py-4"><p className={cx('font-black', row.severity === 'urgent' ? 'text-rose-700' : 'text-blue-700')}>{row.idLabel}</p><p className="mt-1 text-sm font-semibold text-slate-700">{row.university}</p></td>
                                         <td className="px-5 py-4 text-slate-600">{row.school}</td>
                                         <td className="px-5 py-4"><p className={cx('font-black', row.severity === 'urgent' ? 'text-rose-700' : 'text-slate-900')}>{row.dateLabel}</p><p className="mt-1 text-[10px] font-bold uppercase text-slate-400">{row.timeLabel}</p></td>
-                                        <td className="px-5 py-4"><div className="flex items-center -space-x-2">{row.attendeeBadges.map((badge) => <span key={badge} className="grid h-7 w-7 place-items-center rounded-full border-2 border-white bg-blue-50 text-[10px] font-black text-blue-700">{badge}</span>)}{row.attendees > row.attendeeBadges.length && <span className="grid h-7 w-7 place-items-center rounded-full border-2 border-white bg-slate-200 text-[10px] font-black text-slate-600">+{row.attendees - row.attendeeBadges.length}</span>}</div></td>
+                                        <td className="px-5 py-4 font-black text-slate-800">{Number(row.attendees || 0).toLocaleString()}</td>
                                         <td className="px-5 py-4"><AdminVisitStatusBadge status={row.status} /></td>
                                         <td className="px-5 py-4 text-right"><div className="flex justify-end gap-1"><button type="button" onClick={() => setSelectedId(row.id)} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"><MoreVertical size={17} /></button>{row.requestId && row.status === 'requested' && <><AdminVisitDecisionForm csrf={csrf} requestId={row.requestId} decision="approved" label="Approve" /><AdminVisitDecisionForm csrf={csrf} requestId={row.requestId} decision="declined" label="Decline" /></>}</div></td>
                                     </tr>
@@ -3707,9 +4029,9 @@ function AdminVisitActivitySection({ csrf, events = [], visitRequests = [], regi
             </section>
 
             <section className="grid gap-4 md:grid-cols-3">
-                <div className="rounded-2xl bg-slate-950 p-5 text-white shadow-sm"><p className="text-xs font-black uppercase tracking-[0.16em] text-white/60">Growth Metric</p><p className="mt-4 text-4xl font-black">+{Math.min(99, Math.max(0, rows.length + archives.length)).toFixed(1)}%</p><p className="mt-2 text-sm text-white/70">Increase in tracked school engagement based on visit activity volume.</p></div>
-                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><p className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">Active Window</p><p className="mt-4 text-2xl font-black text-slate-950">Peak Recruitment</p><p className="mt-2 text-sm text-slate-500">High-frequency period based on scheduled and approved requests.</p></div>
-                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><p className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">Health Index</p><p className="mt-4 text-2xl font-black text-slate-950">{Math.max(70, 100 - (urgentRows.length * 8) - (warningRows.length * 3)).toFixed(1)}% Efficiency</p><p className="mt-2 text-sm text-slate-500">Estimated allocation health across active zones.</p></div>
+                <div className="rounded-2xl bg-slate-950 p-5 text-white shadow-sm"><p className="text-xs font-black uppercase tracking-[0.16em] text-white/60">Tracked Activity</p><p className="mt-4 text-4xl font-black">{rows.length.toLocaleString()}</p><p className="mt-2 text-sm text-white/70">Visit programs, requests, and archive records in this activity view.</p></div>
+                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><p className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">Visit Programs</p><p className="mt-4 text-2xl font-black text-slate-950">{events.length.toLocaleString()}</p><p className="mt-2 text-sm text-slate-500">Current campus event records included in admin oversight.</p></div>
+                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><p className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">Archived Visits</p><p className="mt-4 text-2xl font-black text-slate-950">{archives.length.toLocaleString()}</p><p className="mt-2 text-sm text-slate-500">Saved visit archive records, with no inferred health score.</p></div>
             </section>
 
             <AdminVisitActivityDrawer row={selected} onClose={() => setSelectedId(null)} csrf={csrf} />
@@ -3775,7 +4097,6 @@ function adminVisitRows(events = [], visitRequests = [], registrations = [], arc
             severity,
             alertTitle: severity === 'urgent' ? `High priority: ${request.school}` : `Pending request: ${request.school}`,
             alertBody: `${request.school || 'School'} requested ${request.groupSize || 0} attendee(s) for ${request.event || 'a visit program'}.`,
-            attendeeBadges: initialsList([request.school || 'SC', request.university || 'UN']),
         };
     });
 
@@ -3803,7 +4124,6 @@ function adminVisitRows(events = [], visitRequests = [], registrations = [], arc
             notes: event.description,
             alertTitle: severity === 'urgent' ? `Capacity conflict: ${event.title}` : `Capacity watch: ${event.title}`,
             alertBody: `${attendees}/${capacity || 'open'} attendee seats currently allocated.`,
-            attendeeBadges: initialsList(relatedRegistrations.map((registration) => registration.name || registration.school).slice(0, 3)),
         };
     });
 
@@ -3824,7 +4144,6 @@ function adminVisitRows(events = [], visitRequests = [], registrations = [], arc
         notes: archive.summary,
         alertTitle: `Archive sync: ${archive.school}`,
         alertBody: `${archive.leads || 0} leads captured. ${archive.status?.replace('_', ' ') || 'archived'}.`,
-        attendeeBadges: initialsList([archive.school || 'AR']),
     }));
 
     return [...requestRows, ...eventRows, ...archiveRows].sort((left, right) => {
@@ -3833,12 +4152,7 @@ function adminVisitRows(events = [], visitRequests = [], registrations = [], arc
     });
 }
 
-function initialsList(values = []) {
-    const list = values.filter(Boolean).map((value) => initials(value)).slice(0, 3);
-    return list.length ? list : ['NA'];
-}
-
-function AdminUsersAccessSection({ csrf, users = [], errors = {} }) {
+function AdminUsersAccessSection({ csrf, users = [], schoolAccounts = [], errors = {} }) {
     const [query, setQuery] = useState('');
     const [role, setRole] = useState('all');
     const [status, setStatus] = useState('all');
@@ -3928,8 +4242,8 @@ function AdminUsersAccessSection({ csrf, users = [], errors = {} }) {
             </section>
 
             <AdminUserDrawer user={selected} csrf={csrf} onClose={() => setSelectedId(null)} setModal={setModal} />
-            {modal?.type === 'create' && <AdminUserForm csrf={csrf} title="Create User" action="/dashboard/admin/users" errors={errors} onClose={() => setModal(null)} />}
-            {modal?.type === 'edit' && <AdminUserForm csrf={csrf} title="Edit User" action={`/dashboard/admin/users/${modal.item.id}`} method="PUT" item={modal.item} errors={errors} onClose={() => setModal(null)} />}
+            {modal?.type === 'create' && <AdminUserForm csrf={csrf} title="Create User" action="/dashboard/admin/users" schoolAccounts={schoolAccounts} errors={errors} onClose={() => setModal(null)} />}
+            {modal?.type === 'edit' && <AdminUserForm csrf={csrf} title="Edit User" action={`/dashboard/admin/users/${modal.item.id}`} method="PUT" item={modal.item} schoolAccounts={schoolAccounts} errors={errors} onClose={() => setModal(null)} />}
             {modal?.type === 'delete' && <ModalShell title="Delete User" onClose={() => setModal(null)}><form action={`/dashboard/admin/users/${modal.item.id}`} method="POST" className="space-y-4"><input type="hidden" name="_token" value={csrf} /><input type="hidden" name="_method" value="DELETE" /><p className="text-sm leading-6 text-slate-600">Delete <span className="font-black text-slate-950">{modal.item.name}</span>? Accounts with visit programs or registrations must be suspended instead.</p><div className="flex justify-end gap-2"><button type="button" onClick={() => setModal(null)} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-black">Cancel</button><button className="rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-black text-white">Delete</button></div></form></ModalShell>}
         </div>
     );
@@ -3944,7 +4258,7 @@ function AdminUserAccessForm({ csrf, user, status, label }) {
     return <form action={`/dashboard/admin/users/${user.id}/access`} method="POST"><input type="hidden" name="_token" value={csrf} /><input type="hidden" name="access_status" value={status} /><button className="rounded-lg px-2 py-2 text-xs font-black text-slate-700 hover:bg-slate-100">{label}</button></form>;
 }
 
-function AdminUserForm({ csrf, title, action, method = 'POST', item = {}, errors = {}, onClose }) {
+function AdminUserForm({ csrf, title, action, method = 'POST', item = {}, schoolAccounts = [], errors = {}, onClose }) {
     return (
         <ModalShell title={title} onClose={onClose}>
             <form action={action} method="POST" className="grid gap-4" onSubmit={() => window.setTimeout(onClose, 0)}>
@@ -3957,6 +4271,7 @@ function AdminUserForm({ csrf, title, action, method = 'POST', item = {}, errors
                     <LightField label="Recovery Email" name="recovery_email" type="email" defaultValue={item.recoveryEmail || ''} error={errors.recovery_email?.[0]} />
                     <AdminSelect label="Portal Role" name="role" value={item.role || 'student'} options={[['admin', 'Admin'], ['university', 'University'], ['school', 'School'], ['student', 'Student']]} />
                     <AdminSelect label="Access Status" name="access_status" value={item.accessStatus || 'active'} options={[['active', 'Active'], ['pending', 'Pending Review'], ['suspended', 'Suspended']]} />
+                    <label className="grid gap-1 text-sm font-bold text-slate-700">School tenant<select name="school_id" defaultValue={item.schoolId || ''} className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold"><option value="">Not linked to a school</option>{schoolAccounts.map((school) => <option key={school.id} value={school.id}>{school.name}{school.location ? ' · ' + school.location : ''}</option>)}</select><span className="text-[11px] font-semibold text-slate-400">Required for school and student roles.</span></label>
                 </div>
                 <div className="grid gap-3 md:grid-cols-3">
                     <ToggleBox name="verified" label="Email verified" defaultChecked={item.id ? !!item.verified : true} />
@@ -3969,8 +4284,11 @@ function AdminUserForm({ csrf, title, action, method = 'POST', item = {}, errors
     );
 }
 
-function ToggleBox({ name, label, defaultChecked }) {
-    return <label className="flex items-center gap-3 rounded-xl border border-slate-200 p-3 text-sm font-bold text-slate-700"><input type="hidden" name={name} value="0" /><input type="checkbox" name={name} value="1" defaultChecked={defaultChecked} className="rounded border-slate-300 text-blue-600" /> {label}</label>;
+function ToggleBox({ name, label, defaultChecked, disabled = false }) {
+    return <label className={cx('flex items-center gap-3 rounded-xl border border-slate-200 p-3 text-sm font-bold text-slate-700', disabled && 'cursor-not-allowed bg-slate-50 opacity-60')}>
+        {disabled ? <input type="hidden" name={name} value={defaultChecked ? '1' : '0'} /> : <input type="hidden" name={name} value="0" />}
+        <input type="checkbox" name={disabled ? undefined : name} value="1" defaultChecked={defaultChecked} disabled={disabled} className="rounded border-slate-300 text-blue-600" /> {label}
+    </label>;
 }
 
 function AdminUserDrawer({ user, csrf, onClose, setModal }) {
@@ -4011,7 +4329,6 @@ function enrichAdminUserAccess(user) {
 }
 
 function AdminAnalyticsSection({ analytics = {}, users = [], events = [], registrations = [], schools = [], visitRequests = [], messages = [] }) {
-    const [period, setPeriod] = useState('30');
     const kpis = analytics.adminKpis?.length ? analytics.adminKpis : [
         { label: 'Conversion Funnel', value: `${percentage(registrations.filter((item) => item.status === 'confirmed').length, registrations.length)}%`, detail: 'Confirmed registration records' },
         { label: 'Capacity Usage', value: `${percentage(registrations.reduce((sum, item) => sum + Number(item.partySize || 0), 0), events.reduce((sum, item) => sum + Number(item.capacity || 0), 0))}%`, detail: 'Booked seats versus capacity' },
@@ -4027,7 +4344,7 @@ function AdminAnalyticsSection({ analytics = {}, users = [], events = [], regist
     const topInstitutions = analytics.topInstitutions?.length ? analytics.topInstitutions : topInstitutionsFromEvents(users, events, registrations);
     const notifications = analytics.notificationStats?.length ? analytics.notificationStats : statusBreakdownFromMessages(messages);
     const hotspots = analytics.hotspots || [];
-    const insights = analytics.insights || [];
+    const insights = (analytics.insights || []).filter((item) => item.type !== 'prediction');
     const totalRole = Math.max(1, roleBreakdown.reduce((sum, row) => sum + Number(row.value || 0), 0));
     const totalRequests = Math.max(1, requestPipeline.reduce((sum, row) => sum + Number(row.value || 0), 0));
 
@@ -4049,11 +4366,7 @@ function AdminAnalyticsSection({ analytics = {}, users = [], events = [], regist
                     <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">Deep-dive analytics across conversion funnels, visit activity, access, communication, and market engagement using live database records.</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                    <select value={period} onChange={(event) => setPeriod(event.target.value)} className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-700">
-                        <option value="30">Last 30 Days</option>
-                        <option value="90">Last 90 Days</option>
-                        <option value="365">Last 12 Months</option>
-                    </select>
+                    <span className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-700">All Available Records</span>
                     <button type="button" onClick={exportAnalytics} className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-black text-white"><Download size={16} /> Export Report</button>
                 </div>
             </section>
@@ -4079,7 +4392,7 @@ function AdminAnalyticsSection({ analytics = {}, users = [], events = [], regist
                                 <h2 className="text-xl font-black text-slate-950">Main Conversion Funnel</h2>
                                 <p className="mt-1 text-sm text-slate-500">Registered seats to confirmed visits, attendance, and applications.</p>
                             </div>
-                            <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">{analytics.modelConfidence || 0}% confidence</span>
+                            <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">{funnel.length} tracked stage(s)</span>
                         </div>
                         <div className="mt-6 space-y-4">
                             {funnel.length === 0 ? <EmptyState message="Funnel data will appear after registrations are recorded." /> : funnel.map((step, index) => (
@@ -4151,12 +4464,13 @@ function AdminAnalyticsSection({ analytics = {}, users = [], events = [], regist
                         <div className="mt-4 grid grid-cols-2 gap-3">{notifications.length ? notifications.map((item) => <MiniStat key={item.label} label={item.label} value={item.value} />) : <p className="col-span-2 text-sm text-slate-500">No platform notifications yet.</p>}</div>
                     </section>
                     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                        <h2 className="text-lg font-black text-slate-950">Regional Growth Hotspots</h2>
-                        <div className="mt-4 space-y-3">{hotspots.length ? hotspots.map((hotspot) => <div key={hotspot.region} className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-sm"><span className="font-bold text-slate-700">{hotspot.region}</span><span className="font-black text-emerald-600">+{hotspot.growth}</span></div>) : <p className="text-sm text-slate-500">Hotspots will appear when regional school data exists.</p>}</div>
+                        <h2 className="text-lg font-black text-slate-950">Regional Saved Priorities</h2>
+                        <p className="mt-1 text-xs font-semibold text-slate-500">Approximate average saved school priority score by region.</p>
+                        <div className="mt-4 space-y-3">{hotspots.length ? hotspots.map((hotspot) => <div key={hotspot.region} className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-sm"><span><span className="block font-bold text-slate-700">{hotspot.region}</span><span className="text-xs font-semibold text-slate-400">{Number(hotspot.total || 0)} school(s)</span></span><span className="font-black text-emerald-600">{Math.round(Number(hotspot.growth || 0) * 40) / 10}/100</span></div>) : <p className="text-sm text-slate-500">Regional priorities will appear when school records include regions.</p>}</div>
                     </section>
                     <section className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm">
                         <Sparkles size={18} className="text-emerald-700" />
-                        <h2 className="mt-3 text-lg font-black text-slate-950">Predictive Signals</h2>
+                        <h2 className="mt-3 text-lg font-black text-slate-950">Operational Signals</h2>
                         <div className="mt-4 space-y-3">{insights.map((item) => <article key={item.title} className="rounded-xl bg-white/70 p-4"><p className="text-sm font-black text-slate-950">{item.title}</p><p className="mt-1 text-sm leading-6 text-slate-600">{item.body}</p></article>)}{insights.length === 0 && <p className="text-sm text-slate-600">Insights will appear when the platform has enough activity.</p>}</div>
                     </section>
                 </aside>
@@ -4224,8 +4538,8 @@ function AdminSystemHealthSection({ health = {} }) {
 
     const exportAudit = () => exportRowsToCsv('system-health-audit.csv', [
         ['Generated At', health.generatedAt || new Date().toISOString()],
-        ['Health Score', score],
-        ['System Status', status],
+        ['Readiness Score', score],
+        ['Readiness Status', status],
         [],
         ['Check', 'Status', 'Latency Ms', 'Detail'],
         ...checks.map((item) => [item.name, item.status, item.latencyMs ?? '', item.detail || '']),
@@ -4238,19 +4552,19 @@ function AdminSystemHealthSection({ health = {} }) {
         <div className="grid gap-6">
             <section className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                 <div>
-                    <p className="text-xs font-black uppercase tracking-[0.16em] text-blue-700">Server-backed monitoring</p>
-                    <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-950">System Health & Audit Hub</h1>
-                    <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">Infrastructure checks are generated directly by Laravel from the current server, database, storage, queues, mail, sessions, logs, and recent platform activity.</p>
+                    <p className="text-xs font-black uppercase tracking-[0.16em] text-blue-700">Operational readiness</p>
+                    <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-950">Readiness & Audit Hub</h1>
+                    <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">Configuration and runtime checks are generated by Laravel from the current database, storage, queue, mail, session, log, and server settings.</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                    <button type="button" onClick={() => window.location.reload()} className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-black text-white"><RefreshCcw size={16} /> Force Sync</button>
+                    <form action="/dashboard/admin" method="GET"><button className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-black text-white"><RefreshCcw size={16} /> Refresh Checks</button></form>
                     <button type="button" onClick={exportAudit} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-700"><Download size={16} /> Export Audit</button>
                 </div>
             </section>
 
             <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                    <div className="flex items-start justify-between"><p className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">System Score</p><SystemStatusBadge status={status} /></div>
+                    <div className="flex items-start justify-between"><p className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">Readiness Score</p><SystemStatusBadge status={status} /></div>
                     <p className="mt-5 text-4xl font-black text-slate-950">{score}%</p>
                     <div className="mt-4 h-2 rounded-full bg-slate-100"><div className={cx('h-full rounded-full', score >= 90 ? 'bg-emerald-600' : score >= 70 ? 'bg-amber-500' : 'bg-rose-600')} style={{ width: `${Math.min(100, Math.max(0, score))}%` }} /></div>
                     <p className="mt-2 text-xs font-bold text-slate-500">{criticalCount} critical • {warningCount} warning</p>
@@ -4265,8 +4579,8 @@ function AdminSystemHealthSection({ health = {} }) {
                     <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                         <div className="flex items-center justify-between gap-3">
                             <div>
-                                <h2 className="text-xl font-black text-slate-950">Live Service Checks</h2>
-                                <p className="mt-1 text-sm text-slate-500">Generated at {formatDateTime(health.generatedAt)} from the current server.</p>
+                                <h2 className="text-xl font-black text-slate-950">Configuration and Runtime Checks</h2>
+                                <p className="mt-1 text-sm text-slate-500">Generated at {formatDateTime(health.generatedAt)} from current application configuration and direct runtime checks.</p>
                             </div>
                             <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black uppercase text-slate-600">{checks.length} checks</span>
                         </div>
@@ -4275,7 +4589,7 @@ function AdminSystemHealthSection({ health = {} }) {
                                 <thead className="bg-slate-50 text-[11px] font-black uppercase tracking-[0.08em] text-slate-500"><tr><th className="px-4 py-3">Service</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Latency</th><th className="px-4 py-3">Server Detail</th></tr></thead>
                                 <tbody className="divide-y divide-slate-100">
                                     {checks.map((item) => <tr key={item.name} className="hover:bg-slate-50"><td className="px-4 py-4 font-black text-slate-950">{item.name}</td><td className="px-4 py-4"><SystemStatusBadge status={item.status} /></td><td className="px-4 py-4 font-bold text-slate-700">{item.latencyMs !== null && item.latencyMs !== undefined ? `${item.latencyMs}ms` : '—'}</td><td className="px-4 py-4 text-slate-600">{item.detail}</td></tr>)}
-                                    {checks.length === 0 && <tr><td colSpan="4" className="px-4 py-12 text-center"><EmptyState message="No health checks are available." /></td></tr>}
+                                    {checks.length === 0 && <tr><td colSpan="4" className="px-4 py-12 text-center"><EmptyState message="No readiness checks are available." /></td></tr>}
                                 </tbody>
                             </table>
                         </div>
@@ -4366,7 +4680,7 @@ function AdminSettingsSection({ csrf, settings = {}, profile = {}, errors = {} }
                 <div>
                     <p className="text-xs font-black uppercase tracking-[0.16em] text-blue-700">Master configuration</p>
                     <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-950">Global Platform Settings</h1>
-                    <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">Configure branding, localization, feature flags, security policy, and integration metadata from database-backed settings.</p>
+                    <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">Configure enforced branding, localization, administrator MFA, and integration metadata. Stored-only policy values are clearly identified below.</p>
                 </div>
                 <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm">
                     <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-400">Last updated</p>
@@ -4402,15 +4716,15 @@ function AdminSettingsSection({ csrf, settings = {}, profile = {}, errors = {} }
                                 <span className="grid h-10 w-10 place-items-center rounded-xl bg-rose-50 text-rose-700"><ShieldCheck size={18} /></span>
                                 <div>
                                     <h2 className="text-xl font-black text-slate-950">Security Policies</h2>
-                                    <p className="mt-1 text-sm text-slate-500">Global policy values for administrators, sessions, retention, and password lifecycle.</p>
+                                    <p className="mt-1 text-sm text-slate-500">Administrator MFA is enforced. The remaining policy values are stored for planning but are not yet enforced by runtime jobs or middleware.</p>
                                 </div>
                             </div>
                             <div className="mt-6 space-y-5">
                                 <ToggleBox name="admin_mfa_required" label="Require MFA for all admin users" defaultChecked={security.adminMfaRequired !== false} />
                                 <div className="grid gap-4 md:grid-cols-3">
-                                    <LightField label="Session Timeout Minutes" name="session_timeout_minutes" type="number" min="15" max="240" defaultValue={security.sessionTimeoutMinutes || 30} error={errors.session_timeout_minutes?.[0]} required />
-                                    <LightField label="Password Rotation Days" name="password_rotation_days" type="number" min="30" max="365" defaultValue={security.passwordRotationDays || 90} error={errors.password_rotation_days?.[0]} required />
-                                    <LightField label="Data Retention Days" name="data_retention_days" type="number" min="30" max="3650" defaultValue={security.dataRetentionDays || 365} error={errors.data_retention_days?.[0]} required />
+                                    <LightField label="Session Timeout Minutes · stored only" name="session_timeout_minutes" type="number" min="15" max="240" defaultValue={security.sessionTimeoutMinutes || 30} error={errors.session_timeout_minutes?.[0]} readOnly aria-disabled="true" required />
+                                    <LightField label="Password Rotation Days · stored only" name="password_rotation_days" type="number" min="30" max="365" defaultValue={security.passwordRotationDays || 90} error={errors.password_rotation_days?.[0]} readOnly aria-disabled="true" required />
+                                    <LightField label="Data Retention Days · stored only" name="data_retention_days" type="number" min="30" max="3650" defaultValue={security.dataRetentionDays || 365} error={errors.data_retention_days?.[0]} readOnly aria-disabled="true" required />
                                 </div>
                             </div>
                         </section>
@@ -4439,18 +4753,18 @@ function AdminSettingsSection({ csrf, settings = {}, profile = {}, errors = {} }
                         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                             <div className="flex items-center justify-between gap-3">
                                 <h2 className="text-lg font-black text-slate-950">Feature Flags</h2>
-                                <span className="rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-black uppercase text-blue-700">Live</span>
+                                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-black uppercase text-slate-500">Stored only</span>
                             </div>
                             <div className="mt-5 space-y-4">
-                                <ToggleBox name="ai_matchmaking" label="AI Matchmaking" defaultChecked={!!features.aiMatchmaking} />
-                                <ToggleBox name="beta_messaging" label="Beta Messaging" defaultChecked={!!features.betaMessaging} />
-                                <ToggleBox name="advanced_analytics" label="Advanced Analytics" defaultChecked={features.advancedAnalytics !== false} />
-                                <ToggleBox name="maintenance_mode" label="Maintenance Mode" defaultChecked={!!features.maintenanceMode} />
+                                <ToggleBox name="ai_matchmaking" label="AI Matchmaking · not enforced" defaultChecked={!!features.aiMatchmaking} disabled />
+                                <ToggleBox name="beta_messaging" label="Beta Messaging · not enforced" defaultChecked={!!features.betaMessaging} disabled />
+                                <ToggleBox name="advanced_analytics" label="Advanced Analytics · not enforced" defaultChecked={features.advancedAnalytics !== false} disabled />
+                                <ToggleBox name="maintenance_mode" label="Maintenance Mode · not enforced" defaultChecked={!!features.maintenanceMode} disabled />
                             </div>
                         </section>
 
                         <section className="rounded-2xl bg-slate-950 p-5 text-white shadow-sm">
-                            <p className="text-xs font-black uppercase tracking-[0.16em] text-white/60">System Performance</p>
+                            <p className="text-xs font-black uppercase tracking-[0.16em] text-white/60">Readiness Score</p>
                             <p className="mt-4 text-4xl font-black">{system.healthScore ?? 0}%</p>
                             <p className="mt-2 text-sm text-white/60">{system.environment || 'local'} environment • debug {system.debug ? 'on' : 'off'}</p>
                             <div className="mt-4 h-2 rounded-full bg-white/10"><div className="h-full rounded-full bg-emerald-400" style={{ width: `${Math.min(100, Number(system.healthScore || 0))}%` }} /></div>
@@ -4464,7 +4778,7 @@ function AdminSettingsSection({ csrf, settings = {}, profile = {}, errors = {} }
                 </section>
 
                 <div className="sticky bottom-4 z-10 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-xl backdrop-blur md:flex-row md:items-center md:justify-between">
-                    <p className="text-sm font-semibold text-slate-600">Saving updates the database-backed master configuration immediately.</p>
+                    <p className="text-sm font-semibold text-slate-600">Saving updates enforced settings and preserves the displayed stored-only values.</p>
                     <div className="flex gap-2"><button type="reset" className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-black text-slate-700">Discard Changes</button><button className="rounded-xl bg-blue-700 px-4 py-2.5 text-sm font-black text-white hover:bg-blue-800">Save Global Configuration</button></div>
                 </div>
             </form>
@@ -4511,11 +4825,10 @@ function AdminPlatformOverviewSection({ users = [], events = [], registrations =
             type: 'Program',
         })),
     ].slice(0, 6);
-    const healthRows = [
-        ['Database', 'Operational', `${users.length + events.length + registrations.length + visitRequests.length} records loaded`],
-        ['Visit Activity', pendingRequests.length > 0 ? 'Review needed' : 'Operational', `${pendingRequests.length} pending request(s)`],
-        ['Messaging', messages.some((message) => message.status === 'failed') ? 'Attention' : 'Operational', `${messages.length} notification(s)`],
-        ['Access Control', users.filter((user) => !user.verified).length > 0 ? 'Review needed' : 'Operational', `${users.filter((user) => !user.verified).length} unverified account(s)`],
+    const operationalReviewRows = [
+        ['Pending visit requests', pendingRequests.length, 'Request records awaiting a decision'],
+        ['Failed notifications', messages.filter((message) => message.status === 'failed').length, `${messages.length} notification record(s) loaded`],
+        ['Unverified accounts', users.filter((user) => !user.verified).length, `${users.length} user account(s) loaded`],
     ];
 
     return (
@@ -4579,15 +4892,15 @@ function AdminPlatformOverviewSection({ users = [], events = [], registrations =
                 <aside className="grid gap-6">
                     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                         <div className="flex items-center justify-between">
-                            <h2 className="text-lg font-black text-slate-950">System Health</h2>
-                            <button type="button" onClick={() => setSection?.('system-health')} className="text-xs font-black text-blue-700">Details</button>
+                            <h2 className="text-lg font-black text-slate-950">Operational Data Review</h2>
+                            <button type="button" onClick={() => setSection?.('system-health')} className="text-xs font-black text-blue-700">Readiness checks</button>
                         </div>
                         <div className="mt-4 space-y-3">
-                            {healthRows.map(([service, status, detail]) => (
-                                <div key={service} className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                            {operationalReviewRows.map(([label, count, detail]) => (
+                                <div key={label} className="rounded-xl border border-slate-100 bg-slate-50 p-3">
                                     <div className="flex items-center justify-between gap-3">
-                                        <p className="text-sm font-black text-slate-950">{service}</p>
-                                        <span className={cx('rounded-full px-2 py-0.5 text-[10px] font-black uppercase', status === 'Operational' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700')}>{status}</span>
+                                        <p className="text-sm font-black text-slate-950">{label}</p>
+                                        <span className={cx('rounded-full px-2 py-0.5 text-[10px] font-black uppercase', Number(count) === 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700')}>{Number(count).toLocaleString()}</span>
                                     </div>
                                     <p className="mt-1 text-xs text-slate-500">{detail}</p>
                                 </div>
@@ -4642,30 +4955,25 @@ function AdminKpiCard({ label, value, detail, icon: Icon, tone = 'blue', onClick
     );
 }
 
-function SchoolCoordinatorOverviewSection({ events = [], registrations = [], schools = [], students = [], visitRequests = [], analytics = {}, messages = [], setSection }) {
+function SchoolCoordinatorOverviewSection({ events = [], registrations = [], schools = [], students = [], visitRequests = [], analytics = {}, messages = [], profile = {}, setSection }) {
     const publishedEvents = events.filter((event) => event.status === 'published');
     const confirmedVisits = registrations.filter((registration) => registration.status === 'confirmed');
     const activeRequests = visitRequests.filter((request) => request.status !== 'declined');
     const pendingRequests = visitRequests.filter((request) => request.status === 'requested');
     const scheduledRequests = visitRequests.filter((request) => ['approved', 'scheduled'].includes(request.status));
     const studentRows = normalizeSchoolStudents(students, events);
-    const requestedStudents = visitRequests.reduce((total, request) => total + Number(request.groupSize || 0), 0);
     const confirmedStudents = confirmedVisits.reduce((total, registration) => total + Number(registration.partySize || 0), 0);
-    const studentTotal = studentRows.length || confirmedStudents || requestedStudents;
-    const registrationGoal = Math.max(studentTotal, 120);
-    const registrationPct = Math.min(100, Math.round((studentTotal / registrationGoal) * 100));
-    const nextConfirmed = confirmedVisits
-        .map((registration) => ({ ...registration, eventRecord: events.find((event) => event.title === registration.event) || {} }))
-        .sort((left, right) => new Date(left.eventRecord.startsAt || 0) - new Date(right.eventRecord.startsAt || 0))[0];
-    const nextDate = nextConfirmed?.eventRecord?.startsAt || scheduledRequests[0]?.eventDate || publishedEvents[0]?.startsAt;
+    const studentTotal = studentRows.length;
+    const registrationPct = studentTotal > 0 ? Math.min(100, Math.round((confirmedStudents / studentTotal) * 100)) : 0;
     const universityCards = schoolUniversityCards(events, schools);
     const recommended = universityCards.slice(0, 3);
-    const interestRows = schoolInterestDistribution(studentRows, registrations, events);
-    const engagementScore = Math.min(9.8, Math.max(4.2, ((activeRequests.length * 0.8) + (confirmedVisits.length * 1.1) + (studentRows.length * 0.03) + 5))).toFixed(1);
-    const upcomingVisits = schoolOverviewUpcomingVisits(confirmedVisits, visitRequests, publishedEvents, events).slice(0, 5);
+    const interestRows = schoolInterestDistribution(studentRows);
+    const attendanceRate = Math.min(100, Math.max(0, Number(analytics.engagementAverage || 0)));
+    const upcomingVisits = schoolOverviewUpcomingVisits(confirmedVisits, visitRequests, publishedEvents).slice(0, 5);
+    const nextDate = upcomingVisits[0]?.date || null;
     const latestMessage = messages[0];
-    const todayVisits = upcomingVisits.slice(0, 3);
-    const firstName = (messages[0]?.sender || schoolProfileNameFromStudents(studentRows) || 'Coordinator').split(' ')[0];
+    const schedulePreview = upcomingVisits.slice(0, 3);
+    const firstName = String(profile.coordinatorName || 'Coordinator').trim().split(' ')[0] || 'Coordinator';
     const activityItems = [
         latestMessage && {
             id: 'message',
@@ -4722,7 +5030,7 @@ function SchoolCoordinatorOverviewSection({ events = [], registrations = [], sch
                         <span className="mt-1 block text-3xl font-black text-slate-950">{studentTotal.toLocaleString()}</span>
                     </span>
                     <span className="flex flex-col items-end text-[#006a61]">
-                        <span className="text-xs font-black">+{Math.max(1, Math.round(studentTotal / 100))}%</span>
+                        <span className="text-xs font-black">{confirmedStudents.toLocaleString()} booked</span>
                         <Activity size={28} />
                     </span>
                 </button>
@@ -4740,13 +5048,13 @@ function SchoolCoordinatorOverviewSection({ events = [], registrations = [], sch
 
             <section className="space-y-3">
                 <div className="flex items-center justify-between">
-                    <h2 className="text-xl font-black text-slate-950">Today's Schedule</h2>
+                    <h2 className="text-xl font-black text-slate-950">Upcoming Schedule</h2>
                     <button type="button" onClick={() => setSection?.('calendar')} className="text-xs font-black text-[#006a61]">View Calendar</button>
                 </div>
                 <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
                     <div className="relative space-y-6 p-5">
                         <div className="absolute bottom-8 left-9 top-8 w-px bg-slate-200" />
-                        {todayVisits.length ? todayVisits.map((visit, index) => (
+                        {schedulePreview.length ? schedulePreview.map((visit, index) => (
                             <button key={visit.id} type="button" onClick={() => setSection?.(visit.status === 'confirmed' ? 'calendar' : 'bookings')} className="relative z-10 flex w-full gap-4 text-left">
                                 <span className={cx('grid h-8 w-8 shrink-0 place-items-center rounded-full', index === 0 ? 'bg-[#86f2e4] text-[#006a61]' : index === 1 ? 'bg-[#131b2e] text-white' : 'bg-[#e5eeff] text-slate-600')}>
                                     {index === 1 ? <UsersRound size={15} /> : <School size={15} />}
@@ -4811,7 +5119,7 @@ function SchoolCoordinatorOverviewSection({ events = [], registrations = [], sch
             <div className="grid gap-4 md:grid-cols-3">
                 <SchoolOverviewMetric icon={FolderKanban} label="Active Requests" value={activeRequests.length} trend={`${pendingRequests.length} pending review`} tone="blue" />
                 <SchoolOverviewMetric icon={CalendarDays} label="Confirmed Visits" value={confirmedVisits.length || scheduledRequests.length} trend={nextDate ? `Next: ${formatShortDate(nextDate)}` : 'No confirmed date'} tone="indigo" />
-                <SchoolOverviewMetric icon={GraduationCap} label="Registered Students" value={studentTotal.toLocaleString()} trend={`${registrationPct}% of current goal`} tone="emerald" progress={registrationPct} />
+                <SchoolOverviewMetric icon={GraduationCap} label="Registered Students" value={confirmedStudents.toLocaleString()} trend={studentTotal > 0 ? `${registrationPct}% of ${studentTotal.toLocaleString()} student profiles` : 'No student profiles recorded'} tone="emerald" progress={registrationPct} />
             </div>
 
             <div className="grid gap-6 xl:grid-cols-12">
@@ -4819,19 +5127,19 @@ function SchoolCoordinatorOverviewSection({ events = [], registrations = [], sch
                     <div className="relative h-full overflow-hidden rounded-2xl border border-slate-200 bg-white/90 p-6 shadow-sm">
                         <div className="absolute -right-14 -top-14 h-36 w-36 rounded-full bg-lime-200/40 blur-3xl" />
                         <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-emerald-700">
-                            <Sparkles size={13} /> AI Insight
+                            <CalendarDays size={13} /> Published visits
                         </span>
-                        <h2 className="mt-4 text-2xl font-black text-slate-950">Guide Next</h2>
+                        <h2 className="mt-4 text-2xl font-black text-slate-950">Available universities</h2>
                         <p className="mt-2 text-sm leading-6 text-slate-600">
-                            Based on current student interests and your request history, prioritize universities with strong alignment and open visit capacity.
+                            Universities below currently have published campus visit opportunities in the platform.
                         </p>
                         <div className="mt-5 space-y-3">
                             {recommended.map((university) => (
-                                <button key={university.name} type="button" onClick={() => setSection?.('explore-universities')} className="flex w-full items-center gap-3 rounded-xl border border-transparent p-3 text-left transition hover:border-slate-200 hover:bg-slate-50">
+                                <button key={university.name} type="button" onClick={() => setSection?.('events')} className="flex w-full items-center gap-3 rounded-xl border border-transparent p-3 text-left transition hover:border-slate-200 hover:bg-slate-50">
                                     <span className={cx('grid h-12 w-12 shrink-0 place-items-center rounded-xl text-xs font-black text-white', university.image || 'bg-slate-950')}>{university.name.split(' ').map((word) => word[0]).slice(0, 2).join('')}</span>
                                     <span className="min-w-0 flex-1">
                                         <span className="block truncate text-sm font-black text-slate-950">{university.name}</span>
-                                        <span className="mt-0.5 block text-xs font-semibold text-slate-500">{university.match}% match • {university.focus}</span>
+                                        <span className="mt-0.5 block text-xs font-semibold text-slate-500">{university.upcomingVisits} published visit{university.upcomingVisits === 1 ? '' : 's'} · {university.focus}</span>
                                     </span>
                                     <ArrowRight size={16} className="text-blue-700" />
                                 </button>
@@ -4930,23 +5238,24 @@ function SchoolCoordinatorOverviewSection({ events = [], registrations = [], sch
                                 </div>
                             </div>
                         ))}
+                        {interestRows.length === 0 && <EmptyState message="Add student interests to build the department distribution." />}
                     </div>
                 </section>
 
                 <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                     <div className="flex items-center justify-between gap-4">
                         <div>
-                            <h2 className="text-lg font-black text-slate-950">Engagement Score</h2>
-                            <p className="mt-1 text-sm text-slate-500">Overall student platform activity</p>
+                            <h2 className="text-lg font-black text-slate-950">Attendance Rate</h2>
+                            <p className="mt-1 text-sm text-slate-500">Attended seats against confirmed seats</p>
                             <div className="mt-4 flex items-end gap-2">
-                                <span className="text-5xl font-black text-slate-950">{engagementScore}</span>
-                                <span className="pb-1 text-sm font-black text-emerald-600">{Number(engagementScore) >= 7.5 ? 'High' : 'Growing'}</span>
+                                <span className="text-5xl font-black text-slate-950">{Math.round(attendanceRate)}%</span>
+                                <span className="pb-1 text-sm font-black text-emerald-600">{confirmedStudents > 0 ? 'Recorded' : 'No attendance'}</span>
                             </div>
                         </div>
                         <div className="relative h-28 w-28">
                             <svg className="h-full w-full -rotate-90" viewBox="0 0 36 36">
                                 <path className="text-slate-100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeDasharray="100, 100" strokeWidth="3" />
-                                <path className="text-lime-500" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeDasharray={`${Math.round(Number(engagementScore) * 10)}, 100`} strokeLinecap="round" strokeWidth="3" />
+                                <path className="text-lime-500" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeDasharray={`${Math.round(attendanceRate)}, 100`} strokeLinecap="round" strokeWidth="3" />
                             </svg>
                             <Sparkles className="absolute inset-0 m-auto text-lime-600" size={24} />
                         </div>
@@ -4981,23 +5290,23 @@ function SchoolOverviewMetric({ icon: Icon, label, value, trend, progress, tone 
 
 function schoolOverviewUpcomingVisits(registrations, visitRequests, events) {
     const fromRegistrations = registrations.map((registration) => {
-        const event = events.find((item) => item.title === registration.event || item.id === registration.eventId) || {};
+        const event = events.find((item) => Number(item.id) === Number(registration.eventId)) || {};
         const university = event.university || registration.name || 'University Partner';
 
         return {
             id: `registration-${registration.id}`,
             university,
             program: registration.event || event.title || 'Confirmed visit',
-            date: event.startsAt || registration.createdAt,
+            date: event.startsAt || registration.eventDate || null,
             endsAt: event.endsAt,
-            location: event.location || registration.eventLocation || 'Campus location',
-            venue: event.venue || 'Confirmed venue',
+            location: event.location || registration.eventLocation || 'Location not recorded',
+            venue: event.venue || 'Venue not recorded',
             status: 'confirmed',
             statusLabel: `${Number(registration.partySize || 0).toLocaleString()} Registered`,
             initials: university.split(' ').map((word) => word[0]).slice(0, 3).join(''),
         };
     });
-    const fromRequests = visitRequests.filter((request) => request.status !== 'declined').map((request) => {
+    const fromRequests = visitRequests.filter((request) => !['declined', 'cancelled'].includes(request.status)).map((request) => {
         const university = request.university || 'University Partner';
 
         return {
@@ -5009,40 +5318,51 @@ function schoolOverviewUpcomingVisits(registrations, visitRequests, events) {
             location: request.eventLocation || 'Location pending',
             venue: request.status === 'requested' ? 'Awaiting approval' : 'Itinerary pending',
             status: request.status,
-            statusLabel: request.status === 'requested' ? 'Pending Start' : `${Number(request.groupSize || 0).toLocaleString()} Requested`,
+            statusLabel: request.status === 'requested' ? 'Pending approval' : `${Number(request.groupSize || 0).toLocaleString()} Requested`,
             initials: university.split(' ').map((word) => word[0]).slice(0, 3).join(''),
         };
     });
 
     return [...fromRegistrations, ...fromRequests]
-        .filter((visit) => visit.date)
+        .filter((visit) => {
+            if (!visit.date) return false;
+            const rawBoundary = visit.endsAt || visit.date;
+            const boundary = new Date(rawBoundary);
+            if (/^\d{4}-\d{2}-\d{2}$/.test(String(rawBoundary))) boundary.setHours(23, 59, 59, 999);
+            return !Number.isNaN(boundary.getTime()) && boundary.getTime() >= Date.now();
+        })
         .sort((left, right) => new Date(left.date) - new Date(right.date));
 }
 
-function schoolInterestDistribution(students, registrations, events) {
+function schoolInterestDistribution(students) {
     const buckets = [
         ['STEM / Engineering', /stem|engineer|computer|robot|tech|data|science|ai/i],
         ['Arts & Humanities', /art|human|design|creative|media|history|literature/i],
         ['Business & Finance', /business|finance|management|economics|leadership/i],
     ];
-    const source = students.length
-        ? students.map((student) => student.interest || '')
-        : registrations.map((registration) => `${registration.interest || ''} ${registration.event || ''}`);
-    const total = Math.max(1, source.length);
-    const rows = buckets.map(([label, regex]) => {
-        const count = source.filter((value) => regex.test(value)).length;
-        return { label, percent: Math.max(8, Math.round((count / total) * 100)) };
+    const source = students
+        .map((student) => String(student.interest || '').trim())
+        .filter((interest) => interest && !/^undecided|not set$/i.test(interest));
+
+    if (source.length === 0) return [];
+
+    const counts = new Map(buckets.map(([label]) => [label, 0]));
+    let undeclared = 0;
+    source.forEach((interest) => {
+        const bucket = buckets.find(([, regex]) => regex.test(interest));
+        if (bucket) counts.set(bucket[0], counts.get(bucket[0]) + 1);
+        else undeclared += 1;
     });
-    const used = rows.reduce((sum, row) => sum + row.percent, 0);
 
-    if (used < 100) {
-        rows.push({ label: 'Exploratory / Undeclared', percent: 100 - used });
-    }
+    const rows = buckets
+        .map(([label]) => ({ label, count: counts.get(label) }))
+        .filter((row) => row.count > 0);
+    if (undeclared > 0) rows.push({ label: 'Exploratory / Undeclared', count: undeclared });
 
-    return rows.slice(0, 4);
+    return rows.map((row) => ({ ...row, percent: Math.round((row.count / source.length) * 100) }));
 }
 
-function SchoolStudentsSection({ csrf, events = [], students = [], errors = {} }) {
+function SchoolStudentsSection({ csrf, events = [], students = [], visitRequests = [], errors = {} }) {
     const [query, setQuery] = useState('');
     const [grade, setGrade] = useState('all');
     const [interest, setInterest] = useState('all');
@@ -5051,9 +5371,10 @@ function SchoolStudentsSection({ csrf, events = [], students = [], errors = {} }
     const [modal, setModal] = useState(null);
     const pageSize = 8;
     const eventOptions = useMemo(() => {
-        const titles = events.map((event) => event.title).filter(Boolean).slice(0, 8);
-        return titles.length ? titles : ['MIT Tech Tour', 'Stanford Virtual', 'Johns Hopkins Q&A', 'Berkeley Info Session'];
-    }, [events]);
+        return visitRequests
+            .filter((visit) => ['approved', 'scheduled'].includes(visit.status) && visit.eventId)
+            .map((visit) => ({ id: visit.id, label: `${visit.event || 'Campus visit'} · ${visit.university || 'University'}` }));
+    }, [visitRequests]);
     const rows = useMemo(() => normalizeSchoolStudents(students, events), [students, events]);
     const filtered = rows.filter((student) => {
         const normalizedQuery = query.trim().toLowerCase();
@@ -5313,13 +5634,15 @@ function SchoolStudentsSection({ csrf, events = [], students = [], errors = {} }
                         <p className="rounded-lg bg-blue-50 p-3 text-sm font-semibold text-blue-900">{selected.length} selected student(s) will be assigned.</p>
                         <label className="block">
                             <span className="text-xs font-black uppercase tracking-wide text-slate-500">Event</span>
-                            <select name="event_title" className="mt-2 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm font-semibold outline-none focus:border-blue-400">
-                                {eventOptions.map((title) => <option key={title} value={title}>{title}</option>)}
+                            <select name="visit_request_id" required className="mt-2 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm font-semibold outline-none focus:border-blue-400">
+                                <option value="">Select an approved visit</option>
+                                {eventOptions.map((visit) => <option key={visit.id} value={visit.id}>{visit.label}</option>)}
                             </select>
                         </label>
+                        {!eventOptions.length && <p className="rounded-lg bg-amber-50 p-3 text-sm font-semibold text-amber-800">A visit must be approved before students can be assigned.</p>}
                         <div className="flex justify-end gap-3">
                             <button type="button" onClick={() => setModal(null)} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-black text-slate-600">Cancel</button>
-                            <button className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-black text-white">Assign to Event</button>
+                            <button disabled={!eventOptions.length} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-black text-white disabled:bg-slate-300">Assign to Event</button>
                         </div>
                     </form>
                 </StudentModal>
@@ -5384,62 +5707,50 @@ function StudentForm({ csrf, action, method = 'POST', student = {}, errors = {},
     );
 }
 
-function SchoolExploreUniversitiesSection({ events = [], schools = [], setSection }) {
+function SchoolExploreUniversitiesSection({ events = [], setSection }) {
     const [query, setQuery] = useState('');
     const [location, setLocation] = useState('all');
-    const [institution, setInstitution] = useState('all');
     const [program, setProgram] = useState('all');
-    const [sortBy, setSortBy] = useState('match');
-    const [minimumMatch, setMinimumMatch] = useState(70);
-    const [selected, setSelected] = useState([]);
-    const [shortlist, setShortlist] = useState([]);
+    const [sortBy, setSortBy] = useState('date');
     const [profileUniversity, setProfileUniversity] = useState(null);
     const [page, setPage] = useState(1);
     const pageSize = 8;
+    const directoryCards = useMemo(() => schoolUniversityCards(events), [events]);
+    const availableLocations = useMemo(() => [...new Set(directoryCards.map((card) => card.location).filter(Boolean))].sort(), [directoryCards]);
+    const availablePrograms = useMemo(() => [...new Set(directoryCards.map((card) => card.focus).filter(Boolean))].sort(), [directoryCards]);
     const universities = useMemo(() => {
         const normalizedQuery = query.trim().toLowerCase();
 
-        return schoolUniversityCards(events, schools)
+        return directoryCards
             .filter((card) => {
                 const searchable = `${card.name} ${card.location} ${card.type} ${card.focus} ${card.tags.join(' ')}`.toLowerCase();
                 const queryMatch = !normalizedQuery || searchable.includes(normalizedQuery);
-                const locationMatch = location === 'all' || card.region === location || card.location.toLowerCase().includes(location);
-                const institutionMatch = institution === 'all' || card.type.toLowerCase().includes(institution);
-                const programMatch = program === 'all' || card.focus.toLowerCase().includes(program);
-                const matchThreshold = Number(card.match || 0) >= minimumMatch;
-                return queryMatch && locationMatch && institutionMatch && programMatch && matchThreshold;
+                const locationMatch = location === 'all' || card.location === location;
+                const programMatch = program === 'all' || card.focus === program;
+                return queryMatch && locationMatch && programMatch;
             })
             .sort((left, right) => {
-                if (sortBy === 'engagement') return Number(right.score || 0) - Number(left.score || 0);
                 if (sortBy === 'visits') return Number(right.upcomingVisits || 0) - Number(left.upcomingVisits || 0);
+                if (sortBy === 'location') return String(left.location || '').localeCompare(String(right.location || ''));
                 if (sortBy === 'name') return left.name.localeCompare(right.name);
-                return Number(right.match || 0) - Number(left.match || 0);
+                return new Date(left.nextVisit || '9999-12-31') - new Date(right.nextVisit || '9999-12-31');
             });
-    }, [events, schools, query, location, institution, program, minimumMatch, sortBy]);
+    }, [directoryCards, query, location, program, sortBy]);
     const totalPages = Math.max(1, Math.ceil(universities.length / pageSize));
     const visibleUniversities = universities.slice((page - 1) * pageSize, page * pageSize);
-    const topMatch = universities[0];
-    const shortlistItems = schoolUniversityCards(events, schools).filter((card) => shortlist.includes(card.name)).slice(0, 4);
+    const nextUniversity = universities.find((card) => card.nextVisit);
+    const publishedVisitCount = directoryCards.reduce((total, card) => total + card.upcomingVisits, 0);
+    const locationCount = availableLocations.length;
 
     useEffect(() => {
         setPage(1);
-    }, [query, location, institution, program, minimumMatch, sortBy]);
-
-    const toggleSelected = (name) => {
-        setSelected((current) => current.includes(name) ? current.filter((item) => item !== name) : [...current, name]);
-    };
-
-    const toggleShortlist = (name) => {
-        setShortlist((current) => current.includes(name) ? current.filter((item) => item !== name) : [...current, name]);
-    };
+    }, [query, location, program, sortBy]);
 
     const resetFilters = () => {
         setQuery('');
         setLocation('all');
-        setInstitution('all');
         setProgram('all');
-        setMinimumMatch(70);
-        setSortBy('match');
+        setSortBy('date');
     };
 
     if (profileUniversity) {
@@ -5447,9 +5758,7 @@ function SchoolExploreUniversitiesSection({ events = [], schools = [], setSectio
             <UniversityProfileSection
                 university={profileUniversity}
                 events={events}
-                isSaved={shortlist.includes(profileUniversity.name)}
                 onBack={() => setProfileUniversity(null)}
-                onSave={() => toggleShortlist(profileUniversity.name)}
                 onOpenVisits={() => setSection?.('events')}
             />
         );
@@ -5462,17 +5771,17 @@ function SchoolExploreUniversitiesSection({ events = [], schools = [], setSectio
                     <div>
                         <h1 className="text-3xl font-black text-slate-950">Explore Universities</h1>
                         <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
-                            Search, compare, and shortlist universities for student cohorts. This workspace is designed for large datasets with filters, ranking, and paginated results.
+                            Search universities with currently published visit programs, then open the real program schedule for your student cohort.
                         </p>
                     </div>
                     <div className="grid gap-3 sm:grid-cols-3 xl:w-[520px]">
                         <DiscoveryStat label="Results" value={universities.length.toLocaleString()} />
-                        <DiscoveryStat label="Selected" value={selected.length} />
-                        <DiscoveryStat label="Shortlist" value={shortlist.length} />
+                        <DiscoveryStat label="Published Visits" value={publishedVisitCount.toLocaleString()} />
+                        <DiscoveryStat label="Locations" value={locationCount.toLocaleString()} />
                     </div>
                 </div>
 
-                <div className="grid gap-4 border-t border-slate-200 bg-slate-50 p-4 lg:grid-cols-[1.3fr_repeat(5,minmax(0,1fr))]">
+                <div className="grid gap-4 border-t border-slate-200 bg-slate-50 p-4 lg:grid-cols-[1.3fr_repeat(4,minmax(0,1fr))]">
                     <label className="relative lg:col-span-2">
                         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                         <input
@@ -5483,29 +5792,17 @@ function SchoolExploreUniversitiesSection({ events = [], schools = [], setSectio
                         />
                     </label>
                     <DiscoverySelect value={location} onChange={setLocation} options={[
-                        ['all', 'All Regions'],
-                        ['west', 'West Coast'],
-                        ['northeast', 'Northeast'],
-                        ['midwest', 'Midwest'],
-                        ['south', 'South'],
-                    ]} />
-                    <DiscoverySelect value={institution} onChange={setInstitution} options={[
-                        ['all', 'All Types'],
-                        ['private', 'Private'],
-                        ['public', 'Public'],
-                        ['technical', 'Technical'],
+                        ['all', 'All Locations'],
+                        ...availableLocations.map((item) => [item, item]),
                     ]} />
                     <DiscoverySelect value={program} onChange={setProgram} options={[
                         ['all', 'All Programs'],
-                        ['engineering', 'Engineering'],
-                        ['business', 'Business'],
-                        ['arts', 'Liberal Arts'],
-                        ['health', 'Health Sciences'],
+                        ...availablePrograms.map((item) => [item, item]),
                     ]} />
                     <DiscoverySelect value={sortBy} onChange={setSortBy} options={[
-                        ['match', 'Sort: AI match'],
-                        ['engagement', 'Sort: engagement'],
+                        ['date', 'Sort: next visit'],
                         ['visits', 'Sort: visits'],
+                        ['location', 'Sort: location'],
                         ['name', 'Sort: name'],
                     ]} />
                     <button type="button" onClick={resetFilters} className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-600 hover:border-blue-200 hover:text-blue-700">
@@ -5519,53 +5816,25 @@ function SchoolExploreUniversitiesSection({ events = [], schools = [], setSectio
                     <div className="flex flex-col gap-4 border-b border-slate-200 p-4 lg:flex-row lg:items-center lg:justify-between">
                         <div className="flex flex-wrap items-center gap-2">
                             <span className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-black uppercase text-emerald-700">
-                                <Sparkles size={14} /> AI Discovery Active
+                                <CalendarDays size={14} /> Published Visit Directory
                             </span>
-                            <span className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-600">Minimum match: {minimumMatch}%</span>
-                            <input
-                                type="range"
-                                min="50"
-                                max="95"
-                                step="5"
-                                value={minimumMatch}
-                                onChange={(event) => setMinimumMatch(Number(event.target.value))}
-                                className="w-36 accent-blue-700"
-                                aria-label="Minimum match score"
-                            />
+                            <span className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-600">{publishedVisitCount} published program(s)</span>
                         </div>
-                        <div className="flex items-center gap-2">
-                            <button type="button" className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-black text-slate-600 hover:text-blue-700">
-                                <Download size={14} /> Export
-                            </button>
-                            <button type="button" disabled={!selected.length} className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-3 py-2 text-xs font-black text-white disabled:cursor-not-allowed disabled:bg-slate-300">
-                                <CheckSquare size={14} /> Compare {selected.length || ''}
-                            </button>
-                        </div>
+                        <p className="text-xs font-semibold text-slate-500">Every row is built from a current published campus event.</p>
                     </div>
 
-                    <div className="hidden bg-slate-50 px-5 py-3 text-[11px] font-black uppercase tracking-wide text-slate-400 lg:grid lg:grid-cols-[44px_1.6fr_1fr_1fr_120px_120px_1.2fr_150px]">
-                        <span />
+                    <div className="hidden bg-slate-50 px-5 py-3 text-[11px] font-black uppercase tracking-wide text-slate-400 lg:grid lg:grid-cols-[1.6fr_1fr_1fr_120px_1.2fr_150px]">
                         <span>University</span>
                         <span>Location</span>
-                        <span>Program fit</span>
-                        <span>AI match</span>
-                        <span>Engagement</span>
-                        <span>Signals</span>
+                        <span>Program focus</span>
+                        <span>Published visits</span>
+                        <span>Next visit</span>
                         <span>Actions</span>
                     </div>
 
                     <div className="divide-y divide-slate-100">
                         {visibleUniversities.map((card) => (
-                            <article key={card.name} className="grid gap-4 p-5 transition hover:bg-blue-50/40 lg:grid-cols-[44px_1.6fr_1fr_1fr_120px_120px_1.2fr_150px] lg:items-center">
-                                <label className="flex items-center">
-                                    <input
-                                        type="checkbox"
-                                        checked={selected.includes(card.name)}
-                                        onChange={() => toggleSelected(card.name)}
-                                        className="h-4 w-4 rounded border-slate-300 text-blue-700"
-                                        aria-label={`Select ${card.name}`}
-                                    />
-                                </label>
+                            <article key={card.name} className="grid gap-4 p-5 transition hover:bg-blue-50/40 lg:grid-cols-[1.6fr_1fr_1fr_120px_1.2fr_150px] lg:items-center">
                                 <div className="flex min-w-0 items-center gap-3">
                                     <span className={cx('grid h-12 w-12 shrink-0 place-items-center rounded-xl text-sm font-black text-white shadow-sm', card.image)}>{card.name.split(' ').map((part) => part[0]).slice(0, 2).join('')}</span>
                                     <div className="min-w-0">
@@ -5576,23 +5845,11 @@ function SchoolExploreUniversitiesSection({ events = [], schools = [], setSectio
                                 <p className="flex items-center gap-1 text-sm font-semibold text-slate-600"><MapPin size={14} className="text-slate-400" /> {card.location}</p>
                                 <div>
                                     <p className="text-sm font-black text-slate-800">{card.focus}</p>
-                                    <p className="mt-1 text-xs font-semibold text-slate-400">{card.upcomingVisits} visit slots</p>
+                                    <p className="mt-1 text-xs font-semibold text-slate-400">{card.upcomingVisits} published program(s)</p>
                                 </div>
-                                <ScoreMeter value={card.match} tone="emerald" suffix="%" />
-                                <ScoreMeter value={card.score} tone="blue" />
-                                <div className="flex flex-wrap gap-1.5">
-                                    {card.tags.slice(0, 3).map((tag) => (
-                                        <span key={tag} className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-black uppercase text-slate-500">{tag}</span>
-                                    ))}
-                                </div>
+                                <p className="text-sm font-black text-slate-800">{card.upcomingVisits}</p>
+                                <p className="text-sm font-semibold text-slate-600">{card.nextVisit ? formatShortDate(card.nextVisit) : 'No future date'}</p>
                                 <div className="flex items-center gap-2">
-                                    <button
-                                        type="button"
-                                        onClick={() => toggleShortlist(card.name)}
-                                        className={cx('rounded-lg border px-3 py-2 text-xs font-black', shortlist.includes(card.name) ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-slate-200 bg-white text-slate-600 hover:text-blue-700')}
-                                    >
-                                        <Star size={14} className="inline" /> {shortlist.includes(card.name) ? 'Saved' : 'Save'}
-                                    </button>
                                     <button type="button" onClick={() => setProfileUniversity(card)} className="rounded-lg bg-slate-950 px-3 py-2 text-xs font-black text-white hover:bg-slate-800">View Profile</button>
                                 </div>
                             </article>
@@ -5622,39 +5879,39 @@ function SchoolExploreUniversitiesSection({ events = [], schools = [], setSectio
                         <div className="flex items-center gap-3">
                             <span className="grid h-11 w-11 place-items-center rounded-xl bg-emerald-50 text-emerald-700"><Activity size={20} /></span>
                             <div>
-                                <h2 className="text-xl font-black text-slate-950">AI Fit Brief</h2>
-                                <p className="text-xs font-bold text-slate-400">Refreshed from current cohort signals</p>
+                                <h2 className="text-xl font-black text-slate-950">Next Published Visit</h2>
+                                <p className="text-xs font-bold text-slate-400">Based on current event dates</p>
                             </div>
                         </div>
-                        {topMatch && (
+                        {nextUniversity ? (
                             <div className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-                                <p className="text-[11px] font-black uppercase text-emerald-700">Top Recommendation</p>
-                                <p className="mt-2 text-lg font-black text-slate-950">{topMatch.name}</p>
-                                <p className="mt-2 text-sm leading-6 text-slate-600">{topMatch.match}% match because your cohort shows strong {topMatch.focus.toLowerCase()} intent and prior engagement in {topMatch.location}.</p>
+                                <p className="text-[11px] font-black uppercase text-emerald-700">Upcoming Publisher</p>
+                                <p className="mt-2 text-lg font-black text-slate-950">{nextUniversity.name}</p>
+                                <p className="mt-2 text-sm leading-6 text-slate-600">{nextUniversity.nextVisit ? `${formatShortDate(nextUniversity.nextVisit)} · ` : ''}{nextUniversity.location}. {nextUniversity.upcomingVisits} published visit program(s).</p>
                             </div>
-                        )}
+                        ) : <EmptyState message="No university has a published visit program yet." />}
                         <div className="mt-5 space-y-4">
-                            <InsightBar label="STEM demand" value={86} />
-                            <InsightBar label="Travel feasibility" value={74} />
-                            <InsightBar label="Application conversion" value={68} />
+                            <MiniStat label="Published visits" value={publishedVisitCount} />
+                            <MiniStat label="University locations" value={locationCount} />
                         </div>
                     </section>
 
                     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                         <div className="flex items-center justify-between">
-                            <h2 className="text-lg font-black text-slate-950">Shortlist</h2>
-                            <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-black text-slate-500">{shortlist.length}</span>
+                            <h2 className="text-lg font-black text-slate-950">Published Directory</h2>
+                            <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-black text-slate-500">{universities.length}</span>
                         </div>
                         <div className="mt-4 space-y-3">
-                            {(shortlistItems.length ? shortlistItems : universities.slice(0, 3)).map((card) => (
+                            {universities.slice(0, 3).map((card) => (
                                 <div key={card.name} className="rounded-xl border border-slate-100 bg-slate-50 p-3">
                                     <div className="flex items-center justify-between gap-3">
                                         <p className="font-black text-slate-900">{card.name}</p>
-                                        <span className="text-xs font-black text-emerald-700">{card.match}%</span>
+                                        <span className="text-xs font-black text-emerald-700">{card.upcomingVisits} visit(s)</span>
                                     </div>
                                     <p className="mt-1 text-xs font-semibold text-slate-500">{card.focus} - {card.location}</p>
                                 </div>
                             ))}
+                            {universities.length === 0 && <p className="text-sm font-semibold text-slate-500">No published university visits are available.</p>}
                         </div>
                     </section>
 
@@ -5678,23 +5935,20 @@ function DiscoveryStat({ label, value }) {
     );
 }
 
-function UniversityProfileSection({ university, events = [], isSaved, onBack, onSave, onOpenVisits }) {
-    const relatedEvents = events.filter((event) => {
-        const eventUniversity = (event.university || '').toLowerCase();
-        return eventUniversity && (eventUniversity.includes(university.name.toLowerCase()) || university.name.toLowerCase().includes(eventUniversity));
-    });
-    const fallbackEvents = [
-        { title: 'Campus Tour & Engineering Info', startsAt: '2026-10-15T10:00:00', location: 'Virtual', action: 'Register' },
-        { title: 'Silicon Valley Campus Visit', startsAt: '2026-10-22T09:00:00', location: university.location, action: 'Request' },
-        { title: 'Admissions Q&A', startsAt: '2026-11-05T14:00:00', location: 'Virtual', action: 'RSVP' },
-    ];
-    const campusEvents = (relatedEvents.length ? relatedEvents : fallbackEvents).slice(0, 3);
-    const rank = Math.max(1, 18 - Math.round(Number(university.match || 80) / 7));
-    const acceptance = Math.max(4, 18 - Math.round(Number(university.match || 80) / 8)).toFixed(1);
-    const sat = 1280 + Math.round(Number(university.score || 80) * 2.8);
-    const aid = Math.max(28, Math.round(Number(university.match || 80) * 0.65));
-    const diversity = Math.max(44, Math.min(74, Math.round(Number(university.score || 70) * 0.72)));
-    const outcomes = Math.max(82, Math.min(97, Math.round(Number(university.match || 80) * 0.98)));
+function UniversityProfileSection({ university, events = [], onBack, onOpenVisits }) {
+    const publishedEvents = (university.publishedVisits?.length
+        ? university.publishedVisits
+        : events.filter((event) => event.status === 'published' && event.university === university.name))
+        .slice()
+        .sort((left, right) => new Date(left.startsAt || '9999-12-31') - new Date(right.startsAt || '9999-12-31'));
+    const campusEvents = publishedEvents.slice(0, 3);
+    const totalCapacity = publishedEvents.reduce((total, event) => total + Number(event.capacity || 0), 0);
+    const registeredSeats = publishedEvents.reduce((total, event) => total + Number(event.confirmedSeats || 0), 0);
+    const openSeats = publishedEvents.reduce((total, event) => total + Math.max(0, Number(event.capacity || 0) - Number(event.confirmedSeats || 0)), 0);
+    const nextVisit = publishedEvents.find((event) => {
+        const startsAt = new Date(event.startsAt || '').getTime();
+        return Number.isFinite(startsAt) && startsAt >= Date.now();
+    }) || null;
 
     return (
         <div className="space-y-5">
@@ -5714,31 +5968,23 @@ function UniversityProfileSection({ university, events = [], isSaved, onBack, on
                         </div>
                         <div>
                             <div className="flex flex-wrap gap-2">
-                                <span className="rounded bg-blue-50 px-2 py-1 text-[10px] font-black text-blue-700">Top 10 {university.focus}</span>
-                                <span className="rounded bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-700">Research I</span>
+                                <span className="rounded bg-blue-50 px-2 py-1 text-[10px] font-black text-blue-700">University publisher</span>
+                                <span className="rounded bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-700">{publishedEvents.length} published visit{publishedEvents.length === 1 ? '' : 's'}</span>
                             </div>
                             <h1 className="mt-2 text-4xl font-black tracking-tight text-slate-950">{university.name}</h1>
                             <p className="mt-2 flex items-center gap-1 text-sm font-semibold text-slate-500"><MapPin size={15} /> {university.location}</p>
                         </div>
                     </div>
-                    <div className="flex gap-3">
-                        <button type="button" onClick={onSave} className={cx('rounded-lg border px-6 py-3 text-sm font-black', isSaved ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-slate-200 bg-white text-slate-700 hover:border-blue-200 hover:text-blue-700')}>
-                            {isSaved ? 'Saved' : 'Save'}
-                        </button>
-                        <button type="button" className="rounded-lg bg-blue-700 px-6 py-3 text-sm font-black text-white hover:bg-blue-800">Brochure</button>
-                    </div>
+                    <button type="button" onClick={onOpenVisits} className="rounded-lg bg-blue-700 px-6 py-3 text-sm font-black text-white hover:bg-blue-800">View Visits</button>
                 </div>
             </section>
 
             <div className="grid gap-5 lg:grid-cols-[1fr_340px]">
                 <section className="space-y-5">
                     <div className="grid gap-4 md:grid-cols-3">
-                        <UniversityProfileMetric label="National Rank" value={`#${rank}`} detail="+1 Position" tone="green" />
-                        <UniversityProfileMetric label="Acceptance" value={`${acceptance}%`} detail="Highly Selective" tone="red" />
-                        <UniversityProfileMetric label="Avg SAT" value={sat} detail="Mid 50%" />
-                        <UniversityProfileMetric label="Outcomes" value={`${outcomes}%`} detail="Employed/Grad" />
-                        <UniversityProfileMetric label="Diversity" value={`${diversity}%`} detail="Students of Color" />
-                        <UniversityProfileMetric label="Avg Aid" value={`$${aid}k`} detail="Need-Based" />
+                        <UniversityProfileMetric label="Published Visits" value={publishedEvents.length} detail={`${registeredSeats.toLocaleString()} registered`} />
+                        <UniversityProfileMetric label="Open Seats" value={openSeats.toLocaleString()} detail={`${totalCapacity.toLocaleString()} total capacity`} tone="green" />
+                        <UniversityProfileMetric label="Next Visit" value={nextVisit ? formatShortDate(nextVisit.startsAt) : 'Not scheduled'} detail={nextVisit ? (nextVisit.location || nextVisit.venue || 'Location TBA') : 'No future date posted'} />
                     </div>
 
                     <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -5755,11 +6001,12 @@ function UniversityProfileSection({ university, events = [], isSaved, onBack, on
                                     </div>
                                     <div>
                                         <p className="font-black text-slate-950">{event.title}</p>
-                                        <p className="mt-1 text-xs font-semibold text-slate-500">{event.location || university.location} - {formatTimeRange(event.startsAt, event.endsAt || event.event_date)}</p>
+                                        <p className="mt-1 text-xs font-semibold text-slate-500">{event.location || event.venue || 'Location TBA'} - {formatTimeRange(event.startsAt, event.endsAt || event.event_date)}</p>
                                     </div>
-                                    <button type="button" onClick={onOpenVisits} className="text-sm font-black text-blue-700">{event.action || 'Register'}</button>
+                                    <button type="button" onClick={onOpenVisits} className="text-sm font-black text-blue-700">View</button>
                                 </div>
                             ))}
+                            {campusEvents.length === 0 && <EmptyState message="This university has no published visit programs." />}
                         </div>
                     </section>
                 </section>
@@ -5767,45 +6014,42 @@ function UniversityProfileSection({ university, events = [], isSaved, onBack, on
                 <aside className="space-y-5">
                     <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
                         <div className="flex items-center justify-between">
-                            <h2 className="text-lg font-black text-slate-950">Match Breakdown</h2>
-                            <span className="text-2xl font-black text-emerald-600">{university.match}%</span>
+                            <h2 className="text-lg font-black text-slate-950">Published Visit Summary</h2>
+                            <CalendarDays size={18} className="text-blue-700" />
                         </div>
                         <div className="mt-5 space-y-4">
-                            <ProfileMatchLine label="Academic Rigor" value={92} note="Strong" />
-                            <ProfileMatchLine label="STEM Alignment" value={university.focus.toLowerCase().includes('engineering') ? 96 : 76} note={university.focus.toLowerCase().includes('engineering') ? 'Excellent' : 'Good'} />
-                            <ProfileMatchLine label="Financial Fit" value={68} note="Moderate" />
+                            <MiniStat label="Published programs" value={publishedEvents.length.toLocaleString()} />
+                            <MiniStat label="Total capacity" value={totalCapacity.toLocaleString()} />
+                            <MiniStat label="Registered seats" value={registeredSeats.toLocaleString()} />
                         </div>
                         <p className="mt-5 rounded-lg bg-emerald-50 p-3 text-xs font-semibold leading-5 text-emerald-900">
-                            High interest in {university.tags[0]} and AP CS. Recommended: {university.focus} tour.
+                            Capacity and registration totals come directly from this university&apos;s published visit programs.
                         </p>
                     </section>
 
                     <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
                         <div className="flex items-center justify-between">
-                            <h2 className="text-lg font-black text-slate-950">Campus Highlights</h2>
+                            <h2 className="text-lg font-black text-slate-950">Available Programs</h2>
                             <Grid2X2 size={17} className="text-blue-700" />
                         </div>
-                        <div className="mt-4 grid grid-cols-2 gap-2">
-                            {['D.School Labs', 'Green Library', 'Science Quad'].map((label) => (
-                                <div key={label} className="flex h-24 items-end rounded-lg bg-slate-400 p-2 text-xs font-black text-white">{label}</div>
+                        <div className="mt-4 space-y-3">
+                            {publishedEvents.slice(0, 4).map((event) => (
+                                <div key={event.id || `${event.title}-${event.startsAt}`} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                                    <p className="text-sm font-black text-slate-950">{event.title}</p>
+                                    <p className="mt-1 text-xs font-semibold text-slate-500">{formatShortDate(event.startsAt)} - {event.location || event.venue || 'Location TBA'}</p>
+                                </div>
                             ))}
-                            <div className="grid h-24 place-items-center rounded-lg border border-slate-200 bg-slate-50 text-xs font-black text-blue-700">+12 More</div>
+                            {publishedEvents.length === 0 && <p className="text-sm font-semibold text-slate-500">No published programs are available.</p>}
                         </div>
                     </section>
 
                     <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
                         <div className="flex items-center gap-2">
                             <GraduationCap size={18} className="text-blue-700" />
-                            <h2 className="text-lg font-black text-slate-950">Graduate Success</h2>
+                            <h2 className="text-lg font-black text-slate-950">Visit Access</h2>
                         </div>
-                        <div className="mt-4 flex gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
-                            <div className="h-12 w-12 rounded-lg bg-slate-300" />
-                            <div>
-                                <p className="text-sm font-black text-slate-950">Sarah J. '22</p>
-                                <p className="text-xs font-semibold text-slate-500">B.S. Computer Science</p>
-                                <p className="mt-1 text-xs font-black text-blue-700">Now at Google AI</p>
-                            </div>
-                        </div>
+                        <p className="mt-3 text-sm font-semibold leading-6 text-slate-500">Open the visit directory to review schedules, seat availability, and any request already associated with your school.</p>
+                        <button type="button" onClick={onOpenVisits} className="mt-4 w-full rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-black text-white">Open Available Visits</button>
                     </section>
                 </aside>
             </div>
@@ -5820,20 +6064,6 @@ function UniversityProfileMetric({ label, value, detail, tone }) {
             <p className="mt-2 text-2xl font-black text-slate-950">{value}</p>
             <p className={cx('mt-1 text-xs font-bold', tone === 'green' ? 'text-emerald-600' : tone === 'red' ? 'text-red-600' : 'text-slate-500')}>{detail}</p>
         </article>
-    );
-}
-
-function ProfileMatchLine({ label, value, note }) {
-    return (
-        <div>
-            <div className="flex items-center justify-between text-xs font-black">
-                <span className="text-slate-600">{label}</span>
-                <span className="text-emerald-700">{note}</span>
-            </div>
-            <div className="mt-2 h-2 rounded-full bg-slate-100">
-                <div className="h-2 rounded-full bg-emerald-500" style={{ width: `${value}%` }} />
-            </div>
-        </div>
     );
 }
 
@@ -5855,31 +6085,344 @@ function DiscoverySelect({ value, onChange, options }) {
     );
 }
 
-function ScoreMeter({ value, tone = 'blue', suffix = '/100' }) {
-    const color = tone === 'emerald' ? 'bg-emerald-500' : 'bg-blue-600';
+function UniversitySettingsSection({ csrf, settings = {}, securityProfile = {}, compliance = {}, errors = {}, old = {} }) {
+    const profile = settings.profile || {};
+    const branding = settings.branding || {};
+    const defaults = settings.defaults || {};
+    const notifications = settings.notifications || {};
+    const integrations = settings.integrations || {};
+    const calendar = settings.calendar || {};
+    const team = settings.team || [];
+    const [teamEditor, setTeamEditor] = useState(null);
+    const [activeTab, setActiveTab] = useState('profile');
+    const tabs = [
+        ['profile', 'Profile', GraduationCap],
+        ['branding', 'Branding', Sparkles],
+        ['defaults', 'Visit Defaults', CalendarDays],
+        ['notifications', 'Notifications', Bell],
+        ['integrations', 'Integrations', Blocks],
+        ['calendar', 'Calendar', Clock],
+        ['team', 'Team Contacts', UsersRound],
+        ['security', 'Security', ShieldCheck],
+        ['compliance', 'Compliance', CheckSquare],
+    ];
+
     return (
-        <div>
-            <div className="flex items-center justify-between">
-                <span className="text-sm font-black text-slate-900">{value}{suffix}</span>
+        <section className="grid gap-4">
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div>
+                    <p className="text-xs font-black uppercase tracking-[0.14em] text-[#006a61]">University operations</p>
+                    <h1 className="mt-1 text-2xl font-black text-slate-950">Settings</h1>
+                    <p className="mt-1 max-w-3xl text-sm font-semibold leading-6 text-slate-500">Compact controls for profile, branding, team contacts, defaults, notifications, integrations, timezone, and security.</p>
+                </div>
+                <div className="mt-4 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                    {tabs.map(([id, label, Icon]) => (
+                        <button key={id} type="button" onClick={() => setActiveTab(id)} className={cx('inline-flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-xs font-black transition', activeTab === id ? 'bg-slate-950 text-white' : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50')}>
+                            <Icon size={14} />
+                            {label}
+                            {id === 'team' && <span className={cx('rounded-full px-1.5 py-0.5 text-[10px]', activeTab === id ? 'bg-white/15 text-white' : 'bg-slate-100 text-slate-500')}>{team.length}</span>}
+                        </button>
+                    ))}
+                </div>
             </div>
-            <div className="mt-2 h-2 rounded-full bg-slate-100">
-                <div className={cx('h-2 rounded-full', color)} style={{ width: `${Math.min(100, Number(value || 0))}%` }} />
-            </div>
-        </div>
+
+            {!['team', 'security', 'compliance'].includes(activeTab) && <form action="/dashboard/university/settings" method="POST" className="grid gap-4">
+                <input type="hidden" name="_token" value={csrf} />
+                <FormErrorSummary errors={errors} />
+                <div className="grid gap-4">
+                    <section className={cx('rounded-2xl border border-slate-200 bg-white p-4 shadow-sm', activeTab !== 'profile' && 'hidden')}>
+                        <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
+                            <span className="grid h-10 w-10 place-items-center rounded-2xl bg-[#e5eeff] text-[#006a61]"><GraduationCap size={20} /></span>
+                            <div>
+                                <h2 className="text-lg font-black text-slate-950">University Profile</h2>
+                                <p className="text-sm font-semibold text-slate-500">Controls institution identity across the portal.</p>
+                            </div>
+                        </div>
+                        <div className="mt-4 grid gap-4 md:grid-cols-2">
+                            <LightField label="Institution name" name="institution_name" defaultValue={old.institution_name || profile.institutionName || ''} error={errors.institution_name?.[0]} />
+                            <LightField label="Website" name="website" type="url" placeholder="https://university.edu" defaultValue={old.website || profile.website || ''} error={errors.website?.[0]} />
+                            <LightField label="Primary contact name" name="primary_contact_name" defaultValue={old.primary_contact_name || profile.primaryContactName || ''} error={errors.primary_contact_name?.[0]} />
+                            <LightField label="Primary contact email" name="primary_contact_email" type="email" defaultValue={old.primary_contact_email || profile.primaryContactEmail || ''} error={errors.primary_contact_email?.[0]} />
+                            <LightField label="Primary contact phone" name="primary_contact_phone" defaultValue={old.primary_contact_phone || profile.primaryContactPhone || ''} error={errors.primary_contact_phone?.[0]} />
+                            <LightField label="Recruitment region" name="region" defaultValue={old.region || profile.region || ''} error={errors.region?.[0]} />
+                            <div className="md:col-span-2"><LightField label="Campus address" name="address" defaultValue={old.address || profile.address || ''} error={errors.address?.[0]} /></div>
+                        </div>
+                    </section>
+
+                    <section className={cx('rounded-2xl border border-slate-200 bg-white p-4 shadow-sm', activeTab !== 'branding' && 'hidden')}>
+                        <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
+                            <span className="grid h-10 w-10 place-items-center rounded-2xl bg-teal-50 text-[#006a61]"><Sparkles size={20} /></span>
+                            <div>
+                                <h2 className="text-lg font-black text-slate-950">Logo & Branding</h2>
+                                <p className="text-sm font-semibold text-slate-500">Use a public logo URL or upload an image directly.</p>
+                            </div>
+                        </div>
+                        <div className="mt-4 grid gap-4 md:grid-cols-[1fr_140px]">
+                            <LightField label="Logo URL" name="logo_url" type="url" placeholder="https://..." defaultValue={old.logo_url || branding.logoUrl || ''} error={errors.logo_url?.[0]} />
+                            <LightField label="Brand color" name="brand_color" type="color" defaultValue={old.brand_color || branding.brandColor || '#006a61'} error={errors.brand_color?.[0]} />
+                        </div>
+                        <div className="mt-4 rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                            <p className="text-xs font-black uppercase tracking-wide text-slate-400">Preview</p>
+                            <div className="mt-3 flex items-center gap-3">
+                                <span className="grid h-12 w-12 place-items-center rounded-2xl text-white" style={{ backgroundColor: old.brand_color || branding.brandColor || '#006a61' }}>{branding.logoUrl ? <img src={branding.logoUrl} alt="" className="h-full w-full rounded-2xl object-cover" /> : 'SC'}</span>
+                                <div>
+                                    <p className="font-black text-slate-950">{old.institution_name || profile.institutionName || 'University name'}</p>
+                                    <p className="text-xs font-semibold text-slate-500">{profile.region || 'Recruitment region'}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section className={cx('rounded-2xl border border-slate-200 bg-white p-4 shadow-sm', activeTab !== 'defaults' && 'hidden')}>
+                        <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
+                            <span className="grid h-10 w-10 place-items-center rounded-2xl bg-blue-50 text-blue-700"><CalendarDays size={20} /></span>
+                            <div>
+                                <h2 className="text-lg font-black text-slate-950">Default Visit Configuration</h2>
+                                <p className="text-sm font-semibold text-slate-500">Used by the Create Program popup as operational defaults.</p>
+                            </div>
+                        </div>
+                        <div className="mt-4 grid gap-4 md:grid-cols-3">
+                            <LightField label="Default capacity" name="default_capacity" type="number" min="1" defaultValue={old.default_capacity || defaults.capacity || 80} error={errors.default_capacity?.[0]} />
+                            <LightField label="Per-school cap" name="default_per_school_capacity" type="number" min="1" defaultValue={old.default_per_school_capacity || defaults.per_school_capacity || ''} error={errors.default_per_school_capacity?.[0]} />
+                            <LightField label="Per-group cap" name="default_per_group_capacity" type="number" min="1" defaultValue={old.default_per_group_capacity || defaults.per_group_capacity || ''} error={errors.default_per_group_capacity?.[0]} />
+                            <LightField label="Visit duration minutes" name="default_visit_duration_minutes" type="number" min="30" defaultValue={old.default_visit_duration_minutes || defaults.duration_minutes || 180} error={errors.default_visit_duration_minutes?.[0]} />
+                            <label className="text-sm font-semibold text-slate-700">Default visibility<select name="default_visibility" defaultValue={old.default_visibility || defaults.visibility || 'public'} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-950 outline-none focus:border-[#006a61] focus:ring-4 focus:ring-emerald-50"><option value="public">Public</option><option value="invite_only">Invite only</option><option value="private">Private</option></select></label>
+                            <label className="text-sm font-semibold text-slate-700">Default lifecycle<select name="default_lifecycle_stage" defaultValue={old.default_lifecycle_stage || defaults.lifecycle_stage || 'planning'} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-950 outline-none focus:border-[#006a61] focus:ring-4 focus:ring-emerald-50"><option value="planning">Planning</option><option value="inviting">Inviting</option><option value="open">Open</option></select></label>
+                        </div>
+                    </section>
+                </div>
+
+                <aside className="grid content-start gap-4">
+                    <section className={cx('rounded-2xl border border-slate-200 bg-white p-4 shadow-sm', activeTab !== 'notifications' && 'hidden')}>
+                        <h2 className="text-lg font-black text-slate-950">Notification Preferences</h2>
+                        <p className="mt-1 text-sm font-semibold text-slate-500">Global email delivery is enforced. Event-type preferences are preserved as stored settings until fine-grained routing is connected.</p>
+                        <div className="mt-4 grid gap-3">
+                            <SettingsCheckbox name="notify_request_created" label="New visit request · stored only" defaultChecked={notifications.request_created !== false} disabled />
+                            <SettingsCheckbox name="notify_request_updated" label="Request status changes · stored only" defaultChecked={notifications.request_updated !== false} disabled />
+                            <SettingsCheckbox name="notify_registration_confirmed" label="Registration confirmations · stored only" defaultChecked={notifications.registration_confirmed !== false} disabled />
+                            <SettingsCheckbox name="notify_waitlist_promoted" label="Waitlist promotions · stored only" defaultChecked={notifications.waitlist_promoted !== false} disabled />
+                            <SettingsCheckbox name="notify_schedule_changed" label="Schedule changes · stored only" defaultChecked={notifications.schedule_changed !== false} disabled />
+                            <SettingsCheckbox name="email_enabled" label="Email notifications" defaultChecked={notifications.email_enabled !== false} />
+                            <SettingsCheckbox name="sms_enabled" label="SMS notifications · provider not configured" defaultChecked={false} disabled />
+                            <LightField label="Stored reminder default · not automatically applied" name="reminder_days_before" type="number" min="0" defaultValue={old.reminder_days_before || notifications.reminder_days_before || 7} error={errors.reminder_days_before?.[0]} readOnly />
+                        </div>
+                    </section>
+
+                    <section className={cx('rounded-2xl border border-slate-200 bg-white p-4 shadow-sm', activeTab !== 'integrations' && 'hidden')}>
+                        <h2 className="text-lg font-black text-slate-950">Integrations</h2>
+                        <p className="mt-1 text-sm font-semibold text-slate-500">iCal export is available now. Provider, CRM, webhook, and API sync settings are preserved but are not connected to delivery services.</p>
+                        <input type="hidden" name="calendar_provider" value={old.calendar_provider || integrations.calendar_provider || 'ical'} />
+                        <input type="hidden" name="crm_provider" value={old.crm_provider || integrations.crm_provider || 'none'} />
+                        <input type="hidden" name="webhook_url" value={old.webhook_url || integrations.webhook_url || ''} />
+                        <input type="hidden" name="api_sync_enabled" value={integrations.api_sync_enabled ? '1' : '0'} />
+                        <div className="mt-4 grid gap-4">
+                            <a href="/campus-events/calendar/export" className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#006a61] px-4 py-3 text-sm font-black text-white hover:bg-[#005b54]"><Download size={16} /> Export iCal Calendar</a>
+                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm font-semibold leading-6 text-slate-600">External calendar provider sync is unavailable. CRM, webhook, and API sync controls will become available only after a delivery provider is connected.</div>
+                        </div>
+                    </section>
+
+                    <section className={cx('rounded-2xl border border-slate-200 bg-white p-4 shadow-sm', activeTab !== 'calendar' && 'hidden')}>
+                        <h2 className="text-lg font-black text-slate-950">Timezone & Calendar</h2>
+                        <div className="mt-4 grid gap-4">
+                            <label className="text-sm font-semibold text-slate-700">Timezone<input name="timezone" defaultValue={old.timezone || calendar.timezone || 'UTC'} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-950 outline-none focus:border-[#006a61] focus:ring-4 focus:ring-emerald-50" list="timezone-options" /><datalist id="timezone-options"><option value="Africa/Lagos" /><option value="UTC" /><option value="America/New_York" /><option value="America/Chicago" /><option value="America/Los_Angeles" /><option value="Europe/London" /></datalist></label>
+                            <label className="text-sm font-semibold text-slate-700">Week starts on<select name="calendar_week_start" defaultValue={old.calendar_week_start || calendar.weekStart || 'monday'} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-950 outline-none focus:border-[#006a61] focus:ring-4 focus:ring-emerald-50"><option value="monday">Monday</option><option value="sunday">Sunday</option></select></label>
+                        </div>
+                    </section>
+
+                    <button className="rounded-2xl bg-slate-950 px-5 py-3 text-sm font-black text-white shadow-sm hover:bg-slate-800">Save Settings</button>
+                </aside>
+            </form>}
+
+            {activeTab === 'branding' && <form id="university-logo-upload" action="/university/branding/logo" method="POST" encType="multipart/form-data" className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <input type="hidden" name="_token" value={csrf} />
+                <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
+                    <label className="grid gap-2 text-sm font-black text-slate-700">Upload institution logo<input type="file" name="logo" accept="image/png,image/jpeg,image/webp,image/gif" required className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-semibold file:mr-3 file:rounded-lg file:border-0 file:bg-slate-950 file:px-3 file:py-2 file:text-xs file:font-black file:text-white" /><span className="text-xs font-semibold text-slate-400">PNG, JPG, WebP, or GIF up to 5 MB.</span></label>
+                    <button className="rounded-xl bg-[#006a61] px-5 py-3 text-sm font-black text-white">Upload Logo</button>
+                </div>
+            </form>}
+
+            {activeTab === 'team' && <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="flex flex-col gap-3 border-b border-slate-100 pb-4 md:flex-row md:items-center md:justify-between">
+                    <div>
+                        <h2 className="text-lg font-black text-slate-950">Team Contacts</h2>
+                        <p className="mt-1 text-sm font-semibold text-slate-500">Maintain an internal contact directory. These records do not create user accounts, send invitations, or grant portal access.</p>
+                    </div>
+                    <button type="button" onClick={() => setTeamEditor({})} className="rounded-xl bg-[#006a61] px-4 py-2 text-sm font-black text-white"><Plus size={15} className="inline" /> Add contact</button>
+                </div>
+                <div className="mt-4 grid gap-3">
+                    {team.length === 0 ? (
+                        <EmptyState message="No team contacts have been recorded yet." />
+                    ) : team.map((member) => (
+                        <article key={member.id} className="grid gap-3 rounded-2xl border border-slate-100 bg-slate-50 p-4 md:grid-cols-[1fr_auto] md:items-center">
+                            <div>
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <h3 className="font-black text-slate-950">{member.name}</h3>
+                                    <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-black uppercase text-slate-500">Contact record</span>
+                                </div>
+                                <p className="mt-1 text-sm font-semibold text-slate-500">{member.title || 'Recruiter'} · {member.email} {member.phone ? `· ${member.phone}` : ''}</p>
+                            </div>
+                            <div className="flex gap-2 md:justify-end">
+                                <button type="button" onClick={() => setTeamEditor(member)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700">Edit</button>
+                                <ConfirmForm csrf={csrf} action={`/dashboard/university/team-members/${member.id}`} method="DELETE" title="Remove team contact?" message={`Remove ${member.name} from the saved contact directory?`} confirmLabel="Remove" className="rounded-xl border border-rose-100 bg-white px-3 py-2 text-xs font-black text-rose-700">
+                                    Remove
+                                </ConfirmForm>
+                            </div>
+                        </article>
+                    ))}
+                </div>
+            </section>}
+
+            {activeTab === 'security' && <SecurityAccessSection csrf={csrf} profile={securityProfile || {}} errors={errors || {}} role="university" />}
+            {activeTab === 'compliance' && <UniversityComplianceSection csrf={csrf} compliance={compliance || {}} registrations={[]} />}
+
+            {teamEditor && <UniversityTeamModal csrf={csrf} member={teamEditor.id ? teamEditor : null} errors={errors || {}} onClose={() => setTeamEditor(null)} />}
+        </section>
     );
 }
 
-function InsightBar({ label, value }) {
+function UniversityComplianceSection({ csrf, compliance = {} }) {
+    const metrics = compliance.metrics || {};
+    const logs = compliance.logs || [];
+    const requests = compliance.requests || [];
+    const [logFilter, setLogFilter] = useState('');
+    const visibleLogs = logs.filter((log) => !logFilter || `${log.action} ${log.actor} ${log.subjectType}`.toLowerCase().includes(logFilter.toLowerCase()));
+
     return (
-        <div>
-            <div className="flex items-center justify-between text-xs font-black text-slate-500">
-                <span>{label}</span>
-                <span>{value}%</span>
+        <section className="grid gap-4">
+            <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+                <MiniStat label="Audit Logs" value={metrics.auditLogs || 0} />
+                <MiniStat label="Open Requests" value={metrics.openRequests || 0} />
+                <MiniStat label="Minor Records" value={metrics.minorRecords || 0} />
+                <MiniStat label="Pending Consent" value={metrics.pendingConsent || 0} />
             </div>
-            <div className="mt-2 h-2 rounded-full bg-slate-100">
-                <div className="h-2 rounded-full bg-blue-600" style={{ width: `${value}%` }} />
-            </div>
-        </div>
+
+            <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                <div className="flex items-start gap-3">
+                    <ShieldCheck className="mt-0.5 text-amber-700" size={20} />
+                    <div>
+                        <h2 className="font-black text-slate-950">Attendee Data Privacy Notice</h2>
+                        <p className="mt-1 text-sm font-semibold leading-6 text-slate-700">{compliance.privacyNotice || 'Use attendee data only for authorized visit coordination and compliance operations.'}</p>
+                        <p className="mt-2 text-xs font-bold leading-5 text-amber-800">This page records internal requests only. Submitting a request does not execute an export, deletion, or privacy decision; an authorized processor must complete that work.</p>
+                    </div>
+                </div>
+            </section>
+
+            <section className="grid gap-4 xl:grid-cols-[360px_1fr]">
+                <form action="/dashboard/university/compliance-requests" method="POST" className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <input type="hidden" name="_token" value={csrf} />
+                    <h2 className="text-lg font-black text-slate-950">Log Compliance Request</h2>
+                    <div className="mt-4 grid gap-3">
+                        <label className="text-sm font-bold text-slate-700">Request type<select name="type" className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm"><option value="data_export">Data export</option><option value="data_deletion">Data deletion</option><option value="consent_review">Consent review</option><option value="privacy_review">Privacy review</option></select></label>
+                        <label className="text-sm font-bold text-slate-700">Subject type<select name="subject_type" className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm"><option value="">General</option><option value="attendee">Attendee</option><option value="student_group">Student group</option><option value="program">Program</option><option value="school">School</option><option value="message">Message</option></select></label>
+                        <LightField label="Subject ID" name="subject_id" type="number" min="1" />
+                        <LightField label="Subject label" name="subject_label" placeholder="Student, group, program, or school name" />
+                        <label className="text-sm font-bold text-slate-700">Reason<textarea name="reason" rows="4" className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-[#006a61]" placeholder="Why is this export/deletion/review required?" /></label>
+                        <button className="rounded-xl bg-slate-950 px-4 py-3 text-sm font-black text-white">Log Request</button>
+                    </div>
+                </form>
+
+                <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+                    <div className="flex flex-col gap-3 border-b border-slate-100 p-4 md:flex-row md:items-center md:justify-between">
+                        <div>
+                            <h2 className="text-lg font-black text-slate-950">Compliance Requests</h2>
+                            <p className="mt-1 text-sm font-semibold text-slate-500">Track requests awaiting an authorized processor. University users can cancel an open request but cannot mark processing complete.</p>
+                        </div>
+                    </div>
+                    <div className="divide-y divide-slate-100">
+                        {requests.length === 0 ? <EmptyState message="No compliance requests yet." /> : requests.map((request) => (
+                            <article key={request.id} className="grid gap-3 p-4 md:grid-cols-[1fr_auto] md:items-center">
+                                <div>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <p className="text-sm font-black text-slate-950">{titleCase((request.type || '').replaceAll('_', ' '))}</p>
+                                        <span className={cx('rounded-full px-2 py-1 text-[10px] font-black uppercase', request.status === 'completed' ? 'bg-emerald-50 text-emerald-700' : request.status === 'rejected' ? 'bg-rose-50 text-rose-700' : request.status === 'cancelled' ? 'bg-slate-100 text-slate-600' : 'bg-blue-50 text-blue-700')}>{request.status}</span>
+                                    </div>
+                                    <p className="mt-1 text-xs font-semibold text-slate-500">{request.subjectLabel || request.subjectType || 'General request'} · {formatShortDate(request.createdAt)}</p>
+                                    {request.reason && <p className="mt-2 text-sm leading-6 text-slate-600">{request.reason}</p>}
+                                </div>
+                                {request.status === 'open' ? (
+                                    <form action={`/dashboard/university/compliance-requests/${request.id}/status`} method="POST">
+                                        <input type="hidden" name="_token" value={csrf} />
+                                        <input type="hidden" name="status" value="cancelled" />
+                                        <button className="rounded-xl border border-rose-200 bg-white px-3 py-2 text-xs font-black text-rose-700">Cancel request</button>
+                                    </form>
+                                ) : <span className="text-xs font-bold text-slate-400">Processor status is read-only</span>}
+                            </article>
+                        ))}
+                    </div>
+                </section>
+            </section>
+
+            <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+                <div className="flex flex-col gap-3 border-b border-slate-100 p-4 md:flex-row md:items-center md:justify-between">
+                    <div>
+                        <h2 className="text-lg font-black text-slate-950">University Audit Log</h2>
+                        <p className="mt-1 text-sm font-semibold text-slate-500">Edits, deletes, messages, attendance, consent, and compliance activity.</p>
+                    </div>
+                    <input value={logFilter} onChange={(event) => setLogFilter(event.target.value)} placeholder="Search audit logs..." className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold outline-none focus:border-[#006a61]" />
+                </div>
+                <div className="max-h-[440px] divide-y divide-slate-100 overflow-y-auto">
+                    {visibleLogs.length === 0 ? <EmptyState message="Audit activity will appear after university actions are recorded." /> : visibleLogs.map((log) => (
+                        <article key={log.id} className="grid gap-2 p-4 md:grid-cols-[1fr_auto] md:items-center">
+                            <div>
+                                <p className="text-sm font-black text-slate-950">{log.action}</p>
+                                <p className="mt-1 text-xs font-semibold text-slate-500">{log.actor} · {log.subjectType || 'Record'} #{log.subjectId || 'N/A'} · {formatShortDate(log.createdAt)}</p>
+                                {log.metadata && <p className="mt-1 line-clamp-1 text-xs text-slate-400">{Object.entries(log.metadata).filter(([, value]) => value !== null && value !== '').map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join('|') : value}`).join(' · ')}</p>}
+                            </div>
+                            <span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-black uppercase text-slate-500">{log.actorRole || 'system'}</span>
+                        </article>
+                    ))}
+                </div>
+            </section>
+        </section>
+    );
+}
+
+function SettingsCheckbox({ name, label, defaultChecked = false, disabled = false }) {
+    return (
+        <label className={cx('flex items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2.5 text-sm font-bold text-slate-700', disabled && 'cursor-not-allowed opacity-60')}>
+            <span>{label}</span>
+            {disabled && <input type="hidden" name={name} value={defaultChecked ? '1' : '0'} />}
+            <input type="checkbox" name={name} value="1" defaultChecked={defaultChecked} disabled={disabled} className="h-4 w-4 rounded border-slate-300 text-[#006a61] focus:ring-[#006a61]" />
+        </label>
+    );
+}
+
+function UniversityTeamModal({ csrf, member, errors = {}, onClose }) {
+    const permissions = member?.permissions || {};
+    const isEdit = Boolean(member);
+
+    return (
+        <section className="fixed inset-0 z-[95] grid place-items-center bg-slate-950/55 px-3 py-5 backdrop-blur-sm">
+            <form action={isEdit ? `/dashboard/university/team-members/${member.id}` : '/dashboard/university/team-members'} method="POST" className="w-full max-w-2xl rounded-3xl border border-white/70 bg-white p-5 shadow-2xl">
+                <input type="hidden" name="_token" value={csrf} />
+                {isEdit && <input type="hidden" name="_method" value="PUT" />}
+                <div className="flex items-start justify-between gap-4 border-b border-slate-100 pb-4">
+                    <div>
+                        <p className="text-xs font-black uppercase tracking-[0.14em] text-[#006a61]">Team contact</p>
+                        <h2 className="mt-1 text-xl font-black text-slate-950">{isEdit ? `Edit ${member.name}` : 'Add team contact'}</h2>
+                    </div>
+                    <button type="button" onClick={onClose} className="grid h-10 w-10 place-items-center rounded-2xl border border-slate-200 text-slate-500"><X size={18} /></button>
+                </div>
+                <div className="mt-4"><FormErrorSummary errors={errors} /></div>
+                <div className="mt-4 grid gap-4 md:grid-cols-2">
+                    <LightField label="Name" name="name" defaultValue={member?.name || ''} error={errors.name?.[0]} />
+                    <LightField label="Email" name="email" type="email" defaultValue={member?.email || ''} error={errors.email?.[0]} />
+                    <LightField label="Title" name="title" defaultValue={member?.title || ''} error={errors.title?.[0]} />
+                    <LightField label="Phone" name="phone" defaultValue={member?.phone || ''} error={errors.phone?.[0]} />
+                </div>
+                <input type="hidden" name="status" value={member?.status || 'active'} />
+                {['manage_programs', 'manage_requests', 'manage_attendees', 'send_messages', 'view_insights'].map((permission) => (
+                    <input key={permission} type="hidden" name={`permission_${permission}`} value={permissions[permission] ? '1' : '0'} />
+                ))}
+                <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm font-semibold leading-6 text-slate-600">
+                    This saves contact information only. It does not send an invitation or authorize this person to use the university portal.
+                </div>
+                <div className="mt-5 grid grid-cols-2 gap-2">
+                    <button type="button" onClick={onClose} className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700">Cancel</button>
+                    <button className="rounded-xl bg-slate-950 px-4 py-3 text-sm font-black text-white">{isEdit ? 'Save Contact' : 'Add Contact'}</button>
+                </div>
+            </form>
+        </section>
     );
 }
 
@@ -5908,9 +6451,10 @@ function SchoolSettingsSection({ csrf, profile, errors, old }) {
                                     {profile.logoUrl ? <img src={profile.logoUrl} alt="" className="h-full w-full rounded-lg object-cover" /> : <School size={28} />}
                                 </div>
                                 <label className="inline-flex cursor-pointer items-center rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-black text-blue-700 hover:bg-blue-50">
-                                    Update Logo
-                                    <input type="url" name="logo_url" defaultValue={value('logo_url', profile.logoUrl || '')} placeholder="https://..." className="sr-only" />
+                                    Choose Logo
+                                    <input type="file" name="logo" form="school-logo-upload" accept="image/png,image/jpeg,image/webp,image/gif" required className="sr-only" />
                                 </label>
+                                <button type="submit" form="school-logo-upload" className="rounded-lg bg-blue-700 px-3 py-2 text-xs font-black text-white">Upload</button>
                             </div>
                             <div className="grid gap-4">
                                 <LightField label="School Name" name="name" defaultValue={value('name')} error={errors.name?.[0]} />
@@ -5946,19 +6490,21 @@ function SchoolSettingsSection({ csrf, profile, errors, old }) {
                         />
                         <SettingToggle
                             name="sms_alerts"
-                            title="SMS Alerts"
-                            description="Get instant texts for urgent updates."
-                            defaultChecked={boolValue('sms_alerts', false)}
+                            title="SMS Alerts · unavailable"
+                            description="Connect an SMS provider before enabling text delivery."
+                            defaultChecked={false}
+                            disabled
                         />
                         <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
                             <div className="flex gap-2">
                                 <Sparkles size={17} className="mt-0.5 shrink-0 text-emerald-600" />
-                                <p className="text-xs font-semibold leading-5 text-emerald-800">Smart scheduling is enabled. Preferences update automatically based on engagement.</p>
+                                <p className="text-xs font-semibold leading-5 text-emerald-800">Email preferences are saved with this school profile. SMS remains unavailable until a delivery provider is configured.</p>
                             </div>
                         </div>
                     </div>
                 </aside>
             </form>
+            <form id="school-logo-upload" action="/school/branding/logo" method="POST" encType="multipart/form-data" className="hidden"><input type="hidden" name="_token" value={csrf} /></form>
         </div>
     );
 }
@@ -6025,13 +6571,13 @@ function SecurityAccessSection({ csrf, profile = {}, errors = {}, role = 'user' 
                                 <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-emerald-50 text-emerald-600"><CheckCircle2 size={20} /></span>
                                 <div>
                                     <h2 className="text-lg font-black text-slate-950 md:text-xl">Two-Factor Authentication</h2>
-                                    <p className="mt-1 text-sm text-slate-500">The current MVP stores the 2FA requirement and enforces the security posture in account data. Token delivery can be attached later.</p>
+                                    <p className="mt-1 text-sm text-slate-500">When enabled, every sign-in requires an expiring one-time code delivered to the account email address.</p>
                                 </div>
                             </div>
                             <span className={cx('rounded-full px-3 py-1 text-xs font-black', profile.twoFactorEnabled ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700')}>{profile.twoFactorEnabled ? 'Enabled' : 'Not enabled'}</span>
                         </div>
                         <div className="mt-6 space-y-5">
-                            <SettingToggle name="two_factor_enabled" title="Require two-factor verification" description="Mark this account as requiring a second verification step." defaultChecked={!!profile.twoFactorEnabled} />
+                            <SettingToggle name="two_factor_enabled" title="Require two-factor verification" description="Require an emailed one-time code after the password is accepted." defaultChecked={!!profile.twoFactorEnabled} />
                             <SettingToggle name="security_alerts" title="Security alerts" description="Queue security notifications after sensitive account changes." defaultChecked={profile.securityAlerts !== false} />
                             <LightField label="Recovery Email" name="recovery_email" type="email" defaultValue={profile.recoveryEmail || ''} placeholder={user.email || 'recovery@example.com'} error={errors.recovery_email?.[0]} />
                         </div>
@@ -6117,16 +6663,16 @@ function securityAdvisorText(profile) {
     return `Your account security is rated ${profile.securityScore || 0}/100 based on password posture, 2FA, alerts, recovery email, and active sessions.`;
 }
 
-function SettingToggle({ name, title, description, defaultChecked }) {
+function SettingToggle({ name, title, description, defaultChecked, disabled = false }) {
     return (
-        <label className="flex items-center justify-between gap-4">
+        <label className={cx('flex items-center justify-between gap-4', disabled && 'cursor-not-allowed opacity-60')}>
             <span>
                 <span className="block text-sm font-black text-slate-800">{title}</span>
                 <span className="mt-1 block text-xs leading-5 text-slate-500">{description}</span>
             </span>
             <span className="relative inline-flex h-6 w-11 shrink-0 items-center">
-                <input type="hidden" name={name} value="0" />
-                <input type="checkbox" name={name} value="1" defaultChecked={defaultChecked} className="peer sr-only" />
+                <input type="hidden" name={name} value={disabled && defaultChecked ? '1' : '0'} />
+                <input type="checkbox" name={name} value="1" defaultChecked={defaultChecked} disabled={disabled} className="peer sr-only" />
                 <span className="h-6 w-11 rounded-full bg-slate-200 transition peer-checked:bg-blue-600" />
                 <span className="absolute left-1 h-4 w-4 rounded-full bg-white shadow transition peer-checked:translate-x-5" />
             </span>
@@ -6153,24 +6699,33 @@ function UniversityAttendeesSection({ csrf, registrations = [], events = [] }) {
     const [interest, setInterest] = useState('all');
     const [selected, setSelected] = useState([]);
     const [editing, setEditing] = useState(null);
+    const [profile, setProfile] = useState(null);
     const [messageOpen, setMessageOpen] = useState(false);
+    const [importOpen, setImportOpen] = useState(false);
+    const [bulkAction, setBulkAction] = useState('check_in');
     const [page, setPage] = useState(1);
     const perPage = 10;
     const programs = [...new Set(registrations.map((item) => item.event).filter(Boolean))].sort();
     const interests = [...new Set(registrations.map((item) => item.interest).filter(Boolean))].sort();
     const filtered = registrations.filter((item) => {
-        const haystack = `${item.name} ${item.email} ${item.school} ${item.schoolLocation} ${item.event} ${item.interest}`.toLowerCase();
+        const studentText = (item.students || []).map((student) => `${student.name} ${student.email} ${student.grade} ${student.interest}`).join(' ');
+        const haystack = `${item.name} ${item.email} ${item.school} ${item.schoolLocation} ${item.event} ${item.interest} ${studentText}`.toLowerCase();
         return haystack.includes(query.toLowerCase())
             && (status === 'all' || item.status === status)
             && (program === 'all' || item.event === program)
             && (interest === 'all' || item.interest === interest);
     });
-    const pages = Math.max(1, Math.ceil(filtered.length / perPage));
-    const visible = filtered.slice((page - 1) * perPage, page * perPage);
+    const schoolGroups = attendeeSchoolGroups(filtered);
+    const pages = Math.max(1, Math.ceil(schoolGroups.length / perPage));
+    const visibleGroups = schoolGroups.slice((page - 1) * perPage, page * perPage);
+    const visible = visibleGroups.flatMap((group) => group.registrations);
     const selectedVisible = visible.length > 0 && visible.every((item) => selected.includes(item.id));
     const totalSeats = filtered.reduce((sum, item) => sum + Number(item.partySize || 0), 0);
     const confirmedSeats = filtered.filter((item) => item.status === 'confirmed').reduce((sum, item) => sum + Number(item.partySize || 0), 0);
     const attendedSeats = filtered.filter((item) => item.attended).reduce((sum, item) => sum + Number(item.partySize || 0), 0);
+    const checkedInSeats = filtered.filter((item) => item.checkedIn).reduce((sum, item) => sum + Number(item.partySize || 0), 0);
+    const waitlistedSeats = filtered.filter((item) => item.status === 'waitlisted').reduce((sum, item) => sum + Number(item.partySize || 0), 0);
+    const consentPending = filtered.filter((item) => item.isMinor && item.consentStatus !== 'received' && item.consentStatus !== 'not_required').length;
     const topInterest = topByCount(filtered.map((item) => item.interest).filter(Boolean)) || 'Mixed interests';
 
     useEffect(() => {
@@ -6187,14 +6742,9 @@ function UniversityAttendeesSection({ csrf, registrations = [], events = [] }) {
             : [...new Set([...current, ...visible.map((item) => item.id)])]);
     };
     const exportCsv = () => {
-        const rows = [['Name', 'Email', 'School', 'Location', 'Interest', 'Visit Program', 'Seats', 'Status', 'Attended'], ...filtered.map((item) => [item.name, item.email, item.school, item.schoolLocation, item.interest, item.event, item.partySize, item.status, item.attended ? 'yes' : 'no'])];
-        const csv = rows.map((row) => row.map((cell) => `"${String(cell ?? '').replaceAll('"', '""')}"`).join(',')).join('\n');
-        const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = 'university-attendees.csv';
-        link.click();
-        URL.revokeObjectURL(url);
+        const event = events.find((item) => item.title === program || String(item.id) === String(program));
+        const params = event ? `?campus_event_id=${encodeURIComponent(event.id)}` : '';
+        window.location.href = `/dashboard/university/attendees/export${params}`;
     };
 
     return (
@@ -6205,6 +6755,7 @@ function UniversityAttendeesSection({ csrf, registrations = [], events = [] }) {
                     <p className="mt-1 text-sm font-semibold text-slate-500">Review and manage registered students and school groups for upcoming visits.</p>
                 </div>
                 <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+                    <button type="button" onClick={() => setImportOpen(true)} className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 md:px-4 md:py-2.5 md:text-sm"><Upload size={15} /> Import</button>
                     <button type="button" onClick={exportCsv} className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#006a61]/30 bg-white px-3 py-2 text-xs font-black text-[#006a61] md:px-4 md:py-2.5 md:text-sm"><Download size={15} /> Export</button>
                     <button type="button" onClick={() => setMessageOpen(true)} disabled={selected.length === 0} className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-3 py-2 text-xs font-black text-white disabled:cursor-not-allowed disabled:bg-slate-300 md:px-4 md:py-2.5 md:text-sm"><MailCheck size={15} /> Message</button>
                 </div>
@@ -6235,49 +6786,71 @@ function UniversityAttendeesSection({ csrf, registrations = [], events = [] }) {
                     </div>
                     <div className="mt-3 grid grid-cols-3 gap-2 md:mt-4 md:gap-3">
                         <MiniStat label="Filtered seats" value={totalSeats.toLocaleString()} />
-                        <MiniStat label="Confirmed seats" value={confirmedSeats.toLocaleString()} />
-                        <MiniStat label="Attendance marked" value={`${Math.round((attendedSeats / Math.max(1, confirmedSeats)) * 100)}%`} />
+                        <MiniStat label="Checked in" value={checkedInSeats.toLocaleString()} />
+                        <MiniStat label="Consent pending" value={consentPending.toLocaleString()} />
                     </div>
+                    {selected.length > 0 && (
+                        <form action="/dashboard/university/attendees/bulk" method="POST" className="mt-3 flex flex-col gap-2 rounded-xl border border-[#006a61]/20 bg-emerald-50 p-3 sm:flex-row sm:items-center">
+                            <input type="hidden" name="_token" value={csrf} />
+                            {selected.map((id) => <input key={id} type="hidden" name="registration_ids[]" value={id} />)}
+                            <p className="text-xs font-black text-[#006a61] sm:flex-1">{selected.length} selected</p>
+                            <select name="action" value={bulkAction} onChange={(event) => setBulkAction(event.target.value)} className="h-10 rounded-xl border border-emerald-200 bg-white px-3 text-sm font-black text-slate-700">
+                                <option value="check_in">Check in</option>
+                                <option value="check_out">Check out</option>
+                                <option value="consent_received">Mark consent received</option>
+                                <option value="confirm">Move to confirmed</option>
+                                <option value="waitlist">Move to waitlist</option>
+                                <option value="cancel">Cancel</option>
+                            </select>
+                            <button className="rounded-xl bg-[#006a61] px-4 py-2.5 text-sm font-black text-white">Apply Bulk Action</button>
+                        </form>
+                    )}
                 </div>
                 <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm md:p-5">
                     <div className="flex items-center gap-2">
                         <Sparkles size={18} className="text-emerald-700" />
-                        <p className="text-xs font-black uppercase tracking-wide text-emerald-800">AI Insight</p>
+                        <p className="text-xs font-black uppercase tracking-wide text-emerald-800">Roster Insight</p>
                     </div>
                     <p className="mt-3 text-sm leading-6 text-emerald-900">Highest attendee concentration is <span className="font-black">{topInterest}</span>. Use this to plan faculty coverage, lab guides, and follow-up messaging.</p>
+                    <p className="mt-2 text-xs font-bold text-emerald-800">{waitlistedSeats.toLocaleString()} waitlisted seat(s) visible for promotion tracking. Attendance marked: {Math.round((attendedSeats / Math.max(1, confirmedSeats)) * 100)}%.</p>
                     <button type="button" onClick={() => setProgram('all')} className="mt-4 inline-flex items-center gap-2 text-sm font-black text-emerald-800">Review full roster <ArrowRight size={15} /></button>
                 </div>
             </section>
 
             <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
                 <div className="grid gap-2 p-3 md:hidden">
-                    {visible.map((item) => (
-                        <article key={item.id} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-                            <div className="grid grid-cols-[auto_38px_minmax(0,1fr)_auto] items-center gap-2.5">
-                                <input type="checkbox" checked={selected.includes(item.id)} onChange={() => toggleOne(item.id)} className="h-4 w-4 rounded border-slate-300 text-[#006a61]" aria-label={`Select ${item.name}`} />
-                                <span className="grid h-9 w-9 place-items-center rounded-full bg-[#e5eeff] text-[11px] font-black text-[#0b1c30]">{initials(item.name)}</span>
+                    {visibleGroups.map((group) => (
+                        <article key={group.key} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+                            <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0">
-                                    <p className="truncate text-sm font-black text-slate-950">{item.name}</p>
-                                    <p className="truncate text-[11px] font-semibold text-slate-500">{item.school || 'Direct student'} • {item.partySize} seat{Number(item.partySize) === 1 ? '' : 's'}</p>
+                                    <p className="truncate text-sm font-black text-slate-950">{group.school}</p>
+                                    <p className="mt-1 text-[11px] font-semibold text-slate-500">{group.registrations.length} booking record(s) • {group.seats} seat(s) • {group.studentCount} student profile(s)</p>
                                 </div>
-                                <AttendeeStatusBadge status={item.status} attended={item.attended} />
+                                <span className="rounded-full bg-[#e5eeff] px-2.5 py-1 text-[10px] font-black text-[#0b1c30]">{group.confirmedSeats} confirmed</span>
                             </div>
-                            <div className="mt-2 grid grid-cols-2 gap-2 border-y border-slate-100 py-2">
-                                <div><span className="block text-[9px] font-black uppercase tracking-wide text-slate-400">Program</span><span className="mt-0.5 block truncate text-[12px] font-black text-slate-700">{item.event || 'Program TBA'}</span></div>
-                                <div><span className="block text-[9px] font-black uppercase tracking-wide text-slate-400">Interest</span><span className="mt-0.5 block truncate text-[12px] font-black text-slate-700">{item.interest || 'Undeclared'}</span></div>
-                            </div>
-                            <div className="mt-2 flex gap-2">
-                                <button type="button" onClick={() => setEditing(item)} className="flex-1 rounded-lg bg-slate-950 px-3 py-2 text-[12px] font-black text-white">Edit</button>
-                                <button type="button" onClick={() => { setSelected((current) => current.includes(item.id) ? current : [...current, item.id]); setMessageOpen(true); }} className="flex-1 rounded-lg border border-[#006a61]/30 px-3 py-2 text-[12px] font-black text-[#006a61]">Message</button>
-                                <form action={`/dashboard/university/attendees/${item.id}`} method="POST">
-                                    <input type="hidden" name="_token" value={csrf} />
-                                    <input type="hidden" name="_method" value="DELETE" />
-                                    <button className="grid h-8 w-9 place-items-center rounded-lg border border-red-100 text-red-600" aria-label={`Remove ${item.name}`}><Trash2 size={15} /></button>
-                                </form>
+                            <div className="mt-3 space-y-2">
+                                {group.registrations.map((item) => (
+                                    <details key={item.id} className="rounded-lg border border-slate-100 bg-slate-50 p-2">
+                                        <summary className="cursor-pointer list-none">
+                                            <div className="flex items-center justify-between gap-2">
+                                                <span className="min-w-0">
+                                                    <span className="block truncate text-[12px] font-black text-slate-800">{item.event || 'Program TBA'}</span>
+                                                    <span className="block truncate text-[11px] font-semibold text-slate-500">{item.name} • {item.partySize} seat(s)</span>
+                                                </span>
+                                                <AttendeeStatusBadge status={item.status} attended={item.attended} />
+                                            </div>
+                                        </summary>
+                                        <AttendeeRosterList registration={item} onProfile={setProfile} />
+                                        <div className="mt-2 flex gap-2">
+                                            <button type="button" onClick={() => setProfile(item)} className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12px] font-black text-slate-700">Group Profile</button>
+                                            <button type="button" onClick={() => setEditing(item)} className="flex-1 rounded-lg bg-slate-950 px-3 py-2 text-[12px] font-black text-white">Edit</button>
+                                        </div>
+                                    </details>
+                                ))}
                             </div>
                         </article>
                     ))}
-                    {visible.length === 0 && <div className="rounded-xl border border-dashed border-slate-200 p-8 text-center text-sm font-semibold text-slate-500">No attendees match the current filters.</div>}
+                    {visibleGroups.length === 0 && <div className="rounded-xl border border-dashed border-slate-200 p-8 text-center text-sm font-semibold text-slate-500">No attendees match the current filters.</div>}
                 </div>
                 <div className="hidden overflow-x-auto md:block">
                     <table className="w-full min-w-[980px] text-left">
@@ -6293,41 +6866,74 @@ function UniversityAttendeesSection({ csrf, registrations = [], events = [] }) {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                            {visible.map((item) => (
-                                <tr key={item.id} className="group hover:bg-slate-50">
-                                    <td className="px-5 py-4"><input type="checkbox" checked={selected.includes(item.id)} onChange={() => toggleOne(item.id)} className="rounded border-slate-300 text-blue-600" /></td>
-                                    <td className="px-5 py-4">
-                                        <div className="flex items-center gap-3">
-                                            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-blue-100 text-xs font-black text-blue-800">{initials(item.name)}</span>
-                                            <span className="min-w-0">
-                                                <span className="block truncate text-sm font-black text-slate-950">{item.name}</span>
-                                                <span className="mt-1 block truncate text-xs text-slate-500">{item.email}</span>
-                                            </span>
-                                        </div>
-                                    </td>
-                                    <td className="px-5 py-4">
-                                        <p className="text-sm font-semibold text-slate-800">{item.school || 'Direct student'}</p>
-                                        <p className="mt-1 text-xs text-slate-500">{item.schoolLocation || item.eventLocation || 'Location TBA'}</p>
-                                    </td>
-                                    <td className="px-5 py-4"><span className="inline-flex rounded-md bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-700">{item.interest || 'Undeclared'}</span></td>
-                                    <td className="px-5 py-4">
-                                        <p className="text-sm font-semibold text-slate-800">{item.event || 'Program TBA'}</p>
-                                        <p className="mt-1 text-xs text-slate-500">{formatDateTime(item.eventDate)} · {item.partySize} seat{Number(item.partySize) === 1 ? '' : 's'}</p>
-                                    </td>
-                                    <td className="px-5 py-4 text-center"><AttendeeStatusBadge status={item.status} attended={item.attended} /></td>
-                                    <td className="px-5 py-4">
-                                        <div className="flex justify-end gap-2">
-                                            <button type="button" onClick={() => setEditing(item)} title="Edit attendee" className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-600 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"><Edit3 size={16} /></button>
-                                            <form action={`/dashboard/university/attendees/${item.id}`} method="POST">
-                                                <input type="hidden" name="_token" value={csrf} />
-                                                <input type="hidden" name="_method" value="DELETE" />
-                                                <button title="Remove attendee" className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-600 hover:border-red-200 hover:bg-red-50 hover:text-red-700"><Trash2 size={16} /></button>
-                                            </form>
-                                        </div>
-                                    </td>
-                                </tr>
+                            {visibleGroups.map((group) => (
+                                <React.Fragment key={group.key}>
+                                    <tr className="bg-slate-100/80">
+                                        <td colSpan="7" className="px-5 py-3">
+                                            <div className="flex items-center justify-between gap-4">
+                                                <div>
+                                                    <p className="text-sm font-black text-slate-950">{group.school}</p>
+                                                    <p className="mt-0.5 text-xs font-semibold text-slate-500">{group.location || 'Location TBA'} • {group.registrations.length} booking(s) • {group.studentCount} individual student profile(s)</p>
+                                                </div>
+                                                <div className="flex gap-2 text-xs font-black">
+                                                    <span className="rounded-full bg-white px-3 py-1 text-slate-700">{group.seats} seats</span>
+                                                    <span className="rounded-full bg-emerald-50 px-3 py-1 text-emerald-700">{group.confirmedSeats} confirmed</span>
+                                                </div>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {group.registrations.map((item) => (
+                                        <React.Fragment key={item.id}>
+                                            <tr className="group hover:bg-slate-50">
+                                                <td className="px-5 py-4"><input type="checkbox" checked={selected.includes(item.id)} onChange={() => toggleOne(item.id)} className="rounded border-slate-300 text-blue-600" /></td>
+                                                <td className="px-5 py-4">
+                                                    <div className="flex items-center gap-3">
+                                                        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-blue-100 text-xs font-black text-blue-800">{initials(item.name)}</span>
+                                                        <span className="min-w-0">
+                                                            <span className="block truncate text-sm font-black text-slate-950">{item.name}</span>
+                                                            <span className="mt-1 block truncate text-xs text-slate-500">{item.email}</span>
+                                                        </span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-5 py-4">
+                                                    <p className="text-sm font-semibold text-slate-800">{item.school || 'Direct student'}</p>
+                                                    <p className="mt-1 text-xs text-slate-500">{item.schoolLocation || item.eventLocation || 'Location TBA'}</p>
+                                                </td>
+                                                <td className="px-5 py-4"><span className="inline-flex rounded-md bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-700">{item.interest || 'Mixed interests'}</span></td>
+                                                <td className="px-5 py-4">
+                                                    <p className="text-sm font-semibold text-slate-800">{item.event || 'Program TBA'}</p>
+                                                    <p className="mt-1 text-xs text-slate-500">{formatDateTime(item.eventDate)} · {item.partySize} seat{Number(item.partySize) === 1 ? '' : 's'}</p>
+                                                </td>
+                                                <td className="px-5 py-4 text-center"><AttendeeStatusBadge status={item.status} attended={item.attended} /></td>
+                                                <td className="px-5 py-4">
+                                                    <div className="flex justify-end gap-2">
+                                                        <button type="button" onClick={() => setProfile(item)} title="View group profile" className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-600 hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700"><UsersRound size={16} /></button>
+                                                        <form action={`/dashboard/university/attendees/${item.id}/${item.checkedIn ? 'check-out' : 'check-in'}`} method="POST">
+                                                            <input type="hidden" name="_token" value={csrf} />
+                                                            <button title={item.checkedIn ? 'Check out group' : 'Check in group'} className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-600 hover:border-[#006a61]/30 hover:bg-emerald-50 hover:text-[#006a61]">{item.checkedIn ? <Clock size={16} /> : <CheckCircle2 size={16} />}</button>
+                                                        </form>
+                                                        <button type="button" onClick={() => setEditing(item)} title="Edit group booking" className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-600 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"><Edit3 size={16} /></button>
+                                                        <form action={`/dashboard/university/attendees/${item.id}`} method="POST">
+                                                            <input type="hidden" name="_token" value={csrf} />
+                                                            <input type="hidden" name="_method" value="DELETE" />
+                                                            <button title="Remove group booking" className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-600 hover:border-red-200 hover:bg-red-50 hover:text-red-700"><Trash2 size={16} /></button>
+                                                        </form>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            {(item.students || []).length > 0 && (
+                                                <tr>
+                                                    <td />
+                                                    <td colSpan="6" className="px-5 pb-4">
+                                                        <AttendeeRosterList registration={item} onProfile={setProfile} compact />
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </React.Fragment>
+                                    ))}
+                                </React.Fragment>
                             ))}
-                            {visible.length === 0 && (
+                            {visibleGroups.length === 0 && (
                                 <tr><td colSpan="7" className="px-5 py-12 text-center text-sm font-semibold text-slate-500">No attendees match the current filters.</td></tr>
                             )}
                         </tbody>
@@ -6371,10 +6977,113 @@ function UniversityAttendeesSection({ csrf, registrations = [], events = [] }) {
                                 <input type="checkbox" name="attended" value="1" defaultChecked={editing.attended} className="rounded border-slate-300 text-blue-600" />
                                 Mark attended
                             </label>
+                            <label className="flex items-center gap-3 text-sm font-black text-slate-700 md:col-span-2">
+                                <input type="checkbox" name="checked_in" value="1" defaultChecked={editing.checkedIn} className="rounded border-slate-300 text-blue-600" />
+                                Checked in
+                            </label>
+                            <label className="flex items-center gap-3 text-sm font-black text-slate-700 md:col-span-2">
+                                <input type="checkbox" name="checked_out" value="1" defaultChecked={editing.checkedOut} className="rounded border-slate-300 text-blue-600" />
+                                Checked out
+                            </label>
+                            <label className="flex items-center gap-3 text-sm font-black text-slate-700 md:col-span-2">
+                                <input type="checkbox" name="is_minor" value="1" defaultChecked={editing.isMinor} className="rounded border-slate-300 text-blue-600" />
+                                Minor attendee / student group requires guardian handling
+                            </label>
+                            <label className="block">
+                                <span className="text-xs font-black uppercase tracking-wide text-slate-500">Consent</span>
+                                <select name="consent_status" defaultValue={editing.consentStatus || 'not_required'} className="mt-2 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm font-semibold">
+                                    <option value="not_required">Not required</option>
+                                    <option value="pending">Pending</option>
+                                    <option value="received">Received</option>
+                                    <option value="expired">Expired</option>
+                                </select>
+                            </label>
+                            <LightField label="Guardian name" name="guardian_name" defaultValue={editing.guardianName || ''} />
+                            <LightField label="Guardian email" name="guardian_email" type="email" defaultValue={editing.guardianEmail || ''} />
+                            <LightField label="Guardian phone" name="guardian_phone" defaultValue={editing.guardianPhone || ''} />
+                            <LightField label="Emergency contact" name="emergency_contact_name" defaultValue={editing.emergencyContactName || ''} />
+                            <LightField label="Emergency phone" name="emergency_contact_phone" defaultValue={editing.emergencyContactPhone || ''} />
+                            <div className="md:col-span-2">
+                                <LightTextarea label="Medical / access notes" name="medical_notes" defaultValue={editing.medicalNotes || ''} placeholder="Allergies, accessibility, medication, or support notes..." />
+                            </div>
                         </div>
                         <div className="flex justify-end gap-3">
                             <button type="button" onClick={() => setEditing(null)} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-black text-slate-600">Cancel</button>
                             <button className="rounded-lg bg-slate-950 px-4 py-2 text-sm font-black text-white">Save Changes</button>
+                        </div>
+                    </form>
+                </StudentModal>
+            )}
+
+            {profile && (
+                <StudentModal title="Attendee Profile" onClose={() => setProfile(null)}>
+                    <div className="space-y-4">
+                        <div className="rounded-2xl bg-slate-950 p-5 text-white">
+                            <div className="flex items-start gap-3">
+                                <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white/10 text-sm font-black">{initials(profile.name)}</span>
+                                <div className="min-w-0">
+                                    <h3 className="truncate text-xl font-black">{profile.name}</h3>
+                                    <p className="mt-1 text-sm text-white/60">{profile.isStudentProfile ? `${profile.school || profile.parentName || 'School group'} student` : profile.email}</p>
+                                    <div className="mt-3 flex flex-wrap gap-2">
+                                        <AttendeeStatusBadge status={profile.status} attended={profile.attended} />
+                                        <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-black">{profile.partySize} seat{Number(profile.partySize) === 1 ? '' : 's'}</span>
+                                        {profile.isStudentProfile && <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-black">{profile.grade || 'Grade N/A'}</span>}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="grid gap-3 md:grid-cols-2">
+                            <ProfileFact label="Program" value={profile.event || 'Program TBA'} />
+                            <ProfileFact label="Program date" value={formatDateTime(profile.eventDate)} />
+                            <ProfileFact label="School" value={profile.school || 'Direct student'} />
+                            <ProfileFact label="Interest" value={profile.interest || 'Undeclared'} />
+                            {profile.isStudentProfile && <ProfileFact label="Student ID" value={profile.studentIdentifier || 'Not provided'} />}
+                            {profile.isStudentProfile && <ProfileFact label="Student email" value={profile.email || 'Not provided'} />}
+                            <ProfileFact label="Check-in" value={profile.checkedInAt ? formatDateTime(profile.checkedInAt) : 'Not checked in'} />
+                            <ProfileFact label="Check-out" value={profile.checkedOutAt ? formatDateTime(profile.checkedOutAt) : 'Not checked out'} />
+                            <ProfileFact label="Consent" value={profile.consentStatus || 'not_required'} />
+                            <ProfileFact label="Waitlist promotion" value={profile.waitlistPromotedAt ? formatDateTime(profile.waitlistPromotedAt) : 'Not promoted'} />
+                            <ProfileFact label="Guardian" value={profile.guardianName || 'Not provided'} />
+                            <ProfileFact label="Guardian contact" value={[profile.guardianEmail, profile.guardianPhone].filter(Boolean).join(' / ') || 'Not provided'} />
+                            <ProfileFact label="Emergency contact" value={profile.emergencyContactName || 'Not provided'} />
+                            <ProfileFact label="Emergency phone" value={profile.emergencyContactPhone || 'Not provided'} />
+                        </div>
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                            <p className="text-xs font-black uppercase tracking-wide text-slate-500">Medical / access notes</p>
+                            <p className="mt-2 text-sm font-semibold leading-6 text-slate-700">{profile.medicalNotes || 'No medical or access notes recorded.'}</p>
+                        </div>
+                        {!profile.isStudentProfile && <AttendeeRosterList registration={profile} onProfile={setProfile} />}
+                        <div className="grid grid-cols-2 gap-2">
+                            {!profile.isStudentProfile && <form action={`/dashboard/university/attendees/${profile.id}/${profile.checkedIn ? 'check-out' : 'check-in'}`} method="POST">
+                                <input type="hidden" name="_token" value={csrf} />
+                                <button className="w-full rounded-xl bg-[#006a61] px-4 py-3 text-sm font-black text-white">{profile.checkedIn ? 'Check Out' : 'Check In'}</button>
+                            </form>}
+                            {!profile.isStudentProfile && <button type="button" onClick={() => { setEditing(profile); setProfile(null); }} className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-black text-slate-700">Edit Group</button>}
+                        </div>
+                    </div>
+                </StudentModal>
+            )}
+
+            {importOpen && (
+                <StudentModal title="Import Attendees" onClose={() => setImportOpen(false)}>
+                    <form action="/dashboard/university/attendees/import" method="POST" encType="multipart/form-data" className="space-y-4">
+                        <input type="hidden" name="_token" value={csrf} />
+                        <label className="block">
+                            <span className="text-xs font-black uppercase tracking-wide text-slate-500">Visit program</span>
+                            <select name="campus_event_id" className="mt-2 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm font-semibold" required>
+                                {events.map((event) => <option key={event.id} value={event.id}>{event.title}</option>)}
+                            </select>
+                        </label>
+                        <label className="block">
+                            <span className="text-xs font-black uppercase tracking-wide text-slate-500">CSV file</span>
+                            <input name="attendee_file" type="file" accept=".csv,text/csv" required className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-3 text-sm font-semibold" />
+                        </label>
+                        <div className="rounded-xl bg-slate-50 p-3 text-xs font-semibold leading-5 text-slate-600">
+                            Supported group columns: name, email, type, party_size, status. Optional student columns: student_name, student_email, student_id, grade, interest, student_consent_status, guardian_name, guardian_email, emergency_contact_name, emergency_contact_phone, medical_notes. Capacity overflow is automatically waitlisted.
+                        </div>
+                        <div className="flex justify-end gap-3">
+                            <button type="button" onClick={() => setImportOpen(false)} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-black text-slate-600">Cancel</button>
+                            <button className="rounded-lg bg-slate-950 px-4 py-2 text-sm font-black text-white">Import CSV</button>
                         </div>
                     </form>
                 </StudentModal>
@@ -6390,8 +7099,8 @@ function UniversityAttendeesSection({ csrf, registrations = [], events = [] }) {
                             <span className="text-xs font-black uppercase tracking-wide text-slate-500">Channel</span>
                             <select name="channel" defaultValue="email" className="mt-2 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm font-semibold">
                                 <option value="email">Email</option>
-                                <option value="sms">SMS</option>
                             </select>
+                            <span className="mt-1 block text-xs font-semibold text-slate-400">SMS delivery is unavailable until a provider is configured.</span>
                         </label>
                         <LightTextarea label="Message" name="content" placeholder="Type the update attendees should receive..." />
                         <div className="flex justify-end gap-3">
@@ -6420,6 +7129,94 @@ function AttendeeStatusBadge({ status, attended }) {
     );
 }
 
+function AttendeeRosterList({ registration, onProfile, compact = false }) {
+    const students = registration.students || [];
+
+    if (students.length === 0) {
+        return (
+            <div className={cx('rounded-lg border border-dashed border-slate-200 bg-white text-center text-xs font-semibold text-slate-500', compact ? 'p-3' : 'mt-3 p-4')}>
+                No individual student roster has been attached yet. Import a roster CSV or book selected students from the school portal.
+            </div>
+        );
+    }
+
+    return (
+        <div className={cx('grid gap-2', compact ? 'rounded-xl bg-white p-3' : 'mt-3')}>
+            <div className="flex items-center justify-between gap-2">
+                <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">Individual students</p>
+                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-black text-slate-600">{students.length} visible</span>
+            </div>
+            <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                {students.map((student) => {
+                    const profile = {
+                        ...student,
+                        isStudentProfile: true,
+                        parentName: registration.name,
+                        parentEmail: registration.email,
+                        school: registration.school,
+                        schoolLocation: registration.schoolLocation,
+                        event: registration.event,
+                        eventDate: registration.eventDate,
+                        partySize: 1,
+                        attended: student.checkedIn,
+                        waitlistPromotedAt: registration.waitlistPromotedAt,
+                    };
+
+                    return (
+                        <button key={student.id || student.email || student.name} type="button" onClick={() => onProfile(profile)} className="flex items-start gap-2 rounded-lg border border-slate-200 bg-white p-2 text-left hover:border-[#006a61]/30 hover:bg-emerald-50/40">
+                            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#e5eeff] text-[10px] font-black text-[#0b1c30]">{initials(student.name)}</span>
+                            <span className="min-w-0 flex-1">
+                                <span className="block truncate text-xs font-black text-slate-900">{student.name}</span>
+                                <span className="mt-0.5 block truncate text-[11px] font-semibold text-slate-500">{student.grade || 'Grade N/A'} • {student.interest || 'Interest N/A'}</span>
+                                <span className="mt-1 flex flex-wrap gap-1">
+                                    <span className={cx('rounded-full px-2 py-0.5 text-[9px] font-black uppercase', student.consentStatus === 'received' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700')}>{student.consentStatus || 'not_required'}</span>
+                                    <span className={cx('rounded-full px-2 py-0.5 text-[9px] font-black uppercase', student.checkedIn ? 'bg-blue-50 text-blue-700' : 'bg-slate-100 text-slate-500')}>{student.checkedIn ? 'Checked in' : 'Not in'}</span>
+                                </span>
+                            </span>
+                        </button>
+                    );
+                })}
+            </div>
+        </div>
+    );
+}
+
+function ProfileFact({ label, value }) {
+    return (
+        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+            <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">{label}</p>
+            <p className="mt-2 break-words text-sm font-black text-slate-800">{value || 'Not provided'}</p>
+        </div>
+    );
+}
+
+function attendeeSchoolGroups(items = []) {
+    const grouped = items.reduce((groups, item) => {
+        const school = item.school || item.name || 'Direct students';
+        const key = school.toLowerCase();
+        if (!groups[key]) {
+            groups[key] = {
+                key,
+                school,
+                location: item.schoolLocation || item.eventLocation || '',
+                registrations: [],
+                seats: 0,
+                confirmedSeats: 0,
+                studentCount: 0,
+            };
+        }
+
+        groups[key].registrations.push(item);
+        groups[key].seats += Number(item.partySize || 0);
+        groups[key].confirmedSeats += item.status === 'confirmed' ? Number(item.partySize || 0) : 0;
+        groups[key].studentCount += (item.students || []).length;
+
+        return groups;
+    }, {});
+
+    return Object.values(grouped).sort((left, right) => right.seats - left.seats || left.school.localeCompare(right.school));
+}
+
 function topByCount(values) {
     const counts = values.reduce((map, value) => map.set(value, (map.get(value) || 0) + 1), new globalThis.Map());
     return [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || null;
@@ -6442,29 +7239,837 @@ function StudentCalendarSection({ registrations }) {
     );
 }
 
-function StudentNotificationsSection({ registrations }) {
-    const notifications = registrations.slice(0, 6).map((registration) => ({
-        id: registration.id || `${registration.event}-${registration.status}`,
-        title: registration.status === 'waitlisted' ? 'Waitlist update' : 'Booking confirmation',
-        body: `${registration.event} is currently ${registration.status}.`,
+function StudentNotificationsSection({ registrations = [], messages = [] }) {
+    const messageNotifications = messages.slice(0, 8).map((message) => ({
+        id: `message-${message.id}`,
+        title: message.subject || titleCase(message.notificationType || message.type || 'Visit update'),
+        body: message.body || message.content || 'You have a new campus visit update.',
+        status: message.status,
+        time: message.createdAt || message.created_at || message.scheduledFor,
+        category: message.notificationType?.includes('reminder') ? 'visits' : 'messages',
+        channel: message.channel || message.type || 'email',
     }));
+    const visitNotifications = registrations.slice(0, 8).map((registration) => ({
+        id: `registration-${registration.id || `${registration.event}-${registration.status}`}`,
+        title: registration.status === 'waitlisted' ? 'Waitlist update' : 'Visit status update',
+        body: `${registration.event} is currently ${registration.status}.`,
+        status: registration.status,
+        time: registration.createdAt || registration.date,
+        category: 'visits',
+        channel: 'system',
+    }));
+    const notifications = [...messageNotifications, ...visitNotifications]
+        .filter((notification, index, rows) => rows.findIndex((row) => row.id === notification.id) === index)
+        .sort((left, right) => new Date(right.time || 0) - new Date(left.time || 0));
+    const [filter, setFilter] = useState('all');
+    const [readIds, setReadIds] = useState([]);
+    const filtered = filter === 'all' ? notifications : notifications.filter((notification) => notification.category === filter);
+    const unreadCount = filtered.filter((notification) => !readIds.includes(notification.id)).length;
+    const grouped = groupNotificationsByDay(filtered);
+    const categories = [
+        ['all', 'All', Inbox, notifications.length],
+        ['visits', 'Visits', CalendarDays, notifications.filter((notification) => notification.category === 'visits').length],
+        ['messages', 'Messages', MailCheck, notifications.filter((notification) => notification.category === 'messages').length],
+        ['system', 'System', Bell, notifications.filter((notification) => notification.category === 'system').length],
+    ];
 
     return (
-        <section className="grid gap-3">
-            {notifications.length === 0 ? (
-                <p className="rounded-xl border border-gray-200 bg-white px-5 py-10 text-center text-sm font-medium text-gray-500">No reminders or updates yet.</p>
-            ) : notifications.map((notification) => (
-                <article key={notification.id} className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-                    <p className="text-sm font-semibold text-gray-950">{notification.title}</p>
-                    <p className="mt-1 text-sm text-gray-500">{notification.body}</p>
-                </article>
-            ))}
+        <section className="grid gap-4">
+            <div className="flex flex-col gap-3 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm md:flex-row md:items-end md:justify-between md:p-6">
+                <div>
+                    <p className="text-xs font-black uppercase tracking-[0.14em] text-[#006a61]">Student alerts</p>
+                    <h1 className="mt-1 text-2xl font-black text-slate-950">Notifications</h1>
+                    <p className="mt-1 max-w-2xl text-sm font-semibold leading-6 text-slate-500">Visit reminders, schedule updates, and platform messages tied to your account.</p>
+                </div>
+                <button type="button" onClick={() => setReadIds(notifications.map((notification) => notification.id))} disabled={notifications.length === 0 || unreadCount === 0} className="rounded-xl bg-slate-950 px-4 py-3 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-slate-300">
+                    {unreadCount === 0 ? 'All read' : 'Mark all as read'}
+                </button>
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-[260px_minmax(0,1fr)]">
+                <aside className="h-fit rounded-3xl border border-slate-200 bg-white p-3 shadow-sm lg:sticky lg:top-24">
+                    <p className="px-3 py-2 text-xs font-black uppercase tracking-[0.14em] text-slate-400">Categories</p>
+                    <div className="grid gap-1">
+                        {categories.map(([id, label, Icon, count]) => (
+                            <button key={id} type="button" onClick={() => setFilter(id)} className={cx('flex items-center justify-between rounded-2xl px-3 py-3 text-sm font-black transition', filter === id ? 'bg-[#e5eeff] text-[#006a61]' : 'text-slate-600 hover:bg-slate-50')}>
+                                <span className="inline-flex items-center gap-2"><Icon size={17} /> {label}</span>
+                                <span className={cx('rounded-full px-2 py-0.5 text-[10px] font-black', filter === id ? 'bg-[#006a61] text-white' : 'bg-slate-100 text-slate-500')}>{count}</span>
+                            </button>
+                        ))}
+                    </div>
+                    <div className="mt-3 rounded-2xl bg-slate-50 p-3">
+                        <p className="text-xs font-black uppercase tracking-wide text-slate-400">Summary</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-600">{unreadCount} unread item(s) in this view.</p>
+                    </div>
+                </aside>
+
+                <section className="grid gap-4">
+                    {filtered.length === 0 ? (
+                        <EmptyState title="No notifications yet" message="Visit reminders, confirmations, and schedule updates will appear here." />
+                    ) : Object.entries(grouped).map(([group, rows]) => (
+                        <div key={group} className="grid gap-2">
+                            <h2 className="px-2 text-xs font-black uppercase tracking-[0.14em] text-slate-400">{group}</h2>
+                            {rows.map((notification) => {
+                                const read = readIds.includes(notification.id);
+                                const Icon = notification.category === 'visits' ? CalendarDays : notification.category === 'messages' ? MailCheck : Bell;
+                                return (
+                                    <button key={notification.id} type="button" onClick={() => setReadIds((current) => current.includes(notification.id) ? current : [...current, notification.id])} className={cx('group w-full rounded-3xl border bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md md:p-5', read ? 'border-slate-200 opacity-70' : notification.category === 'visits' ? 'border-l-4 border-l-[#006a61]' : 'border-l-4 border-l-blue-600')}>
+                                        <div className="flex gap-3">
+                                            <span className={cx('grid h-11 w-11 shrink-0 place-items-center rounded-2xl', notification.category === 'visits' ? 'bg-[#e5eeff] text-[#006a61]' : notification.category === 'messages' ? 'bg-blue-50 text-blue-700' : 'bg-slate-100 text-slate-600')}><Icon size={18} /></span>
+                                            <div className="min-w-0 flex-1">
+                                                <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+                                                    <h3 className="text-sm font-black text-slate-950 md:text-base">{notification.title}</h3>
+                                                    <span className="shrink-0 text-xs font-bold text-slate-400">{formatRelativeTime(notification.time)}</span>
+                                                </div>
+                                                <p className="mt-1 text-sm font-semibold leading-6 text-slate-500">{notification.body}</p>
+                                                <div className="mt-3 flex flex-wrap items-center gap-2">
+                                                    <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-black uppercase text-slate-500">{notification.category}</span>
+                                                    {notification.status && <span className="rounded-full bg-white px-2 py-1 text-[10px] font-black uppercase text-slate-500 ring-1 ring-slate-200">{notification.status}</span>}
+                                                    {!read && <span className="h-2 w-2 rounded-full bg-[#006a61]" />}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    ))}
+                </section>
+            </div>
         </section>
     );
 }
 
+function groupNotificationsByDay(notifications = []) {
+    return notifications.reduce((groups, notification) => {
+        const date = notification.time ? new Date(notification.time) : null;
+        let label = 'Older';
+        if (date && !Number.isNaN(date.getTime())) {
+            const today = new Date();
+            const yesterday = addDays(today, -1);
+            if (isSameCalendarDay(date, today)) label = 'Today';
+            else if (isSameCalendarDay(date, yesterday)) label = 'Yesterday';
+            else label = date.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+        }
+        return { ...groups, [label]: [...(groups[label] || []), notification] };
+    }, {});
+}
+
+function normalizeCanonicalStudentVisit(record, bucket) {
+    const event = record?.event || {};
+    const checkedIn = Boolean(record?.checked_in_at);
+    return {
+        id: `${record?.participation_type || 'participation'}-${record?.participation_id || event.id || 'unknown'}`,
+        participationId: record?.participation_id,
+        eventId: event.id,
+        title: event.title || 'Campus visit',
+        description: event.description || '',
+        starts_at: event.starts_at || null,
+        ends_at: event.ends_at || null,
+        date: event.starts_at || null,
+        location: event.location || null,
+        venue: event.venue || null,
+        university: event.university?.name || event.university_name || null,
+        capacity: Number(event.capacity || 0),
+        eventStatus: event.status || null,
+        status: checkedIn ? 'attended' : (record?.status || 'confirmed'),
+        checked_in_at: record?.checked_in_at || null,
+        checked_out_at: record?.checked_out_at || null,
+        participationType: record?.participation_type || null,
+        school_group: record?.participation_type === 'school_assignment' ? 'School assignment' : null,
+        bucket,
+        itinerary: (record?.itinerary || []).map((item) => ({
+            ...item,
+            start_time: item.starts_at || null,
+            end_time: item.ends_at || null,
+        })),
+    };
+}
+
+function isUpcomingStudentVisit(visit) {
+    if (!visit || ['cancelled', 'declined', 'rejected', 'attended'].includes(visit.status) || visit.eventStatus === 'cancelled') return false;
+    const boundary = new Date(visit.ends_at || visit.starts_at || visit.date || '').getTime();
+    return Number.isFinite(boundary) && boundary >= Date.now();
+}
+
+async function loadCanonicalStudentVisits() {
+    const [upcomingPayload, historyPayload] = await Promise.all([
+        apiRequest('/api/v1/student/visits/upcoming'),
+        apiRequest('/api/v1/student/visits/history'),
+    ]);
+    const upcoming = (Array.isArray(upcomingPayload?.data) ? upcomingPayload.data : [])
+        .map((record) => normalizeCanonicalStudentVisit(record, 'upcoming'))
+        .filter(isUpcomingStudentVisit)
+        .sort((left, right) => new Date(left.starts_at) - new Date(right.starts_at));
+    const history = (Array.isArray(historyPayload?.data) ? historyPayload.data : [])
+        .map((record) => normalizeCanonicalStudentVisit(record, 'history'))
+        .sort((left, right) => new Date(right.starts_at || 0) - new Date(left.starts_at || 0));
+    return [...upcoming, ...history];
+}
+
+function StudentVisitsSection({ csrf, compact = false, userId }) {
+    const cacheKey = `scalecampus.student.visits.v1.${userId || 'anonymous'}`;
+    const [visits, setVisits] = useState(() => {
+        if (typeof window === 'undefined') return [];
+        try {
+            return JSON.parse(window.sessionStorage.getItem(cacheKey) || '[]');
+        } catch (_) {
+            return [];
+        }
+    });
+    const [selected, setSelected] = useState(null);
+    const [loading, setLoading] = useState(visits.length === 0);
+    const [message, setMessage] = useState('');
+    const [error, setError] = useState('');
+
+    const persistVisits = (rows) => {
+        setVisits(rows);
+        if (typeof window !== 'undefined') {
+            window.sessionStorage.setItem(cacheKey, JSON.stringify(rows));
+        }
+    };
+
+    const loadVisits = async () => {
+        setLoading(true);
+        setError('');
+        try {
+            persistVisits(await loadCanonicalStudentVisits());
+        } catch (fetchError) {
+            setError(fetchError.message || 'Unable to load assigned visits.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        loadVisits();
+    }, []);
+
+    const openVisit = (visit) => {
+        setSelected(visit);
+        setMessage('');
+        setError('');
+    };
+
+    const attended = visits.filter((visit) => visit.status === 'attended').length;
+    const confirmed = visits.filter((visit) => visit.status === 'confirmed').length;
+    const nextVisit = [...visits]
+        .filter(isUpcomingStudentVisit)
+        .sort((left, right) => new Date(left.starts_at || left.date) - new Date(right.starts_at || right.date))[0];
+
+    if (selected) {
+        return (
+            <StudentVisitDetails
+                visit={selected}
+                loading={false}
+                message={message}
+                error={error}
+                onBack={() => setSelected(null)}
+            />
+        );
+    }
+
+    return (
+        <section className="grid gap-3 md:gap-5">
+            <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm md:rounded-3xl md:p-5">
+                <div className="flex items-center justify-between gap-3">
+                    <div>
+                        <p className="text-xs font-black uppercase tracking-[0.14em] text-[#006a61]">Student portal</p>
+                        <h1 className="mt-0.5 text-xl font-black text-slate-950 md:text-2xl">{compact ? 'Dashboard' : 'My Visits'}</h1>
+                        <p className="mt-1 hidden max-w-2xl text-sm font-semibold leading-6 text-slate-500 sm:block">Assigned university visits, attendance status, and shared itinerary details.</p>
+                    </div>
+                    <button type="button" onClick={loadVisits} disabled={loading} className="shrink-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 disabled:opacity-60 md:px-4 md:py-2.5 md:text-sm">
+                        {loading ? '...' : 'Refresh'}
+                    </button>
+                </div>
+            </div>
+
+            {error && <p className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-800">{error}</p>}
+
+            <div className="grid grid-cols-3 gap-2 md:gap-3">
+                <MiniStat label="Assigned" value={visits.length} />
+                <MiniStat label="Confirmed" value={confirmed} />
+                <MiniStat label="Attended" value={attended} />
+            </div>
+
+            {nextVisit && (
+                <button type="button" onClick={() => openVisit(nextVisit)} className="grid gap-3 rounded-2xl border border-[#006a61]/15 bg-[#006a61] p-3 text-left text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg md:grid-cols-[1fr_auto] md:items-center md:rounded-3xl md:p-5">
+                    <div className="min-w-0">
+                        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-white/70">Next scheduled visit</p>
+                        <h2 className="mt-1 truncate text-base font-black md:text-xl">{nextVisit.title || 'Campus visit'}</h2>
+                        <p className="mt-1 truncate text-xs font-semibold text-white/80 md:text-sm">{formatDateTime(nextVisit.starts_at || nextVisit.date)} · {nextVisit.location || nextVisit.venue || 'Location TBA'}</p>
+                    </div>
+                    <span className="inline-flex w-fit rounded-xl bg-white px-3 py-2 text-xs font-black text-[#006a61]">View itinerary</span>
+                </button>
+            )}
+
+            {loading && visits.length === 0 ? (
+                <div className="grid gap-2 md:gap-3 md:grid-cols-2 xl:grid-cols-3">
+                    {[1, 2, 3].map((item) => <div key={item} className="h-44 animate-pulse rounded-3xl border border-slate-200 bg-white shadow-sm" />)}
+                </div>
+            ) : visits.length === 0 ? (
+                <EmptyState title="No visits assigned yet" message="Your school will assign visits when a university program is ready for your group." />
+            ) : (
+                <div className="grid gap-2 md:gap-3 md:grid-cols-2 xl:grid-cols-3">
+                    {visits.slice(0, compact ? 4 : visits.length).map((visit) => (
+                        <StudentVisitCard key={visit.id} visit={visit} onClick={() => openVisit(visit)} />
+                    ))}
+                </div>
+            )}
+        </section>
+    );
+}
+
+function StudentItineraryDashboardSection({ userId }) {
+    const cacheKey = `scalecampus.student.visits.v1.${userId || 'anonymous'}`;
+    const [visits, setVisits] = useState(() => {
+        if (typeof window === 'undefined') return [];
+        try {
+            return JSON.parse(window.sessionStorage.getItem(cacheKey) || '[]');
+        } catch (_) {
+            return [];
+        }
+    });
+    const [loading, setLoading] = useState(visits.length === 0);
+    const [error, setError] = useState('');
+    const [selectedVisitId, setSelectedVisitId] = useState('');
+    const [weekCursor, setWeekCursor] = useState(new Date());
+
+    const loadVisits = async () => {
+        setLoading(true);
+        setError('');
+        try {
+            const rows = await loadCanonicalStudentVisits();
+            setVisits(rows);
+            if (typeof window !== 'undefined') {
+                window.sessionStorage.setItem(cacheKey, JSON.stringify(rows));
+            }
+        } catch (fetchError) {
+            setError(fetchError.message || 'Unable to load your itinerary.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        loadVisits();
+    }, []);
+
+    const visitsWithItinerary = useMemo(() => visits
+        .filter(isUpcomingStudentVisit)
+        .map((visit) => ({ ...visit, itinerary: [...(visit.itinerary || [])].sort((left, right) => new Date(left.start_time || 0) - new Date(right.start_time || 0)) }))
+        .filter((visit) => visit.itinerary.length > 0), [visits]);
+    useEffect(() => {
+        if (!visitsWithItinerary.length) return;
+        const current = visitsWithItinerary.find((visit) => visit.id === selectedVisitId);
+        if (current) return;
+        const firstVisit = visitsWithItinerary[0];
+        setSelectedVisitId(firstVisit.id);
+        setWeekCursor(new Date(firstVisit.starts_at || firstVisit.date || firstVisit.itinerary?.[0]?.start_time || new Date()));
+    }, [visitsWithItinerary, selectedVisitId]);
+    const selectedVisit = visitsWithItinerary.find((visit) => visit.id === selectedVisitId) || visitsWithItinerary[0] || null;
+    const selectedItems = selectedVisit?.itinerary || [];
+    const nextItem = selectedItems.find((item) => itineraryItemState(item) !== 'completed') || selectedItems[selectedItems.length - 1] || null;
+    const visitDates = visitsWithItinerary.map((visit) => ({
+        id: visit.id,
+        date: visit.starts_at || visit.date || visit.itinerary?.[0]?.start_time,
+        title: visit.title || 'Visit',
+        status: visit.status,
+    }));
+    const selectedDate = selectedVisit ? new Date(selectedVisit.starts_at || selectedVisit.date || selectedVisit.itinerary?.[0]?.start_time || new Date()) : new Date();
+    const weekStart = addDays(weekCursor, -((weekCursor.getDay() + 6) % 7));
+    const weekDays = Array.from({ length: 7 }, (_, index) => addDays(weekStart, index));
+    const visitsForDate = (date) => visitDates.filter((visit) => visit.date && isSameCalendarDay(new Date(visit.date), date));
+    const selectedDayVisits = selectedVisit ? visitsForDate(selectedDate) : [];
+    const selectVisitFromCalendar = (visitId) => {
+        const visit = visitDates.find((row) => row.id === visitId);
+        setSelectedVisitId(visitId);
+        if (visit?.date) {
+            setWeekCursor(new Date(visit.date));
+        }
+    };
+    const jumpToNearestVisit = () => {
+        const today = new Date();
+        const sortedVisits = [...visitDates].filter((visit) => visit.date).sort((left, right) => new Date(left.date) - new Date(right.date));
+        const nextVisit = sortedVisits.find((visit) => new Date(visit.date) >= today);
+        if (nextVisit) {
+            selectVisitFromCalendar(nextVisit.id);
+        } else {
+            setWeekCursor(today);
+        }
+    };
+
+    return (
+        <section className="grid gap-3 md:gap-5">
+            <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm md:rounded-3xl md:p-5">
+                <div className="flex items-center justify-between gap-3">
+                    <div>
+                        <p className="text-xs font-black uppercase tracking-[0.14em] text-[#006a61]">Student portal</p>
+                        <h1 className="mt-0.5 text-xl font-black text-slate-950 md:text-2xl">Daily Itinerary</h1>
+                        <p className="mt-1 hidden max-w-2xl text-sm font-semibold leading-6 text-slate-500 sm:block">Shared schedules from your assigned campus visits. This uses the same database records seen by your school and university.</p>
+                    </div>
+                    <button type="button" onClick={loadVisits} disabled={loading} className="shrink-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 disabled:opacity-60 md:px-4 md:py-2.5 md:text-sm">
+                        {loading ? '...' : 'Refresh'}
+                    </button>
+                </div>
+            </div>
+
+            {error && <p className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-800">{error}</p>}
+
+            {loading && visits.length === 0 ? (
+                <div className="grid gap-3">
+                    {[1, 2].map((item) => <div key={item} className="h-44 animate-pulse rounded-3xl border border-slate-200 bg-white shadow-sm" />)}
+                </div>
+            ) : visitsWithItinerary.length === 0 ? (
+                <EmptyState title="No itinerary shared yet" message="When your school or university publishes itinerary items, they will appear here automatically." />
+            ) : (
+                <>
+                    <section className="rounded-3xl border border-slate-200 bg-white p-3 shadow-sm md:p-4">
+                        <div className="mb-3 flex items-center justify-between gap-3">
+                            <div>
+                                <p className="text-xs font-black uppercase tracking-[0.14em] text-[#006a61]">Week calendar</p>
+                                <h2 className="text-base font-black text-slate-950">{weekStart.toLocaleDateString([], { month: 'short', day: 'numeric' })} - {addDays(weekStart, 6).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}</h2>
+                            </div>
+                            <div className="flex items-center gap-1">
+                                <button type="button" onClick={() => setWeekCursor((current) => addDays(current, -7))} className="grid h-9 w-9 place-items-center rounded-xl border border-slate-200 bg-white text-sm font-black text-slate-700">‹</button>
+                                <button type="button" onClick={jumpToNearestVisit} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700">Nearest</button>
+                                <button type="button" onClick={() => setWeekCursor((current) => addDays(current, 7))} className="grid h-9 w-9 place-items-center rounded-xl border border-slate-200 bg-white text-sm font-black text-slate-700">›</button>
+                            </div>
+                        </div>
+                        <div className="flex gap-2 overflow-x-auto pb-1">
+                        {weekDays.map((date) => {
+                            const dayVisits = visitsForDate(date);
+                            const primaryVisit = dayVisits[0];
+                            const active = selectedVisit && isSameCalendarDay(date, selectedDate);
+                            return (
+                                <button
+                                    key={date.toISOString()}
+                                    type="button"
+                                    onClick={() => primaryVisit && selectVisitFromCalendar(primaryVisit.id)}
+                                    disabled={!primaryVisit}
+                                    className={cx(
+                                        'min-w-[4.25rem] rounded-2xl border px-3 py-2 text-center shadow-sm transition md:min-w-[5rem]',
+                                        active ? 'border-[#006a61] bg-[#006a61] text-white' : primaryVisit ? 'border-slate-200 bg-white text-slate-600 hover:border-[#006a61]/40' : 'border-slate-100 bg-slate-50 text-slate-300'
+                                    )}
+                                >
+                                    <p className="text-[10px] font-black uppercase opacity-70">{date.toLocaleDateString([], { weekday: 'short' })}</p>
+                                    <p className="text-xl font-black leading-none">{date.getDate()}</p>
+                                    <div className="mt-1 flex justify-center gap-1">
+                                        {dayVisits.slice(0, 3).map((visit) => <span key={visit.id} className={cx('h-1.5 w-1.5 rounded-full', active ? 'bg-white' : 'bg-[#006a61]')} />)}
+                                        {dayVisits.length > 3 && <span className={cx('text-[9px] font-black leading-none', active ? 'text-white' : 'text-[#006a61]')}>+{dayVisits.length - 3}</span>}
+                                    </div>
+                                    <p className="mt-1 max-w-16 truncate text-[10px] font-bold opacity-80">{primaryVisit?.title || 'No visit'}</p>
+                                </button>
+                            );
+                        })}
+                        </div>
+                        {selectedDayVisits.length > 1 && (
+                            <div className="mt-3 grid gap-2 border-t border-slate-100 pt-3 sm:grid-cols-2 lg:grid-cols-3">
+                                {selectedDayVisits.map((visit) => (
+                                    <button
+                                        key={visit.id}
+                                        type="button"
+                                        onClick={() => selectVisitFromCalendar(visit.id)}
+                                        className={cx(
+                                            'rounded-2xl border px-3 py-2 text-left text-xs font-bold transition',
+                                            selectedVisit?.id === visit.id ? 'border-[#006a61] bg-[#006a61]/10 text-[#006a61]' : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-[#006a61]/40'
+                                        )}
+                                    >
+                                        <span className="block truncate font-black">{visit.title}</span>
+                                        <span className="mt-1 block text-[10px] uppercase tracking-wide opacity-70">{formatShortTime(visit.date)}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </section>
+
+                    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
+                        <article className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
+                            <div className="flex flex-col gap-3 border-b border-slate-100 pb-4 md:flex-row md:items-start md:justify-between">
+                                <div>
+                                    <p className="text-xs font-black uppercase tracking-[0.14em] text-[#006a61]">Selected visit</p>
+                                    <h2 className="mt-1 text-lg font-black text-slate-950 md:text-xl">{selectedVisit.title || 'Campus visit'}</h2>
+                                    <p className="mt-1 text-sm font-semibold text-slate-500">{formatDateTime(selectedVisit.starts_at || selectedVisit.date)} · {selectedVisit.location || selectedVisit.venue || 'Location TBA'}</p>
+                                </div>
+                                <StudentVisitStatusBadge status={selectedVisit.status} />
+                            </div>
+
+                            <StudentItineraryTimeline items={selectedItems} enhanced />
+                        </article>
+
+                        <aside className="grid gap-3 lg:sticky lg:top-24 lg:self-start">
+                            <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                                <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">Up next</p>
+                                <h3 className="mt-2 text-base font-black text-slate-950">{nextItem?.title || 'No upcoming item'}</h3>
+                                <p className="mt-1 text-sm font-semibold text-slate-500">{nextItem ? formatTimeRange(nextItem.start_time, nextItem.end_time) : 'Schedule complete'}</p>
+                                {nextItem?.location && <p className="mt-3 inline-flex items-center gap-2 text-sm font-bold text-[#006a61]"><MapPin size={16} /> {nextItem.location}</p>}
+                            </section>
+
+                            <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                                <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">Visit details</p>
+                                <div className="mt-3 grid gap-3 text-sm font-semibold text-slate-600">
+                                    <div className="rounded-2xl bg-slate-50 px-3 py-3">
+                                        <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">Location</p>
+                                        <p className="mt-1 font-black text-slate-950">{selectedVisit.location || selectedVisit.venue || 'Location TBA'}</p>
+                                    </div>
+                                    <div className="rounded-2xl bg-slate-50 px-3 py-3">
+                                        <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">Group</p>
+                                        <p className="mt-1 font-black text-slate-950">{selectedVisit.school_group || selectedVisit.student?.name || 'Direct assignment'}</p>
+                                    </div>
+                                    <div className="rounded-2xl bg-slate-50 px-3 py-3">
+                                        <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">Schedule items</p>
+                                        <p className="mt-1 font-black text-slate-950">{selectedItems.length}</p>
+                                    </div>
+                                </div>
+                            </section>
+                        </aside>
+                    </div>
+                </>
+            )}
+        </section>
+    );
+}
+
+function StudentProfileSection({ csrf, profile = {}, registrations = [], errors = {}, old = {} }) {
+    const user = profile.user || {};
+    const cacheKey = `scalecampus.student.visits.v1.${user.id || 'anonymous'}`;
+    const [visits, setVisits] = useState(() => {
+        if (typeof window === 'undefined') return [];
+        try {
+            return JSON.parse(window.sessionStorage.getItem(cacheKey) || '[]');
+        } catch (_) {
+            return [];
+        }
+    });
+    const [loading, setLoading] = useState(visits.length === 0);
+    const [error, setError] = useState('');
+
+    const loadVisits = async () => {
+        setLoading(true);
+        setError('');
+        try {
+            const rows = await loadCanonicalStudentVisits();
+            setVisits(rows);
+            if (typeof window !== 'undefined') {
+                window.sessionStorage.setItem(cacheKey, JSON.stringify(rows));
+            }
+        } catch (fetchError) {
+            setError(fetchError.message || 'Unable to load profile visit data.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        loadVisits();
+    }, []);
+
+    const participationRows = visits.length ? visits : registrations;
+    const confirmed = participationRows.filter((row) => row.status === 'confirmed').length;
+    const invited = participationRows.filter((row) => row.status === 'invited').length;
+    const attended = participationRows.filter((row) => row.status === 'attended').length;
+    const upcomingVisits = [...visits]
+        .filter(isUpcomingStudentVisit)
+        .sort((left, right) => new Date(left.starts_at || left.date) - new Date(right.starts_at || right.date))
+        .slice(0, 4);
+    const value = (field, fallback = '') => old[field] ?? fallback ?? '';
+
+    return (
+        <section className="grid gap-4">
+            <form action="/dashboard/student/profile" method="POST" className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
+                <input type="hidden" name="_token" value={csrf} />
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+                    <span className="grid h-20 w-20 overflow-hidden place-items-center rounded-full border-4 border-slate-100 bg-[#e5eeff] text-2xl font-black text-[#006a61] shadow-sm md:h-24 md:w-24">{user.profilePhotoUrl ? <img src={user.profilePhotoUrl} alt={`${user.name || 'Student'} profile`} className="h-full w-full object-cover" /> : initials(user.name || 'Student')}</span>
+                    <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <p className="text-xs font-black uppercase tracking-[0.14em] text-[#006a61]">Student profile</p>
+                            <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-black uppercase text-emerald-700">Read-only participant</span>
+                        </div>
+                        <h1 className="mt-1 truncate text-2xl font-black text-slate-950 md:text-3xl">{user.name || 'Student'}</h1>
+                        <p className="mt-1 truncate text-sm font-semibold text-slate-500">{user.email || 'Email not available'}</p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                            <span className="inline-flex items-center gap-1 rounded-xl bg-slate-50 px-3 py-1.5 text-xs font-black text-slate-600"><ShieldCheck size={14} /> {user.emailVerified ? 'Email verified' : 'Email pending'}</span>
+                            <span className="inline-flex items-center gap-1 rounded-xl bg-slate-50 px-3 py-1.5 text-xs font-black text-slate-600"><UsersRound size={14} /> {titleCase(user.role || 'student')}</span>
+                        </div>
+                    </div>
+                    <button type="button" onClick={loadVisits} disabled={loading} className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-black text-slate-700 disabled:opacity-60">
+                        {loading ? 'Refreshing...' : 'Refresh'}
+                    </button>
+                </div>
+
+                {error && <p className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-800">{error}</p>}
+
+                <div className="mt-5 grid grid-cols-2 gap-2 md:grid-cols-4 md:gap-3">
+                    <MiniStat label="Assigned" value={participationRows.length} />
+                    <MiniStat label="Invited" value={invited} />
+                    <MiniStat label="Confirmed" value={confirmed} />
+                    <MiniStat label="Attended" value={attended} />
+                </div>
+
+                <div className="mt-6 grid gap-5 border-t border-slate-100 pt-5">
+                    <section>
+                        <h2 className="text-lg font-black text-slate-950">Personal details</h2>
+                        <div className="mt-4 grid gap-4 md:grid-cols-2">
+                            <LightField label="Full name" name="name" defaultValue={value('name', user.name)} error={errors.name?.[0]} />
+                            <LightField label="Email address" name="email" type="email" defaultValue={user.email || ''} disabled />
+                            <LightField label="Phone number" name="phone" defaultValue={value('phone', user.phone)} error={errors.phone?.[0]} />
+                            <LightField label="Date of birth" name="date_of_birth" type="date" defaultValue={value('date_of_birth', user.dateOfBirth)} error={errors.date_of_birth?.[0]} />
+                        </div>
+                    </section>
+
+                    <section>
+                        <h2 className="text-lg font-black text-slate-950">School profile</h2>
+                        <div className="mt-4 grid gap-4 md:grid-cols-3">
+                            <LightField label="Student ID" name="student_identifier" defaultValue={value('student_identifier', user.studentIdentifier)} error={errors.student_identifier?.[0]} />
+                            <LightField label="Grade level" name="grade_level" defaultValue={value('grade_level', user.gradeLevel)} error={errors.grade_level?.[0]} />
+                            <LightField label="Interest / intended major" name="interest_major" defaultValue={value('interest_major', user.interestMajor)} error={errors.interest_major?.[0]} />
+                        </div>
+                    </section>
+
+                    <section>
+                        <h2 className="text-lg font-black text-slate-950">Address</h2>
+                        <div className="mt-4 grid gap-4 md:grid-cols-2">
+                            <div className="md:col-span-2"><LightField label="Street address" name="address" defaultValue={value('address', user.address)} error={errors.address?.[0]} /></div>
+                            <LightField label="City" name="city" defaultValue={value('city', user.city)} error={errors.city?.[0]} />
+                            <LightField label="State / province" name="state" defaultValue={value('state', user.state)} error={errors.state?.[0]} />
+                            <LightField label="Country" name="country" defaultValue={value('country', user.country)} error={errors.country?.[0]} />
+                        </div>
+                    </section>
+
+                    <section>
+                        <h2 className="text-lg font-black text-slate-950">Guardian information</h2>
+                        <div className="mt-4 grid gap-4 md:grid-cols-2">
+                            <LightField label="Guardian name" name="guardian_name" defaultValue={value('guardian_name', user.guardianName)} error={errors.guardian_name?.[0]} />
+                            <LightField label="Relationship" name="guardian_relationship" defaultValue={value('guardian_relationship', user.guardianRelationship)} error={errors.guardian_relationship?.[0]} />
+                            <LightField label="Guardian email" name="guardian_email" type="email" defaultValue={value('guardian_email', user.guardianEmail)} error={errors.guardian_email?.[0]} />
+                            <LightField label="Guardian phone" name="guardian_phone" defaultValue={value('guardian_phone', user.guardianPhone)} error={errors.guardian_phone?.[0]} />
+                        </div>
+                    </section>
+
+                    <section>
+                        <h2 className="text-lg font-black text-slate-950">Emergency and visit needs</h2>
+                        <div className="mt-4 grid gap-4 md:grid-cols-2">
+                            <LightField label="Emergency contact name" name="emergency_contact_name" defaultValue={value('emergency_contact_name', user.emergencyContactName)} error={errors.emergency_contact_name?.[0]} />
+                            <LightField label="Emergency relationship" name="emergency_contact_relationship" defaultValue={value('emergency_contact_relationship', user.emergencyContactRelationship)} error={errors.emergency_contact_relationship?.[0]} />
+                            <LightField label="Emergency phone" name="emergency_contact_phone" defaultValue={value('emergency_contact_phone', user.emergencyContactPhone)} error={errors.emergency_contact_phone?.[0]} />
+                            <LightField label="Dietary restrictions" name="dietary_restrictions" defaultValue={value('dietary_restrictions', user.dietaryRestrictions)} error={errors.dietary_restrictions?.[0]} />
+                            <div className="md:col-span-2"><LightTextarea label="Medical notes" name="medical_notes" defaultValue={value('medical_notes', user.medicalNotes)} placeholder="Allergies, medication, medical notes, or care instructions..." error={errors.medical_notes?.[0]} /></div>
+                            <div className="md:col-span-2"><LightTextarea label="Accessibility needs" name="accessibility_needs" defaultValue={value('accessibility_needs', user.accessibilityNeeds)} placeholder="Mobility, sensory, language, or other visit support needs..." error={errors.accessibility_needs?.[0]} /></div>
+                        </div>
+                    </section>
+
+                    <section className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                        <label className="flex items-start gap-3 text-sm font-semibold text-emerald-950">
+                            <input type="checkbox" name="consent_to_share" value="1" defaultChecked={Boolean(old.consent_to_share ?? user.consentToShare)} className="mt-1 rounded border-emerald-300 text-[#006a61] focus:ring-[#006a61]" />
+                            <span>
+                                Allow my school and visit hosts to use these details for visit coordination, safety, accessibility, and emergency handling.
+                                <span className="mt-1 block text-xs font-bold text-emerald-700">This does not give students control over attendance. Schools and universities still manage visit attendance.</span>
+                            </span>
+                        </label>
+                    </section>
+
+                    <div className="flex justify-end">
+                        <button className="w-full rounded-xl bg-[#006a61] px-5 py-3 text-sm font-black text-white hover:opacity-90 md:w-auto">Save Profile</button>
+                    </div>
+                </div>
+            </form>
+
+            <article className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
+                <div className="flex items-center justify-between gap-3">
+                    <div>
+                        <h2 className="text-lg font-black text-slate-950">Assigned visits</h2>
+                        <p className="mt-1 text-sm font-semibold text-slate-500">Upcoming, non-cancelled visits tied to this student account.</p>
+                    </div>
+                    <CalendarDays className="text-[#006a61]" size={22} />
+                </div>
+                <div className="mt-4 grid gap-2 md:grid-cols-2">
+                    {loading && visits.length === 0 ? (
+                        [1, 2, 3].map((item) => <div key={item} className="h-16 animate-pulse rounded-2xl bg-slate-50" />)
+                    ) : upcomingVisits.length === 0 ? (
+                        <EmptyState title="No assigned visits" message="Assigned campus visits will appear here when your school adds you to a visit." />
+                    ) : upcomingVisits.map((visit) => (
+                        <div key={visit.id} className="flex items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-3">
+                            <div className="min-w-0">
+                                <p className="truncate text-sm font-black text-slate-950">{visit.title || 'Campus visit'}</p>
+                                <p className="mt-1 truncate text-xs font-bold text-slate-500">{formatDateTime(visit.starts_at || visit.date)} · {visit.location || visit.venue || 'Location TBA'}</p>
+                            </div>
+                            <StudentVisitStatusBadge status={visit.status} />
+                        </div>
+                    ))}
+                </div>
+            </article>
+        </section>
+    );
+}
+
+function StudentVisitCard({ visit, onClick }) {
+    const status = visit.status || 'invited';
+    const primaryAction = status === 'attended' ? 'Review' : 'Details';
+
+    return (
+        <button type="button" onClick={onClick} className="group w-full rounded-2xl border border-slate-200 bg-white p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-[#006a61]/30 hover:shadow-lg md:rounded-3xl md:p-5">
+            <div className="grid grid-cols-[44px_1fr_auto] items-start gap-3 md:grid-cols-[52px_1fr]">
+                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-[#e5eeff] text-xs font-black text-[#006a61] md:h-12 md:w-12 md:text-sm">{initials(visit.title || 'Visit')}</span>
+                <div className="min-w-0">
+                    <div className="flex min-w-0 items-start justify-between gap-2">
+                        <h3 className="line-clamp-2 text-base font-black leading-tight text-slate-950 group-hover:text-[#006a61] md:text-lg">{visit.title || 'Campus visit'}</h3>
+                        <div className="hidden shrink-0 md:block"><StudentVisitStatusBadge status={status} /></div>
+                    </div>
+                    <p className="mt-0.5 truncate text-xs font-bold text-slate-500 md:text-sm">{visit.university || visit.host || 'University visit'}</p>
+                </div>
+                <div className="md:hidden"><StudentVisitStatusBadge status={status} /></div>
+            </div>
+
+            <div className="mt-3 grid gap-1.5 border-t border-slate-100 pt-3 text-xs font-bold text-slate-500 md:mt-4 md:gap-2 md:text-sm">
+                <span className="inline-flex min-w-0 items-center gap-2"><CalendarDays size={14} className="shrink-0 text-slate-400" /> <span className="truncate">{formatDateTime(visit.starts_at || visit.date)}</span></span>
+                <span className="inline-flex min-w-0 items-center gap-2"><MapPin size={14} className="shrink-0 text-slate-400" /> <span className="truncate">{visit.location || visit.venue || 'Location TBA'}</span></span>
+            </div>
+
+            <div className="mt-3 flex items-center justify-between gap-3 border-t border-slate-100 pt-3">
+                <span className="text-xs font-black text-[#006a61]">{primaryAction}</span>
+                <span className="rounded-full bg-slate-50 p-1.5 text-slate-400 transition group-hover:bg-[#e5eeff] group-hover:text-[#006a61]"><ChevronRight size={16} /></span>
+            </div>
+        </button>
+    );
+}
+
+function StudentVisitDetails({ visit, loading, message, error, onBack }) {
+    return (
+        <section className="grid gap-4 md:gap-5">
+            <button type="button" onClick={onBack} className="w-fit rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-black text-slate-700">Back to visits</button>
+
+            <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
+                <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-start">
+                    <div>
+                        <p className="text-xs font-black uppercase tracking-[0.14em] text-[#006a61]">Visit details</p>
+                        <h1 className="mt-2 text-2xl font-black leading-tight text-slate-950 md:text-3xl">{visit.title || 'Campus visit'}</h1>
+                        <div className="mt-4 flex flex-col gap-2 text-sm font-semibold text-slate-500 sm:flex-row sm:flex-wrap">
+                            <span className="inline-flex items-center gap-2"><CalendarDays size={16} /> {formatDateTime(visit.starts_at || visit.date)}</span>
+                            <span className="inline-flex items-center gap-2"><MapPin size={16} /> {visit.location || visit.venue || 'Location TBA'}</span>
+                        </div>
+                    </div>
+                    <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                        <p className="text-xs font-black uppercase tracking-wide text-slate-400">Current status</p>
+                        <div className="mt-3"><StudentVisitStatusBadge status={visit.status} /></div>
+                        <p className="mt-3 text-xs font-bold leading-5 text-slate-500">Attendance is managed by your school and the visit host.</p>
+                    </div>
+                </div>
+                {loading && <p className="mt-4 rounded-xl bg-blue-50 px-4 py-3 text-sm font-bold text-blue-800">Loading visit details...</p>}
+                {message && <p className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800">{message}</p>}
+                {error && <p className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-800">{error}</p>}
+            </section>
+
+            <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
+                <div className="flex items-center justify-between gap-3">
+                    <div>
+                        <h2 className="text-lg font-black text-slate-950">Itinerary</h2>
+                        <p className="mt-1 text-sm font-semibold text-slate-500">Shared schedule for this visit.</p>
+                    </div>
+                    <RouteIcon className="text-[#006a61]" size={20} />
+                </div>
+                <StudentItineraryTimeline items={visit.itinerary || []} />
+            </section>
+        </section>
+    );
+}
+
+function StudentItineraryTimeline({ items = [], enhanced = false }) {
+    const sorted = [...items].sort((left, right) => new Date(left.start_time || 0) - new Date(right.start_time || 0));
+
+    if (!sorted.length) {
+        return <EmptyState title="No itinerary shared yet" message="Your school or university will share the visit itinerary when it is ready." />;
+    }
+
+    return (
+        <div className={cx('mt-5 grid', enhanced ? 'gap-0' : 'gap-3')}>
+            {sorted.map((item, index) => {
+                const state = itineraryItemState(item);
+                const isLast = index === sorted.length - 1;
+                const stateLabel = state === 'completed' ? 'Completed' : state === 'current' ? 'Happening now' : 'Upcoming';
+                return enhanced ? (
+                    <article key={item.id || `${item.title}-${index}`} className="relative ml-3 grid grid-cols-[22px_1fr] gap-3">
+                        <div className="relative flex justify-center">
+                            <span className={cx(
+                                'z-10 mt-1 grid h-5 w-5 place-items-center rounded-full border-4 border-white',
+                                state === 'completed' ? 'bg-emerald-500 text-white' : state === 'current' ? 'bg-slate-950 ring-4 ring-[#006a61]/15' : 'bg-slate-300'
+                            )}>
+                                {state === 'completed' && <CheckCircle2 size={11} />}
+                            </span>
+                            {!isLast && <span className={cx('absolute top-6 h-full w-0.5', state === 'current' ? 'bg-slate-950' : 'bg-slate-200')} />}
+                        </div>
+                        <div className={cx(
+                            'mb-3 rounded-2xl border p-3 shadow-sm transition md:p-4',
+                            state === 'current' ? 'border-[#006a61]/30 bg-white shadow-md' : 'border-slate-100 bg-slate-50'
+                        )}>
+                            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                                <p className={cx('text-xs font-black', state === 'current' ? 'text-[#006a61]' : 'text-slate-500')}>{formatTimeRange(item.start_time, item.end_time)}</p>
+                                <span className={cx(
+                                    'w-fit rounded-full px-2 py-1 text-[10px] font-black uppercase',
+                                    state === 'completed' ? 'bg-emerald-50 text-emerald-700' : state === 'current' ? 'bg-blue-50 text-blue-700' : 'bg-slate-100 text-slate-500'
+                                )}>{stateLabel}</span>
+                            </div>
+                            <h3 className="mt-2 text-base font-black text-slate-950 md:text-lg">{item.title}</h3>
+                            {item.description && <p className="mt-1 text-sm font-semibold leading-6 text-slate-500">{item.description}</p>}
+                            <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                                <p className="inline-flex min-w-0 items-center gap-2 text-sm font-bold text-[#006a61]"><MapPin size={15} /> <span className="truncate">{item.location || 'Location TBA'}</span></p>
+                                {item.location && <a className="text-xs font-black text-slate-950 underline-offset-4 hover:underline" href={`https://www.openstreetmap.org/search?query=${encodeURIComponent(item.location)}`} target="_blank" rel="noreferrer">Directions</a>}
+                            </div>
+                        </div>
+                    </article>
+                ) : (
+                    <article key={item.id || `${item.title}-${index}`} className="grid gap-2 rounded-2xl border border-slate-100 bg-slate-50 p-3 md:grid-cols-[130px_1fr] md:gap-4 md:p-4">
+                        <div className="text-sm font-black text-[#006a61] md:border-r md:border-slate-200 md:pr-4">
+                            {formatTimeRange(item.start_time, item.end_time)}
+                        </div>
+                        <div className="rounded-2xl bg-white p-4 shadow-sm">
+                            <div className="flex items-start gap-3">
+                                <span className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#e5eeff] text-[#006a61]"><Clock size={16} /></span>
+                                <div>
+                                    <h3 className="font-black text-slate-950">{item.title}</h3>
+                                    <p className="mt-1 text-sm font-semibold text-slate-500">{item.location || 'Location TBA'}</p>
+                                    {item.description && <p className="mt-2 text-sm leading-6 text-slate-600">{item.description}</p>}
+                                </div>
+                            </div>
+                        </div>
+                    </article>
+                );
+            })}
+        </div>
+    );
+}
+
+function itineraryItemState(item) {
+    const now = new Date();
+    const start = item.start_time ? new Date(item.start_time) : null;
+    const end = item.end_time ? new Date(item.end_time) : start;
+
+    if (end && end < now) return 'completed';
+    if (start && start <= now && (!end || end >= now)) return 'current';
+    return 'upcoming';
+}
+
+function StudentVisitStatusBadge({ status }) {
+    const labels = {
+        invited: 'Invited',
+        confirmed: 'Confirmed',
+        attended: 'Attended',
+        waitlisted: 'Waitlisted',
+        cancelled: 'Cancelled',
+    };
+    const classes = {
+        invited: 'bg-slate-100 text-slate-600',
+        confirmed: 'bg-emerald-50 text-emerald-700',
+        attended: 'bg-green-100 text-green-800',
+        waitlisted: 'bg-amber-50 text-amber-700',
+        cancelled: 'bg-rose-50 text-rose-700',
+    };
+
+    return <span className={cx('inline-flex rounded-full px-2.5 py-1 text-[10px] font-black uppercase', classes[status] || classes.invited)}>{labels[status] || titleCase(status || 'invited')}</span>;
+}
+
 function EventCalendarSection({ csrf, events, registrations = [], title = 'Calendar', canManage = false }) {
     const [localEvents, setLocalEvents] = useState(events || []);
+    const timeSlots = ['08:00', '09:00', '10:00', '11:00', '13:00', '14:00', '15:00', '16:00'];
 
     useEffect(() => {
         setLocalEvents(events || []);
@@ -6483,8 +8088,14 @@ function EventCalendarSection({ csrf, events, registrations = [], title = 'Calen
     const [moveMessage, setMoveMessage] = useState('');
     const [draggingId, setDraggingId] = useState(null);
     const [movingEventId, setMovingEventId] = useState(null);
-    const selectedEvent = localEvents.find((event) => event.id === selectedId) || datedEvents[0] || localEvents[0] || null;
-    const selectedRoster = selectedEvent ? registrations.filter((registration) => registration.event === selectedEvent.title) : [];
+    const [pendingTime, setPendingTime] = useState('');
+    const [pendingEndTime, setPendingEndTime] = useState('');
+    const selectedEvent = localEvents.find((event) => String(event.id) === String(selectedId)) || datedEvents[0] || localEvents[0] || null;
+    const selectedRoster = selectedEvent ? registrations.filter((registration) => Number(registration.eventId) === Number(selectedEvent.id)) : [];
+    const nextDatedEvent = datedEvents.find((event) => {
+        const startsAt = new Date(event.startsAt || '').getTime();
+        return Number.isFinite(startsAt) && startsAt >= Date.now();
+    }) || datedEvents[0] || null;
     const monthCells = calendarMonthCells(cursor);
     const weekStart = addDays(selectedDate, -((selectedDate.getDay() + 6) % 7));
     const weekDays = Array.from({ length: 7 }, (_, index) => addDays(weekStart, index));
@@ -6497,13 +8108,16 @@ function EventCalendarSection({ csrf, events, registrations = [], title = 'Calen
     }).length;
     const expectedStudents = localEvents.reduce((total, event) => total + Number(event.confirmedSeats || 0), 0);
     const busiestDay = busiestCalendarDay(localEvents);
-    const pendingStart = pendingDate && selectedEvent ? moveEventToDate(selectedEvent.startsAt, pendingDate) : null;
-    const pendingEnd = pendingDate && selectedEvent ? moveEventToDate(selectedEvent.endsAt || selectedEvent.startsAt, pendingDate) : null;
+    const pendingStart = pendingDate && selectedEvent ? moveEventToDateTime(selectedEvent.startsAt, pendingDate, pendingTime) : null;
+    const pendingEnd = pendingDate && selectedEvent ? moveEventToDateTime(selectedEvent.endsAt || selectedEvent.startsAt, pendingDate, pendingEndTime) : null;
+    const pendingConflict = pendingStart && selectedEvent ? hasLocalScheduleConflict(localEvents, selectedEvent.id, selectedEvent.venue, pendingStart, pendingEnd) : null;
 
     const selectEvent = (event) => {
         setSelectedId(event.id);
         setPendingDate(null);
         setMovingEventId(null);
+        setPendingTime('');
+        setPendingEndTime('');
         if (event.startsAt) setSelectedDate(new Date(event.startsAt));
     };
 
@@ -6518,6 +8132,9 @@ function EventCalendarSection({ csrf, events, registrations = [], title = 'Calen
         setSelectedId(eventId);
         setSelectedDate(date);
         setPendingDate(date);
+        const eventRecord = localEvents.find((item) => item.id === eventId);
+        setPendingTime(timeValue(eventRecord?.startsAt));
+        setPendingEndTime(timeValue(eventRecord?.endsAt || addHoursToIso(eventRecord?.startsAt, 2)));
         setMovingEventId(null);
         setMoveMessage('');
     };
@@ -6526,6 +8143,9 @@ function EventCalendarSection({ csrf, events, registrations = [], title = 'Calen
         if (!canManage || !eventId) return;
         setSelectedId(eventId);
         setPendingDate(null);
+        const eventRecord = localEvents.find((item) => item.id === eventId);
+        setPendingTime(timeValue(eventRecord?.startsAt));
+        setPendingEndTime(timeValue(eventRecord?.endsAt || addHoursToIso(eventRecord?.startsAt, 2)));
         setMovingEventId(eventId);
         setMoveMessage('');
     };
@@ -6547,6 +8167,10 @@ function EventCalendarSection({ csrf, events, registrations = [], title = 'Calen
     const handleMoveSubmit = async (event) => {
         event.preventDefault();
         if (!selectedEvent || !pendingStart) return;
+        if (pendingConflict) {
+            setMoveMessage('Unable to reschedule visit. The selected venue and time conflicts with another program.');
+            return;
+        }
 
         const form = event.currentTarget;
         const formData = new FormData(form);
@@ -6565,7 +8189,7 @@ function EventCalendarSection({ csrf, events, registrations = [], title = 'Calen
 
             setLocalEvents((items) => items.map((item) => (
                 item.id === selectedEvent.id
-                    ? { ...item, startsAt: pendingStart, endsAt: pendingEnd }
+                    ? { ...item, startsAt: pendingStart, endsAt: pendingEnd, venue: formData.get('venue') || item.venue, lastScheduleChangeAt: new Date().toISOString() }
                     : item
             )));
             setSelectedDate(new Date(pendingStart));
@@ -6590,10 +8214,11 @@ function EventCalendarSection({ csrf, events, registrations = [], title = 'Calen
                 </div>
                 <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
                     <button type="button" onClick={jumpToToday} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 shadow-sm">Today</button>
+                    {canManage && <a href="/campus-events/calendar/export" className="rounded-xl border border-[#006a61]/30 bg-white px-3 py-2 text-center text-xs font-black text-[#006a61] shadow-sm">Export ICS</a>}
                     {canManage ? (
                         <button type="button" onClick={() => selectedEvent && startMove(selectedEvent.id)} disabled={!selectedEvent} className="rounded-xl bg-slate-950 px-3 py-2 text-xs font-black text-white shadow-sm disabled:opacity-40">Move Visit</button>
                     ) : (
-                        <button type="button" onClick={() => selectedEvent && setSelectedDate(new Date(selectedEvent.startsAt || Date.now()))} disabled={!selectedEvent} className="rounded-xl bg-slate-950 px-3 py-2 text-xs font-black text-white shadow-sm disabled:opacity-40">Next Visit</button>
+                        <button type="button" onClick={() => nextDatedEvent && selectEvent(nextDatedEvent)} disabled={!nextDatedEvent} className="rounded-xl bg-slate-950 px-3 py-2 text-xs font-black text-white shadow-sm disabled:opacity-40">Next Visit</button>
                     )}
                 </div>
             </div>
@@ -6608,10 +8233,28 @@ function EventCalendarSection({ csrf, events, registrations = [], title = 'Calen
             )}
 
             <div className="grid grid-cols-3 gap-2 md:gap-4">
-                <ScheduleMetric label="This week" value={weekEvents || localEvents.length} detail="scheduled visits" tone="green" />
+                <ScheduleMetric label="This week" value={weekEvents} detail="scheduled visits" tone="green" />
                 <ScheduleMetric label="Expected" value={expectedStudents.toLocaleString()} detail="students" tone="blue" />
                 <ScheduleMetric label="Busiest" value={busiestDay.label} detail={busiestDay.detail} tone="slate" />
             </div>
+
+            {canManage && selectedEvent && (
+                <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm md:p-4">
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                        <div>
+                            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#006a61]">Editable Time Blocks</p>
+                            <p className="mt-1 text-sm font-bold text-slate-600">Pick a day, then choose a time slot. Conflict detection runs before confirmation.</p>
+                        </div>
+                        <div className="flex gap-2 overflow-x-auto pb-1">
+                            {timeSlots.map((slot) => (
+                                <button key={slot} type="button" onClick={() => { setPendingDate(selectedDate); setPendingTime(slot); setPendingEndTime(addMinutesToTime(slot, 120)); }} onDragOver={(event) => canManage && event.preventDefault()} onDrop={() => { if (draggingId) { prepareMove(draggingId, selectedDate); setPendingTime(slot); setPendingEndTime(addMinutesToTime(slot, 120)); setDraggingId(null); } }} className={cx('shrink-0 rounded-xl border px-3 py-2 text-xs font-black', pendingTime === slot ? 'border-[#006a61] bg-[#006a61] text-white' : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-white')}>
+                                    {formatSlotLabel(slot)}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </section>
+            )}
 
             <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm md:hidden">
                 <div className="flex items-center justify-between">
@@ -6760,15 +8403,10 @@ function EventCalendarSection({ csrf, events, registrations = [], title = 'Calen
 
             {pendingDate && selectedEvent && (
                 <section className="fixed inset-0 z-[90] grid place-items-center bg-slate-950/55 px-4 py-6 backdrop-blur-sm">
-                    <form action={`/campus-events/${selectedEvent.id}`} method="POST" onSubmit={handleMoveSubmit} className="w-full max-w-md rounded-3xl border border-white/70 bg-white p-5 text-slate-950 shadow-2xl md:p-6">
+                    <form action={`/campus-events/${selectedEvent.id}/schedule`} method="POST" onSubmit={handleMoveSubmit} className="w-full max-w-md rounded-3xl border border-white/70 bg-white p-5 text-slate-950 shadow-2xl md:p-6">
                         <input type="hidden" name="_token" value={csrf} />
-                        <input type="hidden" name="_method" value="PUT" />
-                        <input type="hidden" name="title" value={selectedEvent.title || ''} />
                         <input type="hidden" name="venue" value={selectedEvent.venue || ''} />
                         <input type="hidden" name="location" value={selectedEvent.location || ''} />
-                        <input type="hidden" name="description" value={selectedEvent.description || ''} />
-                        <input type="hidden" name="capacity" value={selectedEvent.capacity || 1} />
-                        <input type="hidden" name="status" value={selectedEvent.status || 'published'} />
                         <input type="hidden" name="starts_at" value={toInputDateTime(pendingStart)} />
                         <input type="hidden" name="ends_at" value={toInputDateTime(pendingEnd)} />
                         <div className="flex items-start gap-3">
@@ -6782,8 +8420,13 @@ function EventCalendarSection({ csrf, events, registrations = [], title = 'Calen
                             </div>
                         </div>
                         <div className="mt-5 rounded-2xl bg-slate-50 p-3 text-xs font-bold text-slate-600">
-                            <p>Time stays the same: {formatTimeRange(pendingStart, pendingEnd)}</p>
+                            <div className="grid gap-3 sm:grid-cols-2">
+                                <label>Start time<input type="time" value={pendingTime} onChange={(event) => setPendingTime(event.target.value)} className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-black text-slate-900" /></label>
+                                <label>End time<input type="time" value={pendingEndTime} onChange={(event) => setPendingEndTime(event.target.value)} className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-black text-slate-900" /></label>
+                            </div>
+                            <p className="mt-3">Time block: {formatTimeRange(pendingStart, pendingEnd)}</p>
                             <p className="mt-1">Venue: {selectedEvent.venue || 'Venue TBA'}</p>
+                            {pendingConflict && <p className="mt-3 rounded-xl bg-red-50 p-3 text-red-700">Conflict detected with “{pendingConflict.title}” at this venue/time. Choose another slot before confirming.</p>}
                         </div>
                         <div className="mt-5 grid grid-cols-2 gap-2">
                             <button type="button" onClick={() => setPendingDate(null)} className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 hover:bg-slate-50">Cancel</button>
@@ -6843,16 +8486,15 @@ function CalendarEventDrawer({ event, roster }) {
     if (!event) {
         return (
             <aside className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-5">
-                <EmptyState message="Select an event to inspect capacity, attending schools, and scheduling notes." />
+                <EmptyState message="Select an event to inspect capacity, registrations, and scheduling notes." />
             </aside>
         );
     }
 
     const percent = eventCapacityPercent(event);
-    const schools = roster.length
-        ? [...new Set(roster.map((registration) => registration.name).filter(Boolean))]
-        : ['Stanford University', 'UC Berkeley', 'MIT', 'NIST International School', 'Oakwood Prep'];
+    const registeredParties = [...new Set(roster.map((registration) => registration.name).filter(Boolean))];
     const isFull = Number(event.confirmedSeats || 0) >= Number(event.capacity || 1);
+    const openSeats = Math.max(0, Number(event.capacity || 0) - Number(event.confirmedSeats || 0));
 
     return (
         <aside className="rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -6860,7 +8502,7 @@ function CalendarEventDrawer({ event, roster }) {
                 <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
                         <span className={cx('h-2.5 w-2.5 rounded-full', isFull ? 'bg-red-500' : 'bg-emerald-500')} />
-                        <span className="text-[10px] font-black uppercase tracking-wide text-slate-500">{isFull ? 'Full' : 'Confirmed'}</span>
+                        <span className="text-[10px] font-black uppercase tracking-wide text-slate-500">{isFull ? 'Full' : 'Seats available'}</span>
                     </div>
                     <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-black uppercase text-slate-500">{event.status || 'published'}</span>
                 </div>
@@ -6883,36 +8525,32 @@ function CalendarEventDrawer({ event, roster }) {
                 </div>
 
                 <div>
-                    <p className="text-xs font-black uppercase tracking-wide text-slate-500">Attending Schools</p>
+                    <p className="text-xs font-black uppercase tracking-wide text-slate-500">Registered Parties</p>
                     <div className="mt-2 flex flex-wrap gap-2 md:mt-3">
-                        {schools.slice(0, 4).map((school) => <span key={school} className="rounded-md bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">{school}</span>)}
-                        {schools.length > 4 && <span className="rounded-md bg-slate-200 px-2.5 py-1 text-xs font-black text-slate-600">+{schools.length - 4} more</span>}
+                        {registeredParties.slice(0, 4).map((party) => <span key={party} className="rounded-md bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">{party}</span>)}
+                        {registeredParties.length > 4 && <span className="rounded-md bg-slate-200 px-2.5 py-1 text-xs font-black text-slate-600">+{registeredParties.length - 4} more</span>}
+                        {registeredParties.length === 0 && <span className="text-xs font-semibold text-slate-500">No registration records for this event.</span>}
                     </div>
                 </div>
 
                 <div>
-                    <p className="text-xs font-black uppercase tracking-wide text-slate-500">AI Notes</p>
+                    <p className="text-xs font-black uppercase tracking-wide text-slate-500">Capacity Note</p>
                     <p className={cx('mt-2 rounded-xl border-l-4 p-3 text-xs font-semibold leading-5 md:mt-3', isFull ? 'border-red-300 bg-red-50 text-red-800' : 'border-emerald-300 bg-emerald-50 text-emerald-800')}>
-                        {isFull ? 'Capacity pressure is high. Recommended to open a second room, increase virtual capacity, or move overflow to waitlist.' : 'Healthy booking pace. Recommended to keep this slot and trigger counselor reminders seven days before the event.'}
+                        {isFull ? 'No seats remain based on the current capacity and confirmed registration count.' : `${openSeats.toLocaleString()} seat${openSeats === 1 ? '' : 's'} remain based on the current capacity and confirmed registration count.`}
                     </p>
                 </div>
-
-                <button type="button" className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-3 text-sm font-black text-white">
-                    <Search size={15} /> View Full Event
-                </button>
             </div>
         </aside>
     );
 }
 
-function MessageCenterSection({ csrf, registrations = [], messages = [], role }) {
+function MessageCenterSection({ csrf, registrations = [], messages = [], events = [], role }) {
     const threads = messageThreadsForRole(role, messages, registrations);
     const [activeId, setActiveId] = useState(threads[0]?.id || 'general');
     const [filter, setFilter] = useState('active');
     const [mobileChatOpen, setMobileChatOpen] = useState(false);
     const [mobileCategory, setMobileCategory] = useState('all');
     const [draft, setDraft] = useState('');
-    const [channel, setChannel] = useState('email');
     const [recipientScope, setRecipientScope] = useState('');
     const [localMessages, setLocalMessages] = useState({});
     const [sending, setSending] = useState(false);
@@ -6950,7 +8588,7 @@ function MessageCenterSection({ csrf, registrations = [], messages = [], role })
             const payload = new URLSearchParams();
             payload.set('_token', csrf);
             payload.set('recipient_scope', currentScope);
-            payload.set('channel', channel);
+            payload.set('channel', 'email');
             payload.set('content', body);
 
             const response = await fetch('/dashboard/messages', {
@@ -6988,7 +8626,9 @@ function MessageCenterSection({ csrf, registrations = [], messages = [], role })
     };
 
     return (
-        <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm md:min-h-[680px]">
+        <section className="grid gap-4">
+            {role === 'university' && <UniversityNotificationAutomation csrf={csrf} events={events} registrations={registrations} messages={messages} />}
+            <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm md:min-h-[680px]">
             <div className="grid min-h-[calc(100dvh-9rem)] md:min-h-[680px] lg:grid-cols-[340px_1fr]">
                 <aside className={cx('border-b border-slate-200 bg-slate-50 lg:border-b-0 lg:border-r', mobileChatOpen && 'hidden lg:block')}>
                     <div className="border-b border-slate-200 p-3 md:p-4">
@@ -7082,7 +8722,7 @@ function MessageCenterSection({ csrf, registrations = [], messages = [], role })
                         <span className="inline-flex rounded bg-emerald-50 px-2 py-1 text-[11px] font-black text-emerald-700">Sentiment: Positive</span>
                     </div>
 
-                    <form action="/dashboard/messages" method="POST" onSubmit={submitMessage} className="sticky bottom-0 border-t border-slate-200 bg-white p-3 md:p-4">
+                    <form action="/dashboard/messages" method="POST" data-no-submit-lock="true" onSubmit={submitMessage} className="sticky bottom-0 border-t border-slate-200 bg-white p-3 md:p-4">
                         <input type="hidden" name="_token" value={csrf} />
                         <div className="mb-2 flex flex-wrap items-center justify-between gap-2 md:mb-3 md:gap-3">
                             <label className="flex items-center gap-2 text-xs font-semibold text-slate-500">
@@ -7093,10 +8733,7 @@ function MessageCenterSection({ csrf, registrations = [], messages = [], role })
                                 <select name="recipient_scope" value={currentScope} onChange={(event) => setRecipientScope(event.target.value)} className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-2 text-xs font-bold text-slate-600 outline-none md:px-3">
                                     {scopeOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                                 </select>
-                                <select name="channel" value={channel} onChange={(event) => setChannel(event.target.value)} className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-2 text-xs font-bold text-slate-600 outline-none md:px-3">
-                                    <option value="email">Email</option>
-                                    <option value="sms">SMS</option>
-                                </select>
+                                <span className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-2 text-xs font-bold text-slate-600 md:px-3">Email</span>
                                 <button type="button" className="hidden h-9 w-9 place-items-center rounded-lg text-slate-500 hover:bg-slate-50 md:grid" aria-label="Attach file"><Paperclip size={16} /></button>
                             </div>
                         </div>
@@ -7110,6 +8747,122 @@ function MessageCenterSection({ csrf, registrations = [], messages = [], role })
                     </form>
                 </main>
             </div>
+            </section>
+        </section>
+    );
+}
+
+function UniversityNotificationAutomation({ csrf, events = [], registrations = [], messages = [] }) {
+    const universityEvents = events.filter((event) => event.status !== 'cancelled');
+    const [selectedEventId, setSelectedEventId] = useState(universityEvents[0]?.id || '');
+    const [noticeType, setNoticeType] = useState('update');
+    const selectedEvent = universityEvents.find((event) => String(event.id) === String(selectedEventId)) || universityEvents[0];
+    const eventRegistrations = registrations.filter((item) => Number(item.eventId) === Number(selectedEvent?.id));
+    const schools = [...new Set(eventRegistrations.filter((item) => item.type === 'school_group').map((item) => item.name).filter(Boolean))];
+    const students = eventRegistrations.filter((item) => item.type !== 'school_group');
+    const history = messages.filter((message) => !selectedEvent || Number(message.eventId) === Number(selectedEvent.id));
+    const failed = history.filter((message) => message.status === 'failed');
+    const queued = history.filter((message) => message.status === 'queued');
+    const sent = history.filter((message) => message.status === 'sent');
+    const noticeTemplates = {
+        update: {
+            subject: selectedEvent ? `Update: ${selectedEvent.title}` : 'Visit update',
+            body: selectedEvent ? `There is an update for ${selectedEvent.title}. The visit is scheduled for ${formatDateTime(selectedEvent.startsAt)} at ${selectedEvent.venue || selectedEvent.location || 'campus'}. Please review your visit details.` : '',
+        },
+        cancellation: {
+            subject: selectedEvent ? `Cancelled: ${selectedEvent.title}` : 'Visit cancelled',
+            body: selectedEvent ? `${selectedEvent.title} has been cancelled. We will share a replacement visit option once confirmed.` : '',
+        },
+        reminder: {
+            subject: selectedEvent ? `Reminder: ${selectedEvent.title}` : 'Visit reminder',
+            body: selectedEvent ? `Reminder: ${selectedEvent.title} is scheduled for ${formatDateTime(selectedEvent.startsAt)} at ${selectedEvent.venue || selectedEvent.location || 'campus'}. Please confirm logistics before arrival.` : '',
+        },
+    };
+    const template = noticeTemplates[noticeType];
+
+    return (
+        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex flex-col gap-3 border-b border-slate-100 pb-4 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                    <p className="text-xs font-black uppercase tracking-[0.14em] text-[#006a61]">Automation</p>
+                    <h2 className="mt-1 text-xl font-black text-slate-950">Notifications & Reminders</h2>
+                    <p className="mt-1 text-sm font-semibold text-slate-500">Schedule reminders, preview notices, target recipients, track delivery, and retry failed messages.</p>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                    <MiniStat label="Queued" value={queued.length} />
+                    <MiniStat label="Sent" value={sent.length} />
+                    <MiniStat label="Failed" value={failed.length} />
+                </div>
+            </div>
+
+            <div className="mt-4 grid gap-4 xl:grid-cols-[1fr_1fr]">
+                <section className="rounded-2xl border border-slate-100 bg-slate-50 p-3">
+                    <div className="grid gap-3 md:grid-cols-[1fr_150px_130px_auto] md:items-end">
+                        <label className="text-sm font-bold text-slate-700">Visit program<select value={selectedEventId} onChange={(event) => setSelectedEventId(event.target.value)} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#006a61]">
+                            {universityEvents.map((event) => <option key={event.id} value={event.id}>{event.title}</option>)}
+                        </select></label>
+                        <form action={selectedEvent ? `/dashboard/university/programs/${selectedEvent.id}/reminder-settings` : '#'} method="POST" className="contents">
+                            <input type="hidden" name="_token" value={csrf} />
+                            <label className="text-sm font-bold text-slate-700">Days before<input name="reminder_days_before" type="number" min="0" max="60" defaultValue={selectedEvent?.reminderDaysBefore || 7} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#006a61]" /></label>
+                            <label className="text-sm font-bold text-slate-700">Time<input name="reminder_time" type="time" defaultValue={selectedEvent?.reminderTime || '09:00'} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#006a61]" /></label>
+                            <div className="grid gap-2">
+                                <label className="flex items-center gap-2 text-xs font-black text-slate-600"><input type="checkbox" name="reminders_enabled" value="1" defaultChecked={selectedEvent?.remindersEnabled !== false} className="rounded border-slate-300 text-[#006a61]" /> Enabled</label>
+                                <button disabled={!selectedEvent} className="rounded-xl bg-slate-950 px-3 py-2 text-xs font-black text-white disabled:bg-slate-300">Save rule</button>
+                            </div>
+                        </form>
+                    </div>
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <form action={selectedEvent ? `/dashboard/university/programs/${selectedEvent.id}/queue-reminders` : '#'} method="POST">
+                            <input type="hidden" name="_token" value={csrf} />
+                            <button disabled={!selectedEvent} className="rounded-xl border border-[#006a61]/30 bg-white px-3 py-2 text-xs font-black text-[#006a61] disabled:text-slate-300">Queue reminders now</button>
+                        </form>
+                        <span className="text-xs font-semibold text-slate-500">{eventRegistrations.length} recipient record(s) · {schools.length} school group(s) · {students.length} student(s)</span>
+                    </div>
+                </section>
+
+                <form action="/dashboard/university/notices" method="POST" className="rounded-2xl border border-slate-100 bg-slate-50 p-3">
+                    <input type="hidden" name="_token" value={csrf} />
+                    <input type="hidden" name="campus_event_id" value={selectedEvent?.id || ''} />
+                    <div className="grid gap-3 md:grid-cols-3">
+                        <label className="text-sm font-bold text-slate-700">Notice type<select name="notice_type" value={noticeType} onChange={(event) => setNoticeType(event.target.value)} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#006a61]"><option value="update">Update</option><option value="cancellation">Cancellation</option><option value="reminder">Reminder</option></select></label>
+                        <label className="text-sm font-bold text-slate-700">Target<select name="target_scope" className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#006a61]"><option value="all">All attendees</option><option value="confirmed">Confirmed only</option><option value="waitlisted">Waitlisted only</option><option value="schools">Schools only</option><option value="students">Students only</option></select></label>
+                        <label className="text-sm font-bold text-slate-700">Channel<input type="hidden" name="channel" value="email" /><span className="mt-2 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-600">Email</span></label>
+                    </div>
+                    <div className="mt-3 grid gap-3">
+                        <LightField label="Subject preview" name="subject" defaultValue={template.subject} />
+                        <label className="text-sm font-bold text-slate-700">Notice body<textarea name="body" rows="4" defaultValue={template.body} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#006a61]" /></label>
+                        <button disabled={!selectedEvent} className="rounded-xl bg-[#006a61] px-4 py-2.5 text-sm font-black text-white disabled:bg-slate-300">Queue Targeted Notice</button>
+                    </div>
+                </form>
+            </div>
+
+            <section className="mt-4 overflow-hidden rounded-2xl border border-slate-100">
+                <div className="flex items-center justify-between bg-slate-50 px-4 py-3">
+                    <h3 className="text-sm font-black text-slate-950">Notification history</h3>
+                    <span className="text-xs font-bold text-slate-500">{history.length} record(s)</span>
+                </div>
+                <div className="divide-y divide-slate-100">
+                    {history.length === 0 ? <EmptyState message="No notification history yet for this program." /> : history.slice(0, 10).map((message) => (
+                        <article key={message.id} className="grid gap-3 p-3 md:grid-cols-[1fr_auto] md:items-center">
+                            <div>
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <p className="text-sm font-black text-slate-950">{message.subject}</p>
+                                    <span className={cx('rounded-full px-2 py-1 text-[10px] font-black uppercase', message.status === 'sent' ? 'bg-emerald-50 text-emerald-700' : message.status === 'failed' ? 'bg-rose-50 text-rose-700' : 'bg-blue-50 text-blue-700')}>{message.status}</span>
+                                    <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-black uppercase text-slate-500">{message.notificationType || 'general'}</span>
+                                </div>
+                                <p className="mt-1 line-clamp-1 text-xs font-semibold text-slate-500">{message.recipient || message.metadata?.registrant_email || 'Recipient pending'} · {message.channel?.toUpperCase()} · Scheduled {formatShortDate(message.scheduledFor || message.createdAt)}</p>
+                                {message.failureReason && <p className="mt-1 text-xs font-bold text-rose-700">{message.failureReason}</p>}
+                            </div>
+                            {message.status === 'failed' && (
+                                <form action={`/dashboard/university/notifications/${message.id}/retry`} method="POST">
+                                    <input type="hidden" name="_token" value={csrf} />
+                                    <button className="rounded-xl border border-rose-200 bg-white px-3 py-2 text-xs font-black text-rose-700">Retry</button>
+                                </form>
+                            )}
+                        </article>
+                    ))}
+                </div>
+            </section>
         </section>
     );
 }
@@ -7134,59 +8887,7 @@ function messageThreadsForRole(role, dbMessages, registrations) {
             { id: `db-${message.id}-b`, author: 'You', time: formatShortTime(message.createdAt), body: message.body || 'Message queued for delivery.', mine: true },
         ],
     }));
-    const roleDefaults = {
-        university: [
-            ['sarah', 'Sarah Jenkins', 'Coordinator, Lincoln High School', 'Looking forward to the campus tour...', 'SJ', 'bg-slate-700', 'students'],
-            ['marcus', 'Marcus Johnson', 'Westlake Academy', 'Can we add 5 more students to the robotics visit?', 'MJ', 'bg-emerald-700', 'students'],
-            ['elena', 'Elena Wong', 'Oakridge High', 'Is parking available for the bus near the east gate?', 'EW', 'bg-blue-500', 'students'],
-        ],
-        school: [
-            ['admissions', 'University Admissions', 'Campus visit office', 'We are confirming your visit request details.', 'UA', 'bg-blue-700', 'admissions'],
-            ['events', 'Event Operations', 'Visit logistics', 'Bus arrival and check-in instructions are ready.', 'EO', 'bg-slate-700', 'admissions'],
-            ['parent', 'Sarah Thompson (Parent)', 'Parent contact', 'Thank you for the update on the orientation schedule.', 'ST', 'bg-emerald-700', 'parents'],
-        ],
-        student: [
-            ['advisor', 'Campus Visit Advisor', 'University admissions', 'Your visit reminder and check-in barcode are ready.', 'CA', 'bg-blue-700', 'admissions'],
-            ['school', 'School Counselor', 'Guidance office', 'Please confirm your attendance for the upcoming visit.', 'SC', 'bg-emerald-700', 'students'],
-        ],
-        platform: [
-            ['ops', 'Platform Operations', 'System-wide messaging', 'Queued notifications and delivery health are normal.', 'PO', 'bg-slate-700', 'admissions'],
-            ['support', 'University Support', 'Recruiter support desk', 'A school has requested more event capacity.', 'US', 'bg-blue-700', 'admissions'],
-        ],
-        admin: [
-            ['ops', 'Platform Operations', 'System-wide messaging', 'Queued notifications and delivery health are normal.', 'PO', 'bg-slate-700', 'admissions'],
-        ],
-    };
-    const defaults = roleDefaults[role] || roleDefaults.platform;
-    const demoThreads = defaults.map(([id, name, subtitle, preview, initialsText, color, category], index) => ({
-        id,
-        name,
-        subtitle,
-        preview,
-        time: index === 0 ? '10:42 AM' : 'Yesterday',
-        initials: initialsText,
-        color,
-        category,
-        categoryLabel: titleCase(category),
-        online: index === 0,
-        unread: index === 1,
-        unreadCount: index === 1 ? 1 : 0,
-        archived: false,
-        messages: [
-            { id: `${id}-1`, author: name, time: '2:30 PM', body: preview, mine: false },
-            { id: `${id}-2`, author: 'You', time: '3:15 PM', body: responseForRole(role, registrations), mine: true },
-            { id: `${id}-3`, author: name, time: '10:42 AM', body: 'That sounds like a good plan. Looking forward to the next update.', mine: false },
-        ],
-    }));
-
-    return [...queuedMessages, ...demoThreads];
-}
-
-function responseForRole(role, registrations) {
-    if (role === 'student') return 'Thanks, I have confirmed my visit and will watch for reminders.';
-    if (role === 'school') return 'We will split students into groups and share the final attendee list.';
-    if (role === 'admin' || role === 'platform') return 'Please keep the delivery log updated and flag failed messages.';
-    return `Perfect, thanks for the update. ${registrations.length || 45} students is great. We will split them into manageable groups.`;
+    return queuedMessages;
 }
 
 function initials(value) {
@@ -7273,55 +8974,70 @@ function OpenStreetMapEmbed({ location, points = [], title = 'OpenStreetMap loca
     useEffect(() => {
         if (!containerRef.current || markerPoints.length === 0) return undefined;
 
+        let cancelled = false;
         let map = null;
-        try {
-            if (mapRef.current) {
-                mapRef.current.remove();
+        void (async () => {
+            try {
+                const { default: L } = await import('leaflet');
+                if (cancelled || !containerRef.current) return;
+
+                if (mapRef.current) {
+                    mapRef.current.remove();
+                    mapRef.current = null;
+                }
+
+                map = L.map(containerRef.current, {
+                    scrollWheelZoom: false,
+                    attributionControl: true,
+                });
+                mapRef.current = map;
+
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    maxZoom: 19,
+                    attribution: '&copy; OpenStreetMap contributors',
+                }).addTo(map);
+
+                const bounds = [];
+                markerPoints.forEach((point, index) => {
+                    const latLng = [point.latitude, point.longitude];
+                    bounds.push(latLng);
+                    const marker = L.marker(latLng, {
+                        icon: L.divIcon({
+                            className: '',
+                            html: `<span style="display:grid;place-items:center;width:30px;height:30px;border-radius:999px;background:#0f172a;color:#fff;border:3px solid #fff;box-shadow:0 10px 25px rgba(15,23,42,.25);font-size:11px;font-weight:900;">${index + 1}</span>`,
+                            iconSize: [30, 30],
+                            iconAnchor: [15, 15],
+                        }),
+                    }).addTo(map);
+                    const popup = document.createElement('div');
+                    const heading = document.createElement('strong');
+                    heading.textContent = point.label;
+                    popup.appendChild(heading);
+                    [point.location, point.meta].filter(Boolean).forEach((value) => {
+                        popup.appendChild(document.createElement('br'));
+                        popup.appendChild(document.createTextNode(String(value)));
+                    });
+                    marker.bindPopup(popup);
+                });
+
+                if (bounds.length === 1) {
+                    map.setView(bounds[0], 11);
+                } else {
+                    map.fitBounds(bounds, { padding: [26, 26], maxZoom: 11 });
+                }
+                setMapError(false);
+            } catch (error) {
+                console.error('OpenStreetMap failed to initialize', error);
+                setMapError(true);
+                if (map) {
+                    try { map.remove(); } catch (_) { /* Map was only partially initialized. */ }
+                }
                 mapRef.current = null;
             }
-
-            map = L.map(containerRef.current, {
-                scrollWheelZoom: false,
-                attributionControl: true,
-            });
-            mapRef.current = map;
-
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                maxZoom: 19,
-                attribution: '&copy; OpenStreetMap contributors',
-            }).addTo(map);
-
-            const bounds = [];
-            markerPoints.forEach((point, index) => {
-                const latLng = [point.latitude, point.longitude];
-                bounds.push(latLng);
-                const marker = L.marker(latLng, {
-                    icon: L.divIcon({
-                        className: '',
-                        html: `<span style="display:grid;place-items:center;width:30px;height:30px;border-radius:999px;background:#0f172a;color:#fff;border:3px solid #fff;box-shadow:0 10px 25px rgba(15,23,42,.25);font-size:11px;font-weight:900;">${index + 1}</span>`,
-                        iconSize: [30, 30],
-                        iconAnchor: [15, 15],
-                    }),
-                }).addTo(map);
-                marker.bindPopup(`<strong>${point.label}</strong><br/>${point.location || ''}${point.meta ? `<br/>${point.meta}` : ''}`);
-            });
-
-            if (bounds.length === 1) {
-                map.setView(bounds[0], 11);
-            } else {
-                map.fitBounds(bounds, { padding: [26, 26], maxZoom: 11 });
-            }
-            setMapError(false);
-        } catch (error) {
-            console.error('OpenStreetMap failed to initialize', error);
-            setMapError(true);
-            if (map) {
-                try { map.remove(); } catch (_) { /* Map was only partially initialized. */ }
-            }
-            mapRef.current = null;
-        }
+        })();
 
         return () => {
+            cancelled = true;
             if (mapRef.current === map && map) {
                 try { map.remove(); } catch (_) { /* Map may already be detached. */ }
             }
@@ -7365,6 +9081,7 @@ function PartnerSchoolsSection({ csrf, schools, visitRequests, archives = [] }) 
     });
     const engagementTotal = schools.reduce((total, school) => total + Number(school.activeApplicants || 0), 0);
     const scheduledVisits = visitRequests.filter((request) => ['approved', 'scheduled', 'requested'].includes(request.status)).length;
+    const relationshipTasks = schools.reduce((total, school) => total + Number(school.taskCount || 0), 0);
     const schoolVisits = (school) => {
         const requested = visitRequests.filter((request) => request.schoolId === school.id).length;
         const completed = archives.filter((archive) => archive.schoolId === school.id || archive.school === school.name).length;
@@ -7401,10 +9118,10 @@ function PartnerSchoolsSection({ csrf, schools, visitRequests, archives = [] }) 
             {editor && <PartnerSchoolEditor csrf={csrf} school={editor.id ? editor : null} onClose={() => setEditor(null)} />}
 
             <div className="grid grid-cols-2 gap-2 md:grid-cols-2 md:gap-4 xl:grid-cols-4">
-                <PartnerMetric label="Total Partnerships" value={schools.length} detail="Growing network" />
-                <PartnerMetric label="Active Engagements" value={engagementTotal.toLocaleString()} detail="High activity" tone="green" />
-                <PartnerMetric label="Upcoming Visits" value={scheduledVisits} detail="Scheduled or requested" />
-                <section className="rounded-xl bg-emerald-600 p-3 text-white shadow-sm md:p-4"><p className="text-[10px] font-black uppercase tracking-wide text-white/70 md:text-xs">AI Outreach</p><p className="mt-2 text-xl font-black">Optimum</p><p className="mt-1 text-xs text-white/80">Strong partner coverage</p></section>
+                <PartnerMetric label="Total Partnerships" value={schools.length} detail="Stored partner records" />
+                <PartnerMetric label="Active Engagements" value={engagementTotal.toLocaleString()} detail="Active applicant records" tone="green" />
+                <PartnerMetric label="Open Visit Activity" value={scheduledVisits} detail="Requested, approved, or scheduled" />
+                <section className="rounded-xl bg-emerald-600 p-3 text-white shadow-sm md:p-4"><p className="text-[10px] font-black uppercase tracking-wide text-white/70 md:text-xs">Relationship Tasks</p><p className="mt-2 text-xl font-black">{relationshipTasks.toLocaleString()}</p><p className="mt-1 text-xs text-white/80">Saved follow-up actions</p></section>
             </div>
 
             <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -7435,16 +9152,16 @@ function PartnerSchoolsSection({ csrf, schools, visitRequests, archives = [] }) 
                             </div>
                             <div className="mt-2 grid grid-cols-2 gap-2">
                                 <button type="button" onClick={() => openSchoolDetail(school)} className="rounded-lg bg-slate-950 px-3 py-2 text-[12px] font-black text-white">View Profile</button>
-                                <button type="button" onClick={() => setEditor(school)} className="rounded-lg border border-slate-200 px-3 py-2 text-[12px] font-black text-slate-700">Edit</button>
+                                {school.canManage ? <button type="button" onClick={() => setEditor(school)} className="rounded-lg border border-slate-200 px-3 py-2 text-[12px] font-black text-slate-700">Edit</button> : <button type="button" onClick={() => openSchoolDetail(school)} className="rounded-lg border border-slate-200 px-3 py-2 text-[12px] font-black text-slate-700">Details</button>}
                             </div>
                         </article>
                     ))}
                 </div>
-                <div className="hidden overflow-x-auto md:block"><table className="w-full min-w-[900px] text-left text-sm"><thead className="bg-slate-50 text-[11px] font-black uppercase tracking-wide text-slate-500"><tr><th className="px-5 py-4">School Name</th><th className="px-5 py-4">Location</th><th className="px-5 py-4">Engagement Score</th><th className="px-5 py-4">Visits</th><th className="px-5 py-4">Tasks</th><th className="px-5 py-4 text-right">Action</th></tr></thead><tbody className="divide-y divide-slate-200">{visibleSchools.length === 0 ? <tr><td colSpan="6" className="px-5 py-12 text-center text-slate-500">No partner schools match these filters.</td></tr> : visibleSchools.map((school) => <tr key={school.id} className="hover:bg-blue-50/30"><td className="px-5 py-4"><div className="flex items-center gap-3"><span className="grid h-8 w-8 place-items-center rounded bg-blue-100 text-xs font-black text-blue-700">{school.name.slice(0, 1)}</span><div><p className="font-black text-slate-950">{school.name}</p><p className="text-xs text-slate-400">{school.type?.replace('_', ' ') || 'Partner school'} - {school.tier}</p></div></div></td><td className="px-5 py-4 text-slate-600"><span className="inline-flex items-center gap-1"><MapPin size={13} /> {school.city}, {school.country}</span></td><td className="px-5 py-4"><PartnerScore school={school} /></td><td className="px-5 py-4 font-bold text-slate-700">{schoolVisits(school)}</td><td className="px-5 py-4 font-bold text-slate-700">{school.taskCount || 0}</td><td className="px-5 py-4 text-right"><div className="flex justify-end gap-2"><button type="button" onClick={() => openSchoolDetail(school)} className="rounded-lg border border-blue-100 px-3 py-2 text-xs font-black text-blue-700 hover:bg-blue-50">View</button><button type="button" onClick={() => setEditor(school)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50">Edit</button></div></td></tr>)}</tbody></table></div>
-                <div className="flex items-center justify-between border-t border-slate-200 px-3 py-3 text-xs text-slate-500 md:px-5 md:py-4"><span>Showing {visibleSchools.length} of {schools.length} partner schools</span><span className="hidden md:inline">Database-backed demo data</span></div>
+                <div className="hidden overflow-x-auto md:block"><table className="w-full min-w-[900px] text-left text-sm"><thead className="bg-slate-50 text-[11px] font-black uppercase tracking-wide text-slate-500"><tr><th className="px-5 py-4">School Name</th><th className="px-5 py-4">Location</th><th className="px-5 py-4">Saved Priority</th><th className="px-5 py-4">Visits</th><th className="px-5 py-4">Tasks</th><th className="px-5 py-4 text-right">Action</th></tr></thead><tbody className="divide-y divide-slate-200">{visibleSchools.length === 0 ? <tr><td colSpan="6" className="px-5 py-12 text-center text-slate-500">No partner schools match these filters.</td></tr> : visibleSchools.map((school) => <tr key={school.id} className="hover:bg-blue-50/30"><td className="px-5 py-4"><div className="flex items-center gap-3"><span className="grid h-8 w-8 place-items-center rounded bg-blue-100 text-xs font-black text-blue-700">{school.name.slice(0, 1)}</span><div><p className="font-black text-slate-950">{school.name}</p><p className="text-xs text-slate-400">{school.type?.replace('_', ' ') || 'Partner school'} - {school.tier}</p></div></div></td><td className="px-5 py-4 text-slate-600"><span className="inline-flex items-center gap-1"><MapPin size={13} /> {school.city}, {school.country}</span></td><td className="px-5 py-4"><PartnerScore school={school} /></td><td className="px-5 py-4 font-bold text-slate-700">{schoolVisits(school)}</td><td className="px-5 py-4 font-bold text-slate-700">{school.taskCount || 0}</td><td className="px-5 py-4 text-right"><div className="flex justify-end gap-2"><button type="button" onClick={() => openSchoolDetail(school)} className="rounded-lg border border-blue-100 px-3 py-2 text-xs font-black text-blue-700 hover:bg-blue-50">View</button>{school.canManage && <button type="button" onClick={() => setEditor(school)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50">Edit</button>}</div></td></tr>)}</tbody></table></div>
+                <div className="flex items-center justify-between border-t border-slate-200 px-3 py-3 text-xs text-slate-500 md:px-5 md:py-4"><span>Showing {visibleSchools.length} of {schools.length} partner schools</span><span className="hidden md:inline">Live partner records</span></div>
             </section>
 
-            <section className="rounded-xl border border-blue-200 bg-blue-50 p-4 md:p-6"><div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between"><div><div className="flex items-center gap-2 text-sm font-black text-slate-950"><Sparkles size={18} className="text-blue-600" /> AI-Powered School Matching</div><p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600 md:mt-3">Your partner-school data indicates strong opportunities in high-engagement regions. Review the highest match scores to prioritize outreach and visits.</p></div><div className="grid grid-cols-2 gap-2 md:flex"><button type="button" onClick={() => setTab('ivy')} className="rounded-lg bg-slate-950 px-3 py-2 text-xs font-black text-white md:px-4 md:py-2.5 md:text-sm">Review</button><button type="button" onClick={() => setTab('all')} className="rounded-lg border border-blue-300 bg-white px-3 py-2 text-xs font-black text-blue-700 md:px-4 md:py-2.5 md:text-sm">Dismiss</button></div></div></section>
+            <section className="rounded-xl border border-blue-200 bg-blue-50 p-4 md:p-6"><div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between"><div><div className="flex items-center gap-2 text-sm font-black text-slate-950"><Sparkles size={18} className="text-blue-600" /> School Priorities</div><p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600 md:mt-3">Relationship scores, applicant counts, visit history, and tasks come from the saved partner-school records above.</p></div><div className="grid grid-cols-2 gap-2 md:flex"><button type="button" onClick={() => setTab('ivy')} className="rounded-lg bg-slate-950 px-3 py-2 text-xs font-black text-white md:px-4 md:py-2.5 md:text-sm">Review Elite</button><button type="button" onClick={() => setTab('all')} className="rounded-lg border border-blue-300 bg-white px-3 py-2 text-xs font-black text-blue-700 md:px-4 md:py-2.5 md:text-sm">Show All</button></div></div></section>
         </div>
     );
 }
@@ -7484,7 +9201,7 @@ function PartnerSchoolEditor({ csrf, school, onClose }) {
                     <label className="text-sm font-semibold text-slate-700">Relationship tier<select name="performance_tier" defaultValue={value('tier', 'stable')} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm"><option value="elite">Elite</option><option value="high">High</option><option value="emerging">Emerging</option><option value="stable">Stable</option></select></label>
                     <LightField label="Average SAT" name="average_sat" type="number" min="400" max="1600" defaultValue={value('sat')} />
                     <LightField label="Yield rate" name="yield_rate" type="number" min="0" max="100" step="0.01" defaultValue={value('yieldRate', 0)} />
-                    <LightField label="Priority / match score" name="match_score" type="number" min="0" max="100" defaultValue={value('matchScore', 75)} />
+                    <LightField label="Saved priority score" name="match_score" type="number" min="0" max="100" defaultValue={value('matchScore', 75)} />
                     <LightField label="Active applicants" name="active_applicants" type="number" min="0" defaultValue={value('activeApplicants', 0)} />
                     <div className="md:col-span-2"><LightTextarea label="Persistent internal notes" name="notes" defaultValue={value('notes')} /></div>
                 </div>
@@ -7498,15 +9215,25 @@ function PartnerSchoolEditor({ csrf, school, onClose }) {
 }
 
 function PartnerSchoolDetail({ csrf, school, archives, visitsCount, onBack, onEdit }) {
-    const insight = partnerSchoolInsight(school, archives);
-    const yearlyApplicants = Math.round((Number(school.activeApplicants || 0) * 8) + Number(school.matchScore || 0) * 9);
-    const recruited = archives.reduce((total, archive) => total + Number(archive.leads || 0), 0) || Math.round(yearlyApplicants * 0.42);
-    const latestArchive = archives[0];
-    const primaryContact = `${school.name.split(' ')[0]} Admissions`;
-    const contacts = [
-        ['Dr. Sarah Jenkins', 'Director of College Counseling', 'sarah.jenkins@example.edu'],
-        ['Marcus Thompson', 'Mathematics Manager', 'marcus.thompson@example.edu'],
+    const [trendPeriod, setTrendPeriod] = useState('yearly');
+    const [showAllHistory, setShowAllHistory] = useState(false);
+    const leadsCaptured = archives.reduce((total, archive) => total + Number(archive.leads || 0), 0);
+    const relationshipYear = school.createdAt && !Number.isNaN(new Date(school.createdAt).getTime())
+        ? new Date(school.createdAt).getFullYear()
+        : null;
+    const historyRows = showAllHistory ? archives : archives.slice(0, 4);
+    const relationshipScore = Number(school.matchScore || 0);
+    const recordedSignals = [
+        `${Number(school.activeApplicants || 0).toLocaleString()} active applicant record(s)`,
+        `${archives.length.toLocaleString()} archived campus engagement(s)`,
+        `${Number(school.taskCount || 0).toLocaleString()} saved relationship task(s)`,
     ];
+    const coordinatorName = school.coordinatorName && school.coordinatorName !== 'Coordinator pending'
+        ? school.coordinatorName
+        : 'Coordinator pending';
+    const hasExactCoordinates = school.latitude !== null && school.latitude !== undefined && school.latitude !== ''
+        && school.longitude !== null && school.longitude !== undefined && school.longitude !== ''
+        && Number.isFinite(Number(school.latitude)) && Number.isFinite(Number(school.longitude));
 
     return (
         <section className="rounded-xl border border-slate-200 bg-slate-50 p-4 shadow-sm lg:p-5">
@@ -7527,14 +9254,14 @@ function PartnerSchoolDetail({ csrf, school, archives, visitsCount, onBack, onEd
                 </div>
                 <div className="flex flex-wrap gap-2">
                     <span className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700">
-                        <Sparkles size={14} /> {school.matchScore} - High Potential
+                        <Sparkles size={14} /> {relationshipScore}/100 priority score
                     </span>
-                    <button type="button" className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-black text-blue-700">
+                    <button type="button" onClick={() => document.getElementById('partner-contact-form')?.scrollIntoView({ behavior: 'smooth', block: 'center' })} className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-black text-blue-700">
                         <MailCheck size={14} /> Message Counselor
                     </button>
-                    <button type="button" onClick={onEdit} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700">
+                    {school.canManage && <button type="button" onClick={onEdit} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700">
                         <Edit3 size={14} /> Edit Relationship
-                    </button>
+                    </button>}
                     <form action={`/partner-schools/${school.id}/schedule-visit`} method="POST">
                         <input type="hidden" name="_token" value={csrf} />
                         <button className="inline-flex items-center gap-2 rounded-lg bg-slate-950 px-3 py-2 text-xs font-black text-white">
@@ -7546,74 +9273,69 @@ function PartnerSchoolDetail({ csrf, school, archives, visitsCount, onBack, onEd
             </div>
 
             <div className="mt-5 grid gap-4 md:grid-cols-3">
-                <PartnerMetric label="Total Partnership" value={`${Math.max(1, visitsCount + 9)} Years`} detail="Long-term strategic ally" tone="green" />
-                <PartnerMetric label="Students Recruited" value={recruited.toLocaleString()} detail="+18% from previous year" tone="green" />
-                <PartnerMetric label="Campus Visits" value={visitsCount || archives.length || 1} detail={`Avg. ${Math.max(1, Math.round((visitsCount || 1) / 2))} visits / year`} />
+                <PartnerMetric label="Partnership Since" value={relationshipYear || 'Not recorded'} detail="Relationship record created" tone="green" />
+                <PartnerMetric label="Leads Captured" value={leadsCaptured.toLocaleString()} detail={`Across ${archives.length} archived engagement(s)`} tone="green" />
+                <PartnerMetric label="Visit Activity" value={visitsCount} detail={`${Number(school.visitRequests || 0)} request(s) · ${archives.length} archived`} />
             </div>
 
             <div className="mt-5 grid gap-4 xl:grid-cols-[310px_1fr]">
                 <section className="rounded-lg bg-slate-950 p-5 text-white shadow-sm">
                     <div className="inline-flex items-center gap-2 rounded-full bg-emerald-500/15 px-3 py-1 text-[11px] font-black uppercase text-emerald-200">
-                        <Brain size={14} /> AI Recruitment Insights
+                        <Brain size={14} /> Relationship Snapshot
                     </div>
-                    <p className="mt-5 text-xs font-black uppercase tracking-wide text-white/50">Conversion Probability</p>
+                    <p className="mt-5 text-xs font-black uppercase tracking-wide text-white/50">Saved Priority Score</p>
                     <div className="mt-2 flex items-end gap-2">
-                        <span className="text-4xl font-black">{insight.probability}%</span>
-                        <span className="mb-1 rounded-full bg-emerald-400 px-2 py-1 text-[10px] font-black text-slate-950">Excellent</span>
+                        <span className="text-4xl font-black">{relationshipScore}</span>
+                        <span className="mb-1 rounded-full bg-emerald-400 px-2 py-1 text-[10px] font-black text-slate-950">{titleCase(school.tier || 'unrated')}</span>
                     </div>
-                    <p className="mt-5 text-xs font-black uppercase tracking-wide text-white/50">Engagement Strategies</p>
+                    <p className="mt-5 text-xs font-black uppercase tracking-wide text-white/50">Recorded Signals</p>
                     <div className="mt-3 space-y-3">
-                        {insight.strategies.map((strategy) => (
-                            <div key={strategy} className="flex gap-2 text-xs leading-5 text-white/80">
+                        {recordedSignals.map((signal) => (
+                            <div key={signal} className="flex gap-2 text-xs leading-5 text-white/80">
                                 <CheckCircle2 size={14} className="mt-0.5 shrink-0 text-emerald-300" />
-                                <span>{strategy}</span>
+                                <span>{signal}</span>
                             </div>
                         ))}
                     </div>
-                    <form action={`/dashboard/university/partner-schools/${school.id}/tasks`} method="POST">
-                        <input type="hidden" name="_token" value={csrf} />
-                        <input type="hidden" name="title" value={`AI follow-up for ${school.name}`} />
-                        <input type="hidden" name="description" value={insight.strategies.join(' ')} />
-                        <input type="hidden" name="ai_suggested" value="1" />
-                        <button className="mt-5 w-full rounded-lg border border-white/15 bg-white px-3 py-2 text-xs font-black text-slate-950">Save AI Recommendation</button>
-                    </form>
+                    <button type="button" onClick={() => document.getElementById('partner-task-title')?.focus()} className="mt-5 w-full rounded-lg border border-white/15 bg-white px-3 py-2 text-xs font-black text-slate-950">Add Relationship Task</button>
                 </section>
 
                 <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
                             <h3 className="font-black text-slate-950">Engagement Trends</h3>
-                            <p className="mt-1 text-xs font-semibold text-slate-500">Applications vs. inquiries based on demo history.</p>
+                            <p className="mt-1 text-xs font-semibold text-slate-500">Leads captured and engagement from archived visit records.</p>
                         </div>
                         <div className="flex rounded-lg border border-slate-200 bg-slate-50 p-1">
-                            <button type="button" className="rounded-md bg-white px-3 py-1.5 text-xs font-black text-slate-700 shadow-sm">Yearly</button>
-                            <button type="button" className="px-3 py-1.5 text-xs font-bold text-slate-400">Quarterly</button>
+                            <button type="button" onClick={() => setTrendPeriod('yearly')} className={cx('rounded-md px-3 py-1.5 text-xs font-black', trendPeriod === 'yearly' ? 'bg-white text-slate-700 shadow-sm' : 'text-slate-400')}>Yearly</button>
+                            <button type="button" onClick={() => setTrendPeriod('quarterly')} className={cx('rounded-md px-3 py-1.5 text-xs font-black', trendPeriod === 'quarterly' ? 'bg-white text-slate-700 shadow-sm' : 'text-slate-400')}>Quarterly</button>
                         </div>
                     </div>
-                    <PartnerTrendChart school={school} archives={archives} />
+                    <PartnerTrendChart archives={archives} period={trendPeriod} />
                 </section>
             </div>
 
             <section className="mt-5 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
                 <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
                     <h3 className="font-black text-slate-950">Recent Campus Engagements</h3>
-                    <button type="button" className="text-xs font-black text-blue-700">View All History</button>
+                    {archives.length > 4 ? <button type="button" onClick={() => setShowAllHistory((current) => !current)} className="text-xs font-black text-blue-700">{showAllHistory ? 'Show Recent' : 'View All History'}</button> : <span className="text-xs font-black text-slate-400">{archives.length} record(s)</span>}
                 </div>
                 <div className="overflow-x-auto">
                     <table className="w-full min-w-[760px] text-left text-sm">
                         <thead className="bg-slate-50 text-[11px] font-black uppercase tracking-wide text-slate-500">
-                            <tr><th className="px-5 py-3">Event Name</th><th className="px-5 py-3">Date</th><th className="px-5 py-3">Attendance</th><th className="px-5 py-3">Follow-ups</th><th className="px-5 py-3">Status</th></tr>
+                            <tr><th className="px-5 py-3">Event Name</th><th className="px-5 py-3">Date</th><th className="px-5 py-3">Engagement</th><th className="px-5 py-3">Quality</th><th className="px-5 py-3">Status</th></tr>
                         </thead>
                         <tbody className="divide-y divide-slate-200">
-                            {detailArchives(school, archives).map((archive) => (
+                            {historyRows.map((archive) => (
                                 <tr key={archive.id}>
                                     <td className="px-5 py-4"><p className="font-black text-slate-950">{archive.type}</p><p className="text-xs text-slate-400">{archive.summary}</p></td>
                                     <td className="px-5 py-4 font-semibold text-slate-600">{formatShortDate(archive.visitedOn)}</td>
-                                    <td className="px-5 py-4"><div className="h-1.5 w-28 rounded-full bg-slate-100"><div className="h-full rounded-full bg-blue-600" style={{ width: `${Math.min(100, Math.max(12, Number(archive.engagement || 0) * 2))}%` }} /></div><p className="mt-1 text-xs font-bold text-slate-500">{archive.leads}+ leads</p></td>
-                                    <td className="px-5 py-4 font-semibold text-slate-600">{Math.max(8, Math.round(Number(archive.leads || 0) * 0.28))} Students</td>
+                                    <td className="px-5 py-4"><div className="h-1.5 w-28 rounded-full bg-slate-100"><div className="h-full rounded-full bg-blue-600" style={{ width: `${Math.min(100, Math.max(0, Number(archive.engagement || 0)))}%` }} /></div><p className="mt-1 text-xs font-bold text-slate-500">{Number(archive.engagement || 0)}% · {Number(archive.leads || 0)} lead(s)</p></td>
+                                    <td className="px-5 py-4 font-semibold text-slate-600">{Number(archive.quality || 0).toFixed(1)}/5</td>
                                     <td className="px-5 py-4"><span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-black uppercase text-emerald-700">{archive.status?.replace('_', ' ') || 'completed'}</span></td>
                                 </tr>
                             ))}
+                            {historyRows.length === 0 && <tr><td colSpan="5" className="px-5 py-12 text-center text-sm font-semibold text-slate-500">No archived campus engagements have been recorded for this school.</td></tr>}
                         </tbody>
                     </table>
                 </div>
@@ -7623,17 +9345,15 @@ function PartnerSchoolDetail({ csrf, school, archives, visitsCount, onBack, onEd
                 <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
                     <h3 className="font-black text-slate-950">Key Contacts</h3>
                     <div className="mt-4 space-y-4">
-                        {[[school.coordinatorName || contacts[0][0], 'Primary Coordinator', school.coordinatorEmail || contacts[0][2]], ...contacts.slice(1)].map(([name, title, email]) => (
-                            <div key={email} className="flex items-center gap-3">
-                                <span className="grid h-10 w-10 place-items-center rounded-full bg-slate-100 text-xs font-black text-slate-700">{name.split(' ').map((part) => part[0]).join('').slice(0, 2)}</span>
-                                <div className="min-w-0 flex-1"><p className="text-sm font-black text-slate-950">{name}</p><p className="text-xs text-slate-500">{title}</p></div>
-                                <a href={`mailto:${email}`} className="grid h-8 w-8 place-items-center rounded-lg border border-slate-200 text-blue-700" aria-label={`Email ${name}`}><MailCheck size={14} /></a>
-                            </div>
-                        ))}
+                        <div className="flex items-center gap-3">
+                            <span className="grid h-10 w-10 place-items-center rounded-full bg-slate-100 text-xs font-black text-slate-700">{coordinatorName.split(' ').map((part) => part[0]).join('').slice(0, 2) || 'CP'}</span>
+                            <div className="min-w-0 flex-1"><p className="text-sm font-black text-slate-950">{coordinatorName}</p><p className="text-xs text-slate-500">Primary Coordinator</p></div>
+                            {school.coordinatorEmail ? <a href={`mailto:${school.coordinatorEmail}`} className="grid h-8 w-8 place-items-center rounded-lg border border-slate-200 text-blue-700" aria-label={`Email ${coordinatorName}`}><MailCheck size={14} /></a> : <span className="text-[10px] font-black uppercase text-slate-400">Email pending</span>}
+                        </div>
                     </div>
                     <div className="mt-5 border-t border-slate-100 pt-4">
                         <p className="text-[11px] font-black uppercase tracking-wide text-slate-400">Location Info</p>
-                        <div className="mt-3"><OpenStreetMapEmbed location={`${school.name}, ${school.city}, ${school.country}`} points={[{ label: school.name, location: `${school.city}, ${school.country}`, latitude: school.latitude, longitude: school.longitude, meta: `${visitsCount} visits • ${school.matchScore}/100 match` }]} title={`${school.name} location on OpenStreetMap`} className="h-36" /></div>
+                        {hasExactCoordinates ? <div className="mt-3"><OpenStreetMapEmbed location={`${school.name}, ${school.city}, ${school.country}`} points={[{ label: school.name, location: `${school.city}, ${school.country}`, latitude: school.latitude, longitude: school.longitude, meta: `${visitsCount} visit record(s) • ${relationshipScore}/100 priority` }]} title={`${school.name} location on OpenStreetMap`} className="h-36" /></div> : <div className="mt-3 grid h-36 place-items-center rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-center text-xs font-semibold text-slate-500">Exact map coordinates have not been recorded for this school.</div>}
                         <OpenStreetMapLink location={`${school.name}, ${school.city}, ${school.country}`} className="mt-2 inline-flex items-center gap-1 text-xs font-black text-blue-700"><MapIcon size={13} /> Open in OpenStreetMap</OpenStreetMapLink>
                     </div>
                 </section>
@@ -7641,9 +9361,9 @@ function PartnerSchoolDetail({ csrf, school, archives, visitsCount, onBack, onEd
                 <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
                     <div className="flex items-center justify-between">
                         <h3 className="font-black text-slate-950">Internal Strategic Notes</h3>
-                        <button type="button" className="grid h-8 w-8 place-items-center rounded-lg border border-slate-200 text-slate-500" aria-label="Edit notes"><Command size={14} /></button>
+                        {school.canManage && <button type="button" onClick={() => document.getElementById('partner-notes-input')?.focus()} className="grid h-8 w-8 place-items-center rounded-lg border border-slate-200 text-slate-500" aria-label="Edit notes"><Command size={14} /></button>}
                     </div>
-                    <form action={`/dashboard/university/partner-schools/${school.id}`} method="POST" className="mt-4 grid gap-3">
+                    {school.canManage && <form action={`/dashboard/university/partner-schools/${school.id}`} method="POST" className="mt-4 grid gap-3">
                         <input type="hidden" name="_token" value={csrf} />
                         <input type="hidden" name="_method" value="PUT" />
                         <input type="hidden" name="school_code" value={school.code || ''} />
@@ -7661,10 +9381,11 @@ function PartnerSchoolDetail({ csrf, school, archives, visitsCount, onBack, onEd
                         <input type="hidden" name="match_score" value={school.matchScore || 0} />
                         <input type="hidden" name="active_applicants" value={school.activeApplicants || 0} />
                         <label className="grid gap-1.5 text-sm font-bold text-slate-700">Relationship tier<select name="performance_tier" defaultValue={school.tier || 'stable'} className="rounded-xl border border-slate-200 px-3 py-2.5 font-normal"><option value="elite">Elite</option><option value="high">High</option><option value="emerging">Emerging</option><option value="stable">Stable</option></select></label>
-                        <label className="grid gap-1.5 text-sm font-bold text-slate-700">Persistent internal notes<textarea name="notes" rows="4" defaultValue={school.notes || ''} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 font-normal outline-none focus:border-blue-300 focus:ring-4 focus:ring-blue-50" placeholder="Add internal notes..." /></label>
+                        <label className="grid gap-1.5 text-sm font-bold text-slate-700">Persistent internal notes<textarea id="partner-notes-input" name="notes" rows="4" defaultValue={school.notes || ''} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 font-normal outline-none focus:border-blue-300 focus:ring-4 focus:ring-blue-50" placeholder="Add internal notes..." /></label>
                         <button className="rounded-xl bg-slate-950 px-4 py-3 text-sm font-black text-white">Save Relationship Notes</button>
-                    </form>
-                    <form action={`/dashboard/university/partner-schools/${school.id}/contact`} method="POST" className="mt-5 grid gap-3 rounded-xl border border-slate-200 p-4">
+                    </form>}
+                    {!school.canManage && <p className="mt-4 rounded-xl bg-slate-50 p-3 text-sm font-semibold text-slate-600">This shared directory record is read-only. Contact and visit coordination remain available.</p>}
+                    <form id="partner-contact-form" action={`/dashboard/university/partner-schools/${school.id}/contact`} method="POST" className="mt-5 grid gap-3 rounded-xl border border-slate-200 p-4">
                         <input type="hidden" name="_token" value={csrf} />
                         <h4 className="font-black text-slate-950">Direct Contact Action</h4>
                         <input name="subject" required defaultValue={`Follow-up with ${school.name}`} className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-semibold" />
@@ -7672,46 +9393,66 @@ function PartnerSchoolDetail({ csrf, school, archives, visitsCount, onBack, onEd
                         <button className="rounded-xl bg-[#006a61] px-4 py-3 text-sm font-black text-white">Queue Contact</button>
                     </form>
                     <div className="mt-5 space-y-3">
-                        <StrategicNote body={`${school.name} remains a strong source for ${insight.focusArea} talent. Focus on the upcoming cycle with a premium counselor relationship and faculty-led session.`} author={primaryContact} date={latestArchive?.visitedOn || '2026-10-12'} />
-                        <StrategicNote body={`Recurring pipeline for ${insight.focusArea.toLowerCase()} roles is trending upward. Suggested engagement: portfolio review, parent briefing, and student application clinic.`} author="AI Recruitment Model" date="2026-09-18" />
-                        {(school.tasks || []).map((task) => <StrategicNote key={task.id} body={task.description || task.title} author={task.aiSuggested ? 'AI Recommendation' : 'Relationship Task'} date={task.createdAt} />)}
+                        {school.notes && <StrategicNote body={school.notes} author="Saved relationship note" />}
+                        {(school.tasks || []).map((task) => <StrategicNote key={task.id} body={task.description || task.title} author={task.aiSuggested ? 'Saved recommendation' : 'Relationship task'} date={task.createdAt} />)}
+                        {!school.notes && !(school.tasks || []).length && <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-4 text-sm font-semibold text-slate-500">No relationship notes or tasks have been recorded yet.</p>}
                     </div>
                     <form action={`/dashboard/university/partner-schools/${school.id}/tasks`} method="POST" className="mt-4 grid gap-2">
                         <input type="hidden" name="_token" value={csrf} />
-                        <input name="title" required placeholder="Add action task..." className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-semibold" />
+                        <input id="partner-task-title" name="title" required placeholder="Add action task..." className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-semibold" />
                         <textarea name="description" rows="2" placeholder="Task details..." className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm" />
                         <button className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-black text-slate-700">Save Task</button>
                     </form>
-                    <form action={`/dashboard/university/partner-schools/${school.id}`} method="POST" onSubmit={(event) => { if (!window.confirm(`Remove ${school.name}?`)) event.preventDefault(); }} className="mt-5">
-                        <input type="hidden" name="_token" value={csrf} />
-                        <input type="hidden" name="_method" value="DELETE" />
-                        <button className="text-xs font-black text-rose-700">Remove school if no history exists</button>
-                    </form>
+                    {school.canManage && <div className="mt-5">
+                        <ConfirmForm csrf={csrf} action={`/dashboard/university/partner-schools/${school.id}`} method="DELETE" title="Remove partner school?" message={`Remove ${school.name} if no visit history exists?`} confirmLabel="Remove school" className="text-xs font-black text-rose-700">
+                            Remove school if no history exists
+                        </ConfirmForm>
+                    </div>}
                 </section>
             </div>
         </section>
     );
 }
 
-function PartnerTrendChart({ school, archives }) {
-    const base = Math.max(24, Number(school.matchScore || 80) - 46);
-    const points = ['2022', '2023', '2024', '2025', '2026'].map((year, index) => {
-        const archiveLift = archives[index % Math.max(1, archives.length)]?.engagement || 0;
-        return { year, inquiries: Math.round(base + index * 8 + archiveLift), applications: Math.round(base * 0.45 + index * 6 + Number(school.yieldRate || 0) * 3) };
-    });
-    const maxValue = Math.max(...points.map((point) => point.inquiries), 1);
+function PartnerTrendChart({ archives, period }) {
+    const groups = archives.reduce((result, archive) => {
+        const date = archive.visitedOn ? new Date(`${archive.visitedOn}T00:00:00`) : null;
+        const validDate = date && !Number.isNaN(date.getTime());
+        const label = validDate
+            ? (period === 'quarterly' ? `${date.getFullYear()} Q${Math.floor(date.getMonth() / 3) + 1}` : String(date.getFullYear()))
+            : 'Undated';
+        const current = result.get(label) || { label, leads: 0, engagementTotal: 0, count: 0, timestamp: validDate ? date.getTime() : 0 };
+        current.leads += Number(archive.leads || 0);
+        current.engagementTotal += Number(archive.engagement || 0);
+        current.count += 1;
+        current.timestamp = Math.max(current.timestamp, validDate ? date.getTime() : 0);
+        result.set(label, current);
+        return result;
+    }, new Map());
+    const points = [...groups.values()]
+        .sort((left, right) => left.timestamp - right.timestamp)
+        .slice(period === 'quarterly' ? -8 : -5)
+        .map((point) => ({ ...point, engagement: point.count ? Math.round(point.engagementTotal / point.count) : 0 }));
+    const maxLeads = Math.max(...points.map((point) => point.leads), 1);
+
+    if (points.length === 0) {
+        return <div className="mt-8 grid h-72 place-items-center rounded-lg border border-dashed border-slate-200 bg-slate-50 p-6 text-center text-sm font-semibold text-slate-500">Trend data will appear after this school has an archived campus engagement.</div>;
+    }
 
     return (
-        <div className="mt-8 flex h-72 items-end gap-4 border-b border-l border-slate-200 px-4 pb-4">
-            {points.map((point) => (
-                <div key={point.year} className="flex flex-1 flex-col items-center justify-end gap-2">
-                    <div className="flex h-48 w-full items-end justify-center gap-2">
-                        <span className="w-4 rounded-t bg-blue-600" style={{ height: `${Math.max(12, (point.applications / maxValue) * 100)}%` }} title={`${point.applications} applications`} />
-                        <span className="w-4 rounded-t bg-emerald-400" style={{ height: `${Math.max(16, (point.inquiries / maxValue) * 100)}%` }} title={`${point.inquiries} inquiries`} />
+        <div className="mt-8">
+            <div className="mb-3 flex flex-wrap gap-4 text-[10px] font-black uppercase text-slate-400"><span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded bg-blue-600" /> Leads captured</span><span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded bg-emerald-400" /> Avg. engagement</span></div>
+            <div className="flex h-64 items-end gap-4 border-b border-l border-slate-200 px-4 pb-4">
+                {points.map((point) => (
+                    <div key={point.label} className="flex flex-1 flex-col items-center justify-end gap-2">
+                        <div className="flex h-44 w-full items-end justify-center gap-2">
+                            <span className="w-4 rounded-t bg-blue-600" style={{ height: `${Math.min(100, (point.leads / maxLeads) * 100)}%` }} title={`${point.leads} leads captured`} />
+                            <span className="w-4 rounded-t bg-emerald-400" style={{ height: `${Math.min(100, Math.max(0, point.engagement))}%` }} title={`${point.engagement}% average engagement`} />
+                        </div>
+                        <span className="text-center text-xs font-bold text-slate-400">{point.label}</span>
                     </div>
-                    <span className="text-xs font-bold text-slate-400">{point.year}</span>
-                </div>
-            ))}
+                ))}
+            </div>
         </div>
     );
 }
@@ -7719,44 +9460,14 @@ function PartnerTrendChart({ school, archives }) {
 function StrategicNote({ body, author, date }) {
     return (
         <article className="rounded-lg border border-slate-100 bg-slate-50 p-4">
-            <p className="text-sm leading-6 text-slate-600">"{body}"</p>
-            <p className="mt-2 text-[11px] font-black uppercase text-slate-400">{author} - {formatShortDate(date)}</p>
+            <p className="text-sm leading-6 text-slate-600">{body}</p>
+            <p className="mt-2 text-[11px] font-black uppercase text-slate-400">{author}{date ? ` - ${formatShortDate(date)}` : ''}</p>
         </article>
     );
 }
 
-function partnerSchoolInsight(school, archives) {
-    const focusArea = /science|tech|engineering|robotics|nist/i.test(school.name) ? 'STEM' : /arts|design|portfolio/i.test(school.name) ? 'Creative Arts' : 'Business and Analytics';
-    const probability = Math.min(96, Math.max(64, Math.round(Number(school.matchScore || 80) * 0.86 + Number(school.yieldRate || 0) * 1.8 + archives.length)));
-
-    return {
-        focusArea,
-        probability,
-        strategies: [
-            `Host a ${focusArea} track briefing with faculty and current students.`,
-            `Use alumni outcomes from the ${school.region} region in counselor follow-up.`,
-            'Increase presence in the graduate school and scholarship advising channel.',
-        ],
-    };
-}
-
-function detailArchives(school, archives) {
-    if (archives.length > 0) {
-        return archives.slice(0, 4);
-    }
-
-    const leads = Math.max(45, Number(school.activeApplicants || 6) * 12);
-
-    return [
-        { id: `${school.id}-spring`, type: 'Spring Tech Career Fair', visitedOn: '2026-04-12', leads, engagement: 42, status: 'completed', summary: 'Main campus recruitment fair' },
-        { id: `${school.id}-mixer`, type: 'Engineering Mixer', visitedOn: '2026-03-05', leads: Math.round(leads * 0.62), engagement: 34, status: 'completed', summary: 'Departmental networking session' },
-        { id: `${school.id}-mba`, type: 'Leadership Session', visitedOn: '2026-02-18', leads: Math.round(leads * 0.44), engagement: 28, status: 'completed', summary: 'Counselor and student briefing' },
-    ];
-}
-
 function PartnerScore({ school }) {
-    const label = school.matchScore >= 94 ? 'High conversion potential' : school.matchScore >= 88 ? 'Rising engagement' : 'Growth opportunity';
-    return <div><span className={cx('rounded-full px-2.5 py-1 text-[10px] font-black uppercase', school.matchScore >= 94 ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700')}>{school.tier}</span><p className="mt-1 text-[10px] font-bold uppercase text-emerald-600">{label} · {school.matchScore}/100</p></div>;
+    return <div><span className={cx('rounded-full px-2.5 py-1 text-[10px] font-black uppercase', school.matchScore >= 94 ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700')}>{school.tier}</span><p className="mt-1 text-[10px] font-bold uppercase text-emerald-600">Saved priority · {school.matchScore}/100</p></div>;
 }
 
 function DiscoverySection({ schools }) {
@@ -7855,7 +9566,7 @@ function DiscoverySection({ schools }) {
     );
 }
 
-function UniversityVisitRequestsSection({ csrf, visitRequests = [], schools = [] }) {
+function UniversityVisitRequestsSection({ csrf, visitRequests = [], schools = [], events = [], currentUserId = null }) {
     const [query, setQuery] = useState('');
     const [status, setStatus] = useState('all');
     const [region, setRegion] = useState('all');
@@ -7873,7 +9584,9 @@ function UniversityVisitRequestsSection({ csrf, visitRequests = [], schools = []
     });
     const pages = Math.max(1, Math.ceil(filtered.length / perPage));
     const visible = filtered.slice((page - 1) * perPage, page * perPage);
+    const isOutboundRequest = (item) => item.requesterRole === 'university' || Number(item.requesterId) === Number(currentUserId);
     const pendingCount = visitRequests.filter((item) => item.status === 'requested').length;
+    const incomingPendingCount = visitRequests.filter((item) => item.status === 'requested' && !isOutboundRequest(item)).length;
     const approvedCount = visitRequests.filter((item) => ['approved', 'scheduled'].includes(item.status)).length;
     const reviewCount = visitRequests.filter((item) => item.status === 'approved').length;
     const capacityPct = Math.min(100, Math.max(0, Math.round((approvedCount / Math.max(1, visitRequests.length)) * 100)));
@@ -7882,7 +9595,11 @@ function UniversityVisitRequestsSection({ csrf, visitRequests = [], schools = []
 
     const exportCsv = () => {
         const rows = [['Request ID', 'School', 'Requested date', 'Group size', 'Region', 'Status'], ...filtered.map((item) => [`REQ-${String(item.id).padStart(4, '0')}`, item.school, item.window, item.groupSize, item.region || '', item.status])];
-        const csv = rows.map((row) => row.map((cell) => `"${String(cell ?? '').replaceAll('"', '""')}"`).join(',')).join('\n');
+        const csv = rows.map((row) => row.map((cell) => {
+            const value = String(cell ?? '');
+            const safeValue = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
+            return `"${safeValue.replaceAll('"', '""')}"`;
+        }).join(',')).join('\n');
         const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
         const link = document.createElement('a');
         link.href = url;
@@ -7901,7 +9618,7 @@ function UniversityVisitRequestsSection({ csrf, visitRequests = [], schools = []
     return (
         <div className="grid gap-4 md:gap-5">
             <section className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-                <div><h1 className="text-2xl font-black tracking-tight text-slate-950 md:text-3xl">Visit Requests</h1><p className="mt-1 text-sm font-semibold text-slate-500">Manage and track incoming campus visit inquiries from partner schools.</p></div>
+                <div><h1 className="text-2xl font-black tracking-tight text-slate-950 md:text-3xl">Visit Requests</h1><p className="mt-1 text-sm font-semibold text-slate-500">Review school inquiries and track invitations sent to school accounts.</p></div>
                 <div className="grid grid-cols-2 gap-2 sm:flex">
                     <button type="button" onClick={exportCsv} className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#006a61]/30 bg-white px-3 py-2 text-xs font-black text-[#006a61] md:px-4 md:py-2.5 md:text-sm"><Download size={15} /> Export</button>
                     <button type="button" onClick={() => setCreateOpen(true)} className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-3 py-2 text-xs font-black text-white md:px-4 md:py-2.5 md:text-sm"><Plus size={15} /> New Request</button>
@@ -7909,9 +9626,9 @@ function UniversityVisitRequestsSection({ csrf, visitRequests = [], schools = []
             </section>
 
             <section className="grid grid-cols-2 gap-2 md:grid-cols-4 md:gap-4">
-                <MobileRequestMetric label="Total Pending" value={pendingCount} helper="+12% vs last week" tone="emerald" icon={Activity} />
-                <MobileRequestMetric label="Under Review" value={reviewCount} helper="Last updated 1h ago" tone="blue" icon={Clock} />
-                <MobileRequestMetric label="Confirmed" value={approvedCount} helper="Active visits today" tone="emerald" icon={CheckCircle2} />
+                <MobileRequestMetric label="Total Pending" value={pendingCount} helper={`${incomingPendingCount} need your decision`} tone="emerald" icon={Activity} />
+                <MobileRequestMetric label="Under Review" value={reviewCount} helper="Approved database records" tone="blue" icon={Clock} />
+                <MobileRequestMetric label="Confirmed" value={approvedCount} helper="Approved or scheduled" tone="emerald" icon={CheckCircle2} />
                 <article className="hidden rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:flex md:flex-col">
                     <span className="text-[11px] font-black uppercase tracking-wide text-slate-400">Capacity</span>
                     <span className="mt-1 text-3xl font-black text-slate-950">{capacityPct}%</span>
@@ -7944,7 +9661,7 @@ function UniversityVisitRequestsSection({ csrf, visitRequests = [], schools = []
 
             <section className="grid gap-3 md:hidden">
                 {visible.length === 0 ? <SaaSEmptyState title="No visit requests found" message="Adjust the filters or add a new request." /> : visible.map((request) => (
-                    <MobileVisitRequestCard key={request.id} csrf={csrf} request={request} statusStyle={statusStyle} onDetails={() => setSelected(request)} />
+                    <MobileVisitRequestCard key={request.id} csrf={csrf} request={request} currentUserId={currentUserId} statusStyle={statusStyle} onDetails={() => setSelected(request)} />
                 ))}
                 <div className="flex items-center justify-center gap-3 pb-3 pt-1 text-sm font-semibold text-slate-500">
                     <button type="button" disabled={page === 1} onClick={() => setPage(page - 1)} className="grid h-9 w-9 place-items-center rounded-full border border-slate-200 bg-white disabled:opacity-40"><ChevronRight size={16} className="rotate-180" /></button>
@@ -7958,13 +9675,14 @@ function UniversityVisitRequestsSection({ csrf, visitRequests = [], schools = []
                 <div className="divide-y divide-slate-100">
                     {visible.length === 0 ? <SaaSEmptyState title="No visit requests found" message="Adjust the filters or add a new request." /> : visible.map((request) => (
                         <article key={request.id} className="group grid grid-cols-1 items-center gap-4 px-5 py-4 hover:bg-slate-50/70 md:grid-cols-12 md:px-6">
-                            <div className="flex items-center gap-3 md:col-span-3"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-blue-50 text-blue-600"><School size={18} /></span><span className="min-w-0"><span className="block truncate text-sm font-black text-slate-900">{request.school}</span><span className="mt-0.5 block text-xs text-slate-500">ID: REQ-{String(request.id).padStart(4, '0')}</span></span></div>
+                            <div className="flex items-center gap-3 md:col-span-3"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-blue-50 text-blue-600"><School size={18} /></span><span className="min-w-0"><span className="block truncate text-sm font-black text-slate-900">{request.school}</span><span className="mt-0.5 block text-xs text-slate-500">ID: REQ-{String(request.id).padStart(4, '0')}</span><span className="mt-1 block text-[10px] font-black uppercase tracking-wide text-slate-400">{isOutboundRequest(request) ? 'Sent by your university' : 'Incoming from school'}</span></span></div>
                             <p className="text-sm text-slate-700 md:col-span-2">{request.window}</p>
                             <p className="text-sm font-semibold text-slate-700 md:col-span-2">{request.groupSize} Students</p>
                             <p className="text-sm text-slate-700 md:col-span-2">{request.region || request.location || 'Unassigned'}</p>
                             <div className="md:col-span-2"><span className={cx('inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-bold capitalize', statusStyle[request.status] || 'border-slate-200 bg-slate-50 text-slate-600')}><span className="h-1.5 w-1.5 rounded-full bg-current" />{request.status === 'requested' ? 'Pending' : request.status}</span></div>
                             <div className="flex justify-end gap-1 md:opacity-0 md:group-hover:opacity-100">
-                                {request.status === 'requested' && <><DecisionIconButton csrf={csrf} id={request.id} decision="approved" label="Approve" icon={CheckCircle2} tone="green" /><DecisionIconButton csrf={csrf} id={request.id} decision="declined" label="Reject" icon={X} tone="red" /></>}
+                                {request.status === 'requested' && !isOutboundRequest(request) && <><DecisionIconButton csrf={csrf} id={request.id} decision="approved" label="Approve" icon={CheckCircle2} tone="green" /><DecisionIconButton csrf={csrf} id={request.id} decision="declined" label="Reject" icon={X} tone="red" /></>}
+                                {request.status === 'requested' && isOutboundRequest(request) && <DecisionIconButton csrf={csrf} id={request.id} decision="declined" label="Cancel request" icon={X} tone="red" />}
                                 {request.status === 'approved' && <DecisionIconButton csrf={csrf} id={request.id} decision="scheduled" label="Schedule" icon={CalendarDays} tone="blue" />}
                                 <button type="button" onClick={() => setSelected(request)} className="rounded-lg p-2 text-slate-500 hover:bg-slate-200" title="View details"><MoreVertical size={18} /></button>
                             </div>
@@ -7974,8 +9692,8 @@ function UniversityVisitRequestsSection({ csrf, visitRequests = [], schools = []
                 <div className="flex flex-col gap-3 border-t border-slate-200 px-5 py-4 text-sm sm:flex-row sm:items-center sm:justify-between"><p className="text-slate-500">Showing <strong className="text-slate-900">{filtered.length ? (page - 1) * perPage + 1 : 0}</strong> to <strong className="text-slate-900">{Math.min(page * perPage, filtered.length)}</strong> of <strong className="text-slate-900">{filtered.length}</strong> results</p><div className="flex gap-2"><button type="button" disabled={page === 1} onClick={() => setPage(page - 1)} className="rounded-lg border border-slate-200 px-3 py-1.5 font-bold disabled:opacity-40">Previous</button><span className="rounded-lg bg-blue-600 px-3 py-1.5 font-bold text-white">{page}</span><button type="button" disabled={page === pages} onClick={() => setPage(page + 1)} className="rounded-lg border border-slate-200 px-3 py-1.5 font-bold disabled:opacity-40">Next</button></div></div>
             </section>
 
-            {createOpen && <ModalShell title="New Visit Request" onClose={() => setCreateOpen(false)}><form action="/visit-requests" method="POST" className="grid gap-4" onSubmit={() => window.setTimeout(() => setCreateOpen(false), 0)}><input type="hidden" name="_token" value={csrf} /><label className="grid gap-1.5 text-sm font-bold text-slate-700">Partner school<select name="target_school_id" required className="rounded-lg border border-slate-200 px-3 py-2.5 font-normal"><option value="">Select a school</option>{schools.map((school) => <option key={school.id} value={school.id}>{school.name}</option>)}</select></label><div className="grid gap-4 sm:grid-cols-2"><label className="grid gap-1.5 text-sm font-bold text-slate-700">Requested date<input type="date" name="requested_window" required min={new Date().toISOString().slice(0, 10)} className="rounded-lg border border-slate-200 px-3 py-2.5 font-normal" /></label><label className="grid gap-1.5 text-sm font-bold text-slate-700">Group size<input type="number" name="group_size" required min="1" max="10000" defaultValue="30" className="rounded-lg border border-slate-200 px-3 py-2.5 font-normal" /></label></div><label className="grid gap-1.5 text-sm font-bold text-slate-700">Priority<select name="priority" defaultValue="2" className="rounded-lg border border-slate-200 px-3 py-2.5 font-normal"><option value="1">Low</option><option value="2">Normal</option><option value="3">High</option><option value="4">Urgent</option><option value="5">Critical</option></select></label><label className="grid gap-1.5 text-sm font-bold text-slate-700">Notes<textarea name="notes" rows="3" className="rounded-lg border border-slate-200 px-3 py-2.5 font-normal" placeholder="Request context or accessibility needs..." /></label><div className="flex justify-end gap-2"><button type="button" onClick={() => setCreateOpen(false)} className="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-bold">Cancel</button><button className="rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-bold text-white">Add Request</button></div></form></ModalShell>}
-            {selected && <ModalShell title={selected.school} onClose={() => setSelected(null)}><div className="grid gap-3 text-sm"><RequestDetail label="Request ID" value={`REQ-${String(selected.id).padStart(4, '0')}`} /><RequestDetail label="Requested date" value={selected.window} /><RequestDetail label="Group size" value={`${selected.groupSize} students`} /><RequestDetail label="Region" value={selected.region || selected.location} /><RequestDetail label="Status" value={selected.status} /></div></ModalShell>}
+            {createOpen && <ModalShell title="New Visit Request" onClose={() => setCreateOpen(false)}><form action="/visit-requests" method="POST" className="grid gap-4" onSubmit={() => window.setTimeout(() => setCreateOpen(false), 0)}><input type="hidden" name="_token" value={csrf} /><label className="grid gap-1.5 text-sm font-bold text-slate-700">Recipient school<select name="school_id" required className="rounded-lg border border-slate-200 px-3 py-2.5 font-normal"><option value="">Select a school account</option>{schools.map((school) => <option key={school.id} value={school.id}>{school.name}{school.location ? ` · ${school.location}` : ''}</option>)}</select></label><label className="grid gap-1.5 text-sm font-bold text-slate-700">Visit program<select name="campus_event_id" required className="rounded-lg border border-slate-200 px-3 py-2.5 font-normal"><option value="">Select a published event</option>{events.filter((event) => event.status === 'published').map((event) => <option key={event.id} value={event.id}>{event.title} · {formatDateTime(event.startsAt)}</option>)}</select></label><div className="grid gap-4 sm:grid-cols-2"><label className="grid gap-1.5 text-sm font-bold text-slate-700">Requested date<input type="date" name="requested_window" required min={new Date().toISOString().slice(0, 10)} className="rounded-lg border border-slate-200 px-3 py-2.5 font-normal" /></label><label className="grid gap-1.5 text-sm font-bold text-slate-700">Group size<input type="number" name="group_size" required min="1" max="10000" defaultValue="30" className="rounded-lg border border-slate-200 px-3 py-2.5 font-normal" /></label></div><label className="grid gap-1.5 text-sm font-bold text-slate-700">Priority<select name="priority" defaultValue="2" className="rounded-lg border border-slate-200 px-3 py-2.5 font-normal"><option value="1">Low</option><option value="2">Normal</option><option value="3">High</option><option value="4">Urgent</option><option value="5">Critical</option></select></label><label className="grid gap-1.5 text-sm font-bold text-slate-700">Notes<textarea name="notes" rows="3" className="rounded-lg border border-slate-200 px-3 py-2.5 font-normal" placeholder="Request context or accessibility needs..." /></label><div className="flex justify-end gap-2"><button type="button" onClick={() => setCreateOpen(false)} className="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-bold">Cancel</button><button disabled={!schools.length || !events.some((event) => event.status === 'published')} className="rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-bold text-white disabled:bg-slate-300">Send Request</button></div></form></ModalShell>}
+            {selected && <ModalShell title={selected.school} onClose={() => setSelected(null)}><div className="grid gap-3 text-sm"><RequestDetail label="Request ID" value={`REQ-${String(selected.id).padStart(4, '0')}`} /><RequestDetail label="Direction" value={isOutboundRequest(selected) ? 'Sent to school' : 'Received from school'} /><RequestDetail label="Requested date" value={selected.window} /><RequestDetail label="Group size" value={`${selected.groupSize} students`} /><RequestDetail label="Region" value={selected.region || selected.location} /><RequestDetail label="Status" value={selected.status} /></div></ModalShell>}
         </div>
     );
 }
@@ -8006,8 +9724,9 @@ function MobileRequestMetric({ label, value, helper, tone = 'emerald', icon: Ico
     );
 }
 
-function MobileVisitRequestCard({ csrf, request, onDetails }) {
+function MobileVisitRequestCard({ csrf, request, currentUserId = null, onDetails }) {
     const isPending = request.status === 'requested';
+    const isOutbound = request.requesterRole === 'university' || Number(request.requesterId) === Number(currentUserId);
     const statusTone = {
         requested: 'bg-emerald-50 text-[#006a61]',
         approved: 'bg-blue-50 text-blue-700',
@@ -8027,6 +9746,7 @@ function MobileVisitRequestCard({ csrf, request, onDetails }) {
                         <h3 className="truncate text-sm font-black text-slate-950">{request.school}</h3>
                         <span className={cx('shrink-0 rounded px-2 py-0.5 text-[9px] font-black uppercase', statusTone[request.status] || 'bg-slate-100 text-slate-600')}>{statusLabel}</span>
                     </div>
+                    <p className="mt-1 text-[10px] font-black uppercase tracking-wide text-slate-400">{isOutbound ? 'Sent by your university' : 'Incoming from school'}</p>
                     <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[11px] font-semibold text-slate-500">
                         <span className="inline-flex items-center gap-1"><CalendarDays size={13} /> {request.window || 'Date pending'}</span>
                         <span className="inline-flex items-center gap-1"><MapPin size={13} /> {request.region || request.location || 'Region pending'}</span>
@@ -8035,11 +9755,13 @@ function MobileVisitRequestCard({ csrf, request, onDetails }) {
                 </div>
             </div>
             <div className="mt-3 flex gap-2">
-                {isPending ? (
+                {isPending && !isOutbound ? (
                     <>
                         <DecisionTextButton csrf={csrf} id={request.id} decision="approved" label="Approve" tone="approve" />
                         <DecisionTextButton csrf={csrf} id={request.id} decision="declined" label="Deny" tone="deny" />
                     </>
+                ) : isPending ? (
+                    <DecisionTextButton csrf={csrf} id={request.id} decision="declined" label="Cancel request" tone="deny" />
                 ) : request.status === 'approved' ? (
                     <DecisionTextButton csrf={csrf} id={request.id} decision="scheduled" label="Schedule" tone="approve" />
                 ) : (
@@ -8176,7 +9898,7 @@ function VisitArchiveSection({ csrf, archives, analytics }) {
     );
 }
 
-function AnalyticsForecastSection({ analytics = {}, schools = [] }) {
+function AnalyticsForecastSection({ csrf = '', analytics = {}, schools = [] }) {
     const kpis = analytics.kpis?.length ? analytics.kpis : [
         { label: 'Total visits', value: analytics.totalVisits || 0, trend: 'Database connected' },
         { label: 'Leads captured', value: formatCompact(analytics.leadsCaptured || 0), trend: 'Archived visits' },
@@ -8192,9 +9914,26 @@ function AnalyticsForecastSection({ analytics = {}, schools = [] }) {
         score: school.matchScore || 0,
         detail: `${school.activeApplicants || 0} active applicants`,
     }));
+    const opportunitiesUseCapacityTransform = ['school', 'student'].includes(analytics.role);
+    const opportunityHeading = opportunitiesUseCapacityTransform ? 'Upcoming Visit Capacity' : 'Saved School Priorities';
+    const opportunityMeasure = opportunitiesUseCapacityTransform ? 'Derived capacity indicator' : 'Saved priority score';
     const insights = analytics.insights || [];
+    const schoolProgramFunnel = analytics.schoolProgramFunnel || [];
+    const cycleComparisons = analytics.cycleComparisons || [];
+    const savedInsights = analytics.savedInsights || [];
+    const dateRange = analytics.dateRange || {};
+    const exportParams = new URLSearchParams();
+    if (dateRange.range) exportParams.set('range', dateRange.range);
+    if (dateRange.start) exportParams.set('start_date', dateRange.start);
+    if (dateRange.end) exportParams.set('end_date', dateRange.end);
+    const universityExportUrl = `/dashboard/university/insights/export${exportParams.toString() ? `?${exportParams}` : ''}`;
 
     const exportReport = () => {
+        if (analytics.role === 'university') {
+            window.location.href = universityExportUrl;
+            return;
+        }
+
         const rows = [
             ['Metric', 'Value', 'Detail'],
             ...kpis.map((item) => [item.label, item.value, item.trend || '']),
@@ -8202,7 +9941,7 @@ function AnalyticsForecastSection({ analytics = {}, schools = [] }) {
             ['Funnel Step', 'Count', 'Rate'],
             ...funnel.map((item) => [item.label, item.value, `${item.rate}%`]),
             [],
-            ['Opportunity', 'Score', 'Detail'],
+            ['Opportunity', opportunityMeasure, 'Detail'],
             ...opportunities.map((item) => [item.name, item.score, item.detail || item.meta || '']),
         ];
         const csv = rows.map((row) => row.map((cell) => `"${String(cell ?? '').replaceAll('"', '""')}"`).join(',')).join('\n');
@@ -8228,6 +9967,30 @@ function AnalyticsForecastSection({ analytics = {}, schools = [] }) {
                 </div>
             </section>
 
+            {analytics.role === 'university' && (
+                <section className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm md:p-4">
+                    <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
+                        <div>
+                            <p className="text-xs font-black uppercase tracking-wide text-slate-400">Date range</p>
+                            <p className="mt-1 text-sm font-bold text-slate-700">{dateRange.start || 'Start'} to {dateRange.end || 'Today'}</p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            {['30', '90', '180', '365'].map((range) => (
+                                <form key={range} action="/dashboard/university" method="GET">
+                                    <input type="hidden" name="range" value={range} />
+                                    <button className={cx('rounded-xl px-3 py-2 text-xs font-black', String(dateRange.range || '90') === range ? 'bg-slate-950 text-white' : 'border border-slate-200 bg-white text-slate-600')}>{range} days</button>
+                                </form>
+                            ))}
+                        </div>
+                        <form action="/dashboard/university" method="GET" className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
+                            <input type="date" name="start_date" defaultValue={dateRange.start || ''} className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold outline-none focus:border-[#006a61]" />
+                            <input type="date" name="end_date" defaultValue={dateRange.end || ''} className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold outline-none focus:border-[#006a61]" />
+                            <button className="rounded-xl bg-[#006a61] px-4 py-2 text-sm font-black text-white">Apply</button>
+                        </form>
+                    </div>
+                </section>
+            )}
+
             <section className="grid grid-cols-2 gap-2 md:grid-cols-2 md:gap-4 xl:grid-cols-4">
                 {kpis.map((item) => (
                     <article key={item.label} className="overflow-hidden rounded-xl border border-slate-200 bg-white p-3 shadow-sm md:p-5">
@@ -8249,7 +10012,7 @@ function AnalyticsForecastSection({ analytics = {}, schools = [] }) {
                                 <h2 className="text-lg font-black text-slate-950 md:text-xl">Conversion Funnel Analysis</h2>
                                 <p className="mt-1 text-sm text-slate-500">Built from current records scoped to this account.</p>
                             </div>
-                            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-600">{analytics.modelConfidence || 0}% confidence</span>
+                            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-600">{funnel.length} tracked stage(s)</span>
                         </div>
                         <div className="mt-6 space-y-3">
                             {funnel.length === 0 ? (
@@ -8267,6 +10030,46 @@ function AnalyticsForecastSection({ analytics = {}, schools = [] }) {
                             ))}
                         </div>
                     </section>
+
+                    {analytics.role === 'university' && (
+                        <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
+                            <div className="flex flex-col gap-2 border-b border-slate-100 pb-4 sm:flex-row sm:items-center sm:justify-between">
+                                <div>
+                                    <h2 className="text-lg font-black text-slate-950 md:text-xl">School × Program Funnel</h2>
+                                    <p className="mt-1 text-sm text-slate-500">Same registration records, grouped by partner school and visit program.</p>
+                                </div>
+                                <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-blue-700">{schoolProgramFunnel.length} rows</span>
+                            </div>
+                            <div className="mt-4 overflow-x-auto">
+                                {schoolProgramFunnel.length === 0 ? (
+                                    <EmptyState message="School/program funnel appears after schools register for visit programs." />
+                                ) : (
+                                    <table className="min-w-full text-left text-sm">
+                                        <thead className="text-xs uppercase tracking-wide text-slate-400">
+                                            <tr>
+                                                <th className="px-3 py-2">School</th>
+                                                <th className="px-3 py-2">Program</th>
+                                                <th className="px-3 py-2">Stage</th>
+                                                <th className="px-3 py-2 text-right">Count</th>
+                                                <th className="px-3 py-2 text-right">Rate</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100">
+                                            {schoolProgramFunnel.slice(0, 24).map((row, index) => (
+                                                <tr key={`${row.school}-${row.program}-${row.stage}-${index}`}>
+                                                    <td className="px-3 py-3 font-black text-slate-800">{row.school}</td>
+                                                    <td className="px-3 py-3 text-slate-600">{row.program}</td>
+                                                    <td className="px-3 py-3"><span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-black text-slate-600">{row.stage}</span></td>
+                                                    <td className="px-3 py-3 text-right font-black text-slate-950">{row.value}</td>
+                                                    <td className="px-3 py-3 text-right font-black text-blue-700">{row.rate}%</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                )}
+                            </div>
+                        </section>
+                    )}
 
                     <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
                         <div className="flex items-center justify-between gap-3">
@@ -8288,8 +10091,42 @@ function AnalyticsForecastSection({ analytics = {}, schools = [] }) {
                         </div>
                     </section>
 
+                    {analytics.role === 'university' && (
+                        <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
+                            <div className="flex items-center justify-between gap-3">
+                                <div>
+                                    <h2 className="text-lg font-black text-slate-950 md:text-xl">Cycle Comparison</h2>
+                                    <p className="mt-1 text-sm text-slate-500">Current range against the previous equivalent cycle.</p>
+                                </div>
+                                <span className="text-xs font-black uppercase tracking-wide text-slate-400">Trend</span>
+                            </div>
+                            <div className="mt-4 grid gap-3 md:grid-cols-2">
+                                {cycleComparisons.length === 0 ? (
+                                    <EmptyState message="Cycle comparison will appear after date-scoped records exist." />
+                                ) : cycleComparisons.map((cycle) => (
+                                    <article key={cycle.label} className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                                        <div className="flex items-start justify-between gap-2">
+                                            <div>
+                                                <p className="text-sm font-black text-slate-950">{cycle.label}</p>
+                                                <p className="mt-1 text-xs font-semibold text-slate-500">{cycle.period}</p>
+                                            </div>
+                                            <span className="rounded-full bg-white px-2.5 py-1 text-xs font-black text-emerald-700">{cycle.conversion}% conv.</span>
+                                        </div>
+                                        <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
+                                            <MiniStat label="Registered" value={cycle.registered} />
+                                            <MiniStat label="Attended" value={cycle.attended} />
+                                            <MiniStat label="Applications" value={cycle.applications} />
+                                            <MiniStat label="Attendance" value={`${cycle.attendanceRate}%`} />
+                                        </div>
+                                    </article>
+                                ))}
+                            </div>
+                        </section>
+                    )}
+
                     <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
-                        <h2 className="text-lg font-black text-slate-950 md:text-xl">Rising Opportunities</h2>
+                        <h2 className="text-lg font-black text-slate-950 md:text-xl">{opportunityHeading}</h2>
+                        <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">{opportunitiesUseCapacityTransform ? 'The indicator is a display transform of the remaining-seat count shown on each row; it is not a match score.' : 'Scores are saved school-priority values, not predicted matches.'}</p>
                         <div className="mt-4 divide-y divide-slate-100">
                             {opportunities.length === 0 ? (
                                 <EmptyState message="Opportunity ranking will appear after schools or visits are available." />
@@ -8298,9 +10135,10 @@ function AnalyticsForecastSection({ analytics = {}, schools = [] }) {
                                     <div>
                                         <p className="text-sm font-black text-slate-950">{item.name}</p>
                                         <p className="mt-1 text-xs text-slate-500">{item.meta}</p>
+                                        {item.detail && <p className="mt-1 text-xs font-semibold text-slate-600">{item.detail}</p>}
                                     </div>
                                     <div className="h-2 rounded-full bg-slate-100"><div className="h-2 rounded-full bg-emerald-500" style={{ width: `${Math.min(100, Number(item.score || 0))}%` }} /></div>
-                                    <p className="text-right text-sm font-black text-blue-700">{item.score}</p>
+                                    <p className="text-right text-sm font-black text-blue-700">{item.score}/100<span className="mt-0.5 block text-[9px] font-bold uppercase text-slate-400">{opportunitiesUseCapacityTransform ? 'Capacity transform' : 'Saved priority'}</span></p>
                                 </div>
                             ))}
                         </div>
@@ -8311,7 +10149,7 @@ function AnalyticsForecastSection({ analytics = {}, schools = [] }) {
                     <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:p-5">
                         <div className="flex items-center gap-2 border-b border-slate-100 pb-4">
                             <Sparkles size={18} className="text-emerald-600" />
-                            <h2 className="text-lg font-black text-slate-950">Predictive Insights</h2>
+                            <h2 className="text-lg font-black text-slate-950">Operational Insights</h2>
                         </div>
                         <div className="mt-4 space-y-3">
                             {insights.length === 0 ? (
@@ -8323,6 +10161,16 @@ function AnalyticsForecastSection({ analytics = {}, schools = [] }) {
                                         <div>
                                             <h3 className="text-sm font-black text-slate-950">{item.title}</h3>
                                             <p className="mt-1 text-sm leading-6 text-slate-600">{item.body}</p>
+                                            {analytics.role === 'university' && csrf && (
+                                                <form action="/dashboard/university/insights" method="POST" className="mt-3">
+                                                    <input type="hidden" name="_token" value={csrf} />
+                                                    <input type="hidden" name="title" value={item.title} />
+                                                    <input type="hidden" name="body" value={item.body} />
+                                                    <input type="hidden" name="type" value={item.type || 'recommendation'} />
+                                                    <input type="hidden" name="score" value={item.score || 0} />
+                                                    <button className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700">Save insight</button>
+                                                </form>
+                                            )}
                                         </div>
                                     </div>
                                 </article>
@@ -8330,23 +10178,76 @@ function AnalyticsForecastSection({ analytics = {}, schools = [] }) {
                         </div>
                     </section>
 
+                    {analytics.role === 'university' && (
+                        <section className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm md:p-5">
+                            <div className="flex items-start justify-between gap-3">
+                                <div>
+                                    <p className="text-xs font-black uppercase tracking-wide text-emerald-700">Current Activity</p>
+                                    <h2 className="mt-1 text-2xl font-black text-slate-950">{analytics.engagementAverage || 0}%</h2>
+                                </div>
+                                <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-emerald-700">Recorded attendance</span>
+                            </div>
+                            <p className="mt-3 text-sm font-semibold leading-6 text-slate-700">Calculated from confirmed seats and recorded attendance in the selected date range.</p>
+                            <div className="mt-4 grid grid-cols-2 gap-2">
+                                <MiniStat label="Funnel stages" value={funnel.length} />
+                                <MiniStat label="Archived quality" value={`${analytics.averageQuality || 0}/5`} />
+                            </div>
+                        </section>
+                    )}
+
+                    {analytics.role === 'university' && (
+                        <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:p-5">
+                            <h2 className="text-lg font-black text-slate-950">Saved Recommendations</h2>
+                            <div className="mt-4 space-y-3">
+                                {savedInsights.length === 0 ? (
+                                    <p className="text-sm font-semibold text-slate-500">Saved insights will appear here after you save a recommendation.</p>
+                                ) : savedInsights.map((item) => (
+                                    <article key={item.id} className="rounded-2xl border border-slate-100 bg-slate-50 p-3">
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div>
+                                                <p className="text-sm font-black text-slate-950">{item.title}</p>
+                                                <p className="mt-1 text-xs font-semibold uppercase text-slate-400">{item.type} - {item.status}</p>
+                                                <p className="mt-2 text-sm leading-6 text-slate-600">{item.body}</p>
+                                            </div>
+                                            <span className="rounded-full bg-white px-2 py-1 text-xs font-black text-blue-700">{item.score}</span>
+                                        </div>
+                                        {csrf && (
+                                            <div className="mt-3 grid grid-cols-2 gap-2">
+                                                <form action={`/dashboard/university/insights/${item.id}/status`} method="POST">
+                                                    <input type="hidden" name="_token" value={csrf} />
+                                                    <input type="hidden" name="status" value="done" />
+                                                    <button className="w-full rounded-lg bg-slate-950 px-3 py-2 text-xs font-black text-white">Mark done</button>
+                                                </form>
+                                                <form action={`/dashboard/university/insights/${item.id}/status`} method="POST">
+                                                    <input type="hidden" name="_token" value={csrf} />
+                                                    <input type="hidden" name="status" value="dismissed" />
+                                                    <button className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700">Dismiss</button>
+                                                </form>
+                                            </div>
+                                        )}
+                                    </article>
+                                ))}
+                            </div>
+                        </section>
+                    )}
+
                     <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:p-5">
-                        <h2 className="text-lg font-black text-slate-950">Signal Strength</h2>
+                        <h2 className="text-lg font-black text-slate-950">Tracked Records</h2>
                         <div className="mt-4 grid grid-cols-2 gap-3">
-                            <MiniStat label="Confidence" value={`${analytics.modelConfidence || 0}%`} />
-                            <MiniStat label="Variables" value={analytics.activeVariables || 0} />
+                            <MiniStat label="Funnel stages" value={funnel.length} />
+                            <MiniStat label="Opportunity rows" value={opportunities.length} />
                         </div>
                     </section>
 
                     <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:p-5">
-                        <h2 className="text-lg font-black text-slate-950">Growth Hotspots</h2>
+                        <h2 className="text-lg font-black text-slate-950">Activity Hotspots</h2>
                         <div className="mt-4 space-y-3">
                             {(analytics.hotspots || []).length === 0 ? (
                                 <p className="text-sm text-slate-500">Hotspots will appear when regional data exists.</p>
                             ) : (analytics.hotspots || []).map((hotspot) => (
                                 <div key={hotspot.region} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm">
                                     <span className="font-bold text-slate-700">{hotspot.region}</span>
-                                    <span className="font-black text-emerald-600">+{hotspot.growth}</span>
+                                    <span className="font-black text-emerald-600">{hotspot.growth}</span>
                                 </div>
                             ))}
                         </div>
@@ -8504,6 +10405,10 @@ function formatCompact(value) {
     return Intl.NumberFormat(undefined, { notation: 'compact', maximumFractionDigits: 1 }).format(value);
 }
 
+function formatCurrency(value, currency = 'NGN') {
+    return new Intl.NumberFormat(undefined, { style: 'currency', currency, maximumFractionDigits: 2 }).format(Number(value || 0));
+}
+
 function percentage(value, total) {
     return total > 0 ? Math.round((Number(value || 0) / Number(total || 0)) * 1000) / 10 : 0;
 }
@@ -8587,11 +10492,6 @@ function formatRelativeTime(value) {
     return days === 1 ? 'Yesterday' : `${days}d ago`;
 }
 
-function schoolProfileNameFromStudents(students = []) {
-    const student = students.find((item) => item?.name);
-    return student?.name || '';
-}
-
 function calendarMonthCells(cursor) {
     const first = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
     const startOffset = (first.getDay() + 6) % 7;
@@ -8618,6 +10518,55 @@ function moveEventToDate(value, targetDate) {
     const moved = new Date(targetDate);
     moved.setHours(source.getHours(), source.getMinutes(), 0, 0);
     return moved.toISOString();
+}
+
+function moveEventToDateTime(value, targetDate, time) {
+    const source = value ? new Date(value) : new Date();
+    const moved = new Date(targetDate);
+    const [hours, minutes] = (time || timeValue(value) || '09:00').split(':').map((item) => Number(item));
+    moved.setHours(Number.isFinite(hours) ? hours : source.getHours(), Number.isFinite(minutes) ? minutes : source.getMinutes(), 0, 0);
+    return moved.toISOString();
+}
+
+function timeValue(value) {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+}
+
+function addHoursToIso(value, hours) {
+    const date = value ? new Date(value) : new Date();
+    date.setHours(date.getHours() + hours);
+    return date.toISOString();
+}
+
+function addMinutesToTime(value, minutesToAdd) {
+    const [hours, minutes] = (value || '09:00').split(':').map((item) => Number(item));
+    const date = new Date();
+    date.setHours(hours || 0, minutes || 0, 0, 0);
+    date.setMinutes(date.getMinutes() + minutesToAdd);
+    return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+}
+
+function formatSlotLabel(value) {
+    const [hours, minutes] = value.split(':').map((item) => Number(item));
+    const date = new Date();
+    date.setHours(hours, minutes, 0, 0);
+    return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+
+function hasLocalScheduleConflict(events = [], ignoreId, venue, startsAt, endsAt) {
+    const start = new Date(startsAt);
+    const end = new Date(endsAt || startsAt);
+    if (!venue || Number.isNaN(start.getTime())) return null;
+
+    return events.find((event) => {
+        if (Number(event.id) === Number(ignoreId) || event.status === 'cancelled' || event.venue !== venue) return false;
+        const eventStart = new Date(event.startsAt);
+        const eventEnd = new Date(event.endsAt || event.startsAt);
+        return eventStart < end && eventEnd > start;
+    }) || null;
 }
 
 function busiestCalendarDay(events) {
@@ -8650,75 +10599,39 @@ function eventImageTone(event) {
     return 'bg-gradient-to-br from-amber-500 to-slate-900';
 }
 
-function enrichDiscoverVisit(event, visitRequests = [], index = 0) {
+function enrichDiscoverVisit(event, visitRequests = []) {
     const capacity = Number(event.capacity || 0);
     const confirmedSeats = Number(event.confirmedSeats || 0);
     const seatsLeft = Math.max(0, capacity - confirmedSeats);
     const focus = eventFocus(event);
     const limitedThreshold = Math.max(5, Math.ceil(Math.max(1, capacity) * 0.15));
-    const fillRate = capacity > 0 ? confirmedSeats / capacity : 0;
-    const focusBoost = focus === 'Engineering & Tech' ? 12 : focus === 'Business' ? 7 : 4;
-    const availabilityBoost = seatsLeft > limitedThreshold ? 8 : seatsLeft > 0 ? 4 : -6;
-    const matchScore = Math.max(55, Math.min(98, Math.round(72 + focusBoost + availabilityBoost + ((index % 5) * 2) - (fillRate * 8))));
     const existingRequest = visitRequests.find((request) => Number(request.eventId) === Number(event.id));
     const statusLabel = existingRequest
         ? existingRequest.status
-        : seatsLeft === 0
-            ? 'Waitlist'
-            : /virtual|zoom|online/i.test(`${event.venue || ''} ${event.location || ''}`)
-                ? 'Virtual'
-                : 'Verified';
+        : event.status || 'published';
 
     return {
         ...event,
         initials: (event.university || event.title || 'UV').split(' ').map((word) => word[0]).slice(0, 3).join('').toUpperCase(),
         university: event.university || 'University Partner',
         focus,
-        region: discoverRegion(event.location || event.venue || ''),
+        filterLocation: event.location || event.venue || 'Location TBA',
         capacity,
         confirmedSeats,
         seatsLeft,
         limitedThreshold,
-        matchScore,
         existingRequest,
         statusLabel,
         statusTone: existingRequest
             ? 'border-blue-200 bg-blue-50 text-blue-700'
-            : seatsLeft === 0
-                ? 'border-rose-200 bg-rose-50 text-rose-700'
-                : /virtual|zoom|online/i.test(`${event.venue || ''} ${event.location || ''}`)
-                    ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
-                    : 'border-slate-200 bg-slate-100 text-slate-600',
+            : 'border-emerald-200 bg-emerald-50 text-emerald-700',
         availabilityLabel: seatsLeft > 0
             ? `${seatsLeft}/${capacity || seatsLeft} seats open`
             : 'No seats left',
     };
 }
 
-function discoverRegion(location = '') {
-    const normalized = location.toLowerCase();
-    if (/lagos|abuja|accra|ghana|nigeria|kenya|africa/.test(normalized)) return 'Africa';
-    if (/london|zurich|europe|paris|berlin|switzerland|uk|united kingdom/.test(normalized)) return 'Europe';
-    if (/singapore|jakarta|bangkok|tokyo|asia/.test(normalized)) return 'Asia Pacific';
-    if (/stanford|cambridge|boston|palo alto|pasadena|berkeley|usa|united states|ca|ma|ny/.test(normalized)) return 'North America';
-    return 'Global';
-}
-
-function schoolUniversityCards(events, schools) {
-    const inferRegion = (location = '') => {
-        const normalized = location.toLowerCase();
-        if (/ca|wa|or|stanford|berkeley|pasadena|seattle|los angeles|san diego/.test(normalized)) return 'west';
-        if (/ma|ny|pa|ri|ct|nj|cambridge|boston|ithaca|providence/.test(normalized)) return 'northeast';
-        if (/il|mi|oh|mn|wi|chicago|ann arbor/.test(normalized)) return 'midwest';
-        return 'south';
-    };
-    const tagSets = [
-        ['stem', 'high-yield', 'scholarships'],
-        ['engineering', 'lab-tour', 'robotics'],
-        ['business', 'leadership', 'internships'],
-        ['arts', 'portfolio', 'creative'],
-        ['health', 'pre-med', 'research'],
-    ];
+function schoolUniversityCards(events) {
     const palette = [
         'bg-gradient-to-br from-amber-300 via-sky-500 to-slate-900',
         'bg-gradient-to-br from-emerald-200 via-green-600 to-slate-900',
@@ -8727,107 +10640,44 @@ function schoolUniversityCards(events, schools) {
         'bg-gradient-to-br from-violet-300 via-indigo-600 to-slate-950',
         'bg-gradient-to-br from-rose-200 via-orange-500 to-slate-900',
     ];
-    const eventUniversities = [...new Set(events.map((event) => event.university).filter(Boolean))].map((name, index) => {
-        const event = events.find((item) => item.university === name) || {};
+    const publishedEvents = events.filter((event) => event.status === 'published' && event.university);
+    const eventUniversities = [...new Set(publishedEvents.map((event) => event.university))].map((name, index) => {
+        const universityEvents = publishedEvents.filter((item) => item.university === name);
+        const event = universityEvents[0] || {};
+        const publishedVisits = universityEvents
+            .sort((left, right) => new Date(left.startsAt || '9999-12-31') - new Date(right.startsAt || '9999-12-31'));
+        const nextPublishedVisit = publishedVisits.find((item) => {
+            const startsAt = new Date(item.startsAt || '').getTime();
+            return Number.isFinite(startsAt) && startsAt >= Date.now();
+        });
         const focus = eventFocus(event);
-        const location = event.location || ['Stanford, CA', 'Cambridge, MA', 'Berkeley, CA', 'Ithaca, NY'][index % 4];
+        const location = event.location || 'Location TBA';
         return {
             name,
             location,
-            region: inferRegion(location),
-            type: index % 3 === 0 ? 'Private Research' : index % 3 === 1 ? 'Public Research' : 'Technical Institute',
+            type: 'University',
             focus,
-            match: [98, 94, 91, 88, 84, 79][index % 6],
-            score: [85, 92, 78, 65, 74, 89][index % 6],
-            upcomingVisits: Number(event.capacity || 24) > 60 ? 5 : (index % 5) + 1,
-            tags: tagSets[index % tagSets.length],
+            upcomingVisits: publishedVisits.length,
+            nextVisit: nextPublishedVisit?.startsAt || null,
+            tags: [],
+            publishedVisits,
             image: palette[index % palette.length],
         };
     });
-    const fallback = [
-        ['Stanford University', 'Stanford, CA', 'Private Research', 'Engineering', 98, 85, 6, ['stem', 'ai-lab', 'high-yield']],
-        ['MIT', 'Cambridge, MA', 'Technical Institute', 'Engineering', 94, 92, 5, ['robotics', 'lab-tour', 'research']],
-        ['UC Berkeley', 'Berkeley, CA', 'Public Research', 'Business', 88, 78, 4, ['business', 'public-policy', 'startups']],
-        ['Cornell University', 'Ithaca, NY', 'Private Research', 'Liberal Arts', 85, 65, 3, ['arts', 'architecture', 'portfolio']],
-        ['Georgia Tech', 'Atlanta, GA', 'Public Research', 'Engineering', 91, 88, 5, ['engineering', 'co-op', 'stem']],
-        ['Carnegie Mellon', 'Pittsburgh, PA', 'Private Research', 'Engineering', 90, 90, 4, ['computer-science', 'ai', 'research']],
-        ['UCLA', 'Los Angeles, CA', 'Public Research', 'Health Sciences', 86, 81, 4, ['health', 'pre-med', 'urban-campus']],
-        ['Northwestern University', 'Evanston, IL', 'Private Research', 'Business', 82, 79, 2, ['business', 'media', 'leadership']],
-        ['University of Washington', 'Seattle, WA', 'Public Research', 'Engineering', 89, 84, 5, ['cloud', 'engineering', 'west-coast']],
-        ['Rice University', 'Houston, TX', 'Private Research', 'Health Sciences', 80, 76, 2, ['pre-med', 'research', 'small-cohort']],
-        ['Brown University', 'Providence, RI', 'Private Research', 'Liberal Arts', 78, 72, 2, ['open-curriculum', 'arts', 'northeast']],
-        ['University of Michigan', 'Ann Arbor, MI', 'Public Research', 'Business', 84, 83, 3, ['business', 'engineering', 'midwest']],
-        ['Caltech', 'Pasadena, CA', 'Technical Institute', 'Engineering', 92, 87, 3, ['physics', 'robotics', 'research']],
-        ['Duke University', 'Durham, NC', 'Private Research', 'Health Sciences', 83, 80, 2, ['health', 'leadership', 'south']],
-        ['NYU', 'New York, NY', 'Private Research', 'Liberal Arts', 79, 74, 4, ['arts', 'business', 'urban-campus']],
-        ['University of Chicago', 'Chicago, IL', 'Private Research', 'Business', 77, 71, 2, ['economics', 'research', 'midwest']],
-    ].map(([name, location, type, focus, match, score, upcomingVisits, tags], index) => ({
-        name,
-        location,
-        region: inferRegion(location),
-        type,
-        focus,
-        match,
-        score,
-        upcomingVisits,
-        tags,
-        image: palette[index % palette.length],
-    }));
 
-    const merged = [...eventUniversities, ...fallback.filter((fallbackCard) => !eventUniversities.some((card) => card.name === fallbackCard.name))];
-
-    return merged;
+    return eventUniversities;
 }
 
-function schoolStudentRows(events = []) {
-    const eventTitles = events
-        .map((event) => event.title)
-        .filter(Boolean)
-        .slice(0, 6);
-    const fallbackEvents = ['MIT Tech Tour', 'Stanford Virtual', 'Johns Hopkins Q&A', 'Berkeley Info Session', 'CalTech Robotics'];
-    const titles = eventTitles.length ? eventTitles : fallbackEvents;
-    const base = [
-        ['Sarah Jenkins', 'ID: ST-8492', '12th', 'Computer Science', [titles[0] || fallbackEvents[0], titles[1] || fallbackEvents[1]]],
-        ['Marcus Chen', 'ID: ST-8821', '11th', 'Business Admin', []],
-        ['Elena Rodriguez', 'ID: ST-8752', '12th', 'Pre-Med', [titles[2] || fallbackEvents[2]]],
-        ['Ava Thompson', 'ID: ST-8840', '12th', 'Engineering', [titles[3] || fallbackEvents[3]]],
-        ['Noah Williams', 'ID: ST-8915', '10th', 'Computer Science', []],
-        ['Maya Patel', 'ID: ST-9022', '11th', 'Pre-Med', [titles[4] || fallbackEvents[4]]],
-        ['Daniel Okafor', 'ID: ST-9147', '12th', 'Business Admin', [titles[1] || fallbackEvents[1]]],
-        ['Grace Kim', 'ID: ST-9203', '11th', 'Engineering', [titles[0] || fallbackEvents[0]]],
-        ['Omar Hassan', 'ID: ST-9310', '10th', 'Liberal Arts', []],
-        ['Lily Morgan', 'ID: ST-9444', '12th', 'Computer Science', [titles[3] || fallbackEvents[3], titles[4] || fallbackEvents[4]]],
-    ];
-
-    return base.map(([name, id, grade, interest, assignedEvents]) => ({
-        name,
-        id: id.replace('ID: ', ''),
-        grade,
-        interest,
-        assignedEvents,
-        initials: name.split(' ').map((part) => part[0]).slice(0, 2).join(''),
-    }));
-}
-
-function normalizeSchoolStudents(students = [], events = []) {
-    if (students.length) {
-        return students.map((student) => ({
-            id: student.id,
-            name: student.name,
-            email: student.email || '',
-            studentIdentifier: student.studentIdentifier || `ST-${student.id}`,
-            grade: student.grade || '12th',
-            interest: student.interest || 'Undecided',
-            assignedEvents: student.assignedEvents || [],
-            initials: (student.name || 'Student').split(' ').map((part) => part[0]).slice(0, 2).join(''),
-        }));
-    }
-
-    return schoolStudentRows(events).map((student, index) => ({
-        ...student,
-        email: `student${index + 1}@example.test`,
-        studentIdentifier: student.id,
-        id: `demo-${index + 1}`,
+function normalizeSchoolStudents(students = []) {
+    return students.map((student) => ({
+        id: student.id,
+        name: student.name,
+        email: student.email || '',
+        studentIdentifier: student.studentIdentifier || `ST-${student.id}`,
+        grade: student.grade || 'Not set',
+        interest: student.interest || 'Undecided',
+        assignedEvents: student.assignedEvents || [],
+        initials: (student.name || 'Student').split(' ').map((part) => part[0]).slice(0, 2).join(''),
     }));
 }
 
@@ -8856,22 +10706,330 @@ function UniversityStatusPill({ status }) {
     return <span className={cx('inline-flex rounded-full px-2.5 py-1 text-xs font-black uppercase', classes[status] || 'bg-slate-100 text-slate-600')}>{status}</span>;
 }
 
+function AcademicProgramsSection({ csrf, programs = [], role }) {
+    const [search, setSearch] = useState('');
+    const [status, setStatus] = useState('all');
+    const filtered = programs.filter((program) => {
+        const matchesSearch = !search || `${program.name} ${program.code} ${program.level || ''}`.toLowerCase().includes(search.toLowerCase());
+        return matchesSearch && (status === 'all' || program.status === status);
+    });
+
+    return (
+        <section className="grid gap-5">
+            <SaaSCard title={role === 'university' ? 'Create academic program' : 'Create program or class'} description="Publish real requirements, deadlines, fees, and capacity for student applications.">
+                <form action="/institution-programs" method="POST" className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    <input type="hidden" name="_token" value={csrf} />
+                    <input type="hidden" name="institution_type" value={role === 'university' ? 'university' : 'school'} />
+                    <LightField label="Program name" name="name" required />
+                    <LightField label="Program code" name="code" required />
+                    <LightField label="Level or class" name="level" placeholder="Undergraduate, Grade 10..." />
+                    <LightField label="Location" name="location" />
+                    <LightField label="Application deadline" name="application_deadline" type="datetime-local" />
+                    <LightField label="Capacity" name="capacity" type="number" min="1" />
+                    <LightField label="Application fee" name="application_fee" type="number" min="0" step="0.01" defaultValue="0" required />
+                    <LightField label="Currency" name="currency" defaultValue="NGN" maxLength="3" required />
+                    <label className="text-sm font-semibold text-gray-700">Status<select name="status" defaultValue="draft" className="mt-2 w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm"><option value="draft">Draft</option><option value="published">Published</option><option value="closed">Closed</option></select></label>
+                    <div className="md:col-span-2 xl:col-span-3"><LightTextarea label="Description" name="description" /></div>
+                    <div className="md:col-span-2 xl:col-span-3"><LightTextarea label="Entry requirements" name="requirements" /></div>
+                    <button className="rounded-xl bg-[#006a61] px-5 py-3 text-sm font-black text-white md:col-span-2 xl:col-span-3">Create program</button>
+                </form>
+            </SaaSCard>
+
+            <SaaSCard title="Programs" description={`${filtered.length} program${filtered.length === 1 ? '' : 's'} in this workspace.`}>
+                <div className="mb-4 grid gap-3 sm:grid-cols-[1fr_180px]">
+                    <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search programs..." className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none focus:border-[#006a61]" />
+                    <select value={status} onChange={(event) => setStatus(event.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm"><option value="all">All statuses</option><option value="draft">Draft</option><option value="published">Published</option><option value="closed">Closed</option></select>
+                </div>
+                <div className="grid gap-3">
+                    {filtered.map((program) => (
+                        <details key={program.id} className="rounded-2xl border border-slate-200 bg-white p-4">
+                            <summary className="cursor-pointer list-none">
+                                <div className="flex flex-wrap items-start justify-between gap-3">
+                                    <div><p className="font-black text-slate-950">{program.name}</p><p className="mt-1 text-xs font-semibold text-slate-500">{program.code} · {program.level || 'Level not set'} · {program.applicationsCount} applications</p></div>
+                                    <div className="text-right"><span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-black uppercase text-slate-600">{program.status}</span><p className="mt-2 text-sm font-black text-[#006a61]">{formatCurrency(program.fee, program.currency)}</p></div>
+                                </div>
+                            </summary>
+                            <form action={`/institution-programs/${program.id}`} method="POST" className="mt-4 grid gap-3 border-t border-slate-100 pt-4 md:grid-cols-2 xl:grid-cols-3">
+                                <input type="hidden" name="_token" value={csrf} /><input type="hidden" name="_method" value="PUT" />
+                                <LightField label="Program name" name="name" defaultValue={program.name} required />
+                                <LightField label="Program code" name="code" defaultValue={program.code} required />
+                                <LightField label="Level or class" name="level" defaultValue={program.level || ''} />
+                                <LightField label="Location" name="location" defaultValue={program.location || ''} />
+                                <LightField label="Deadline" name="application_deadline" type="datetime-local" defaultValue={toInputDateTime(program.deadline)} />
+                                <LightField label="Capacity" name="capacity" type="number" min="1" defaultValue={program.capacity || ''} />
+                                <LightField label="Application fee" name="application_fee" type="number" min="0" step="0.01" defaultValue={program.fee} required />
+                                <LightField label="Currency" name="currency" defaultValue={program.currency} maxLength="3" required />
+                                <label className="text-sm font-semibold text-gray-700">Status<select name="status" defaultValue={program.status} className="mt-2 w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm"><option value="draft">Draft</option><option value="published">Published</option><option value="closed">Closed</option></select></label>
+                                <div className="md:col-span-2 xl:col-span-3"><LightTextarea label="Description" name="description" defaultValue={program.description || ''} /></div>
+                                <div className="md:col-span-2 xl:col-span-3"><LightTextarea label="Entry requirements" name="requirements" defaultValue={program.requirements || ''} /></div>
+                                <button className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-black text-white">Save changes</button>
+                            </form>
+                            <form action={`/institution-programs/${program.id}`} method="POST" className="mt-3" onSubmit={(event) => { if (!window.confirm('Delete this program?')) event.preventDefault(); }}>
+                                <input type="hidden" name="_token" value={csrf} /><input type="hidden" name="_method" value="DELETE" />
+                                <button className="text-xs font-black text-rose-600">Delete program</button>
+                            </form>
+                        </details>
+                    ))}
+                    {!filtered.length && <EmptyState title="No programs found" message="Create the first program or change the current filters." />}
+                </div>
+            </SaaSCard>
+        </section>
+    );
+}
+
+function AdmissionApplicationsSection({ csrf, applications = [], role }) {
+    const [search, setSearch] = useState('');
+    const [status, setStatus] = useState('all');
+    const filtered = applications.filter((application) => {
+        const haystack = `${application.reference} ${application.student?.name || ''} ${application.student?.email || ''} ${application.program?.name || ''}`.toLowerCase();
+        return (!search || haystack.includes(search.toLowerCase())) && (status === 'all' || application.status === status);
+    });
+    const canDecide = role !== 'student';
+
+    return (
+        <SaaSCard title="Applications" description="Review real application records, documents, payments, and decisions.">
+            <div className="mb-4 grid gap-3 sm:grid-cols-[1fr_190px]">
+                <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search reference, student, or program..." className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none focus:border-[#006a61]" />
+                <select value={status} onChange={(event) => setStatus(event.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm"><option value="all">All statuses</option>{['draft', 'submitted', 'under_review', 'waitlisted', 'accepted', 'rejected', 'withdrawn'].map((value) => <option key={value} value={value}>{titleCase(value)}</option>)}</select>
+            </div>
+            <div className="grid gap-3">
+                {filtered.map((application) => {
+                    const paid = application.payments?.find((payment) => payment.status === 'paid');
+                    return (
+                        <details key={application.id} className="rounded-2xl border border-slate-200 bg-white p-4">
+                            <summary className="cursor-pointer list-none">
+                                <div className="flex flex-wrap items-start justify-between gap-3">
+                                    <div><p className="font-black text-slate-950">{application.program?.name}</p><p className="mt-1 text-xs font-semibold text-slate-500">{application.reference} · {role === 'student' ? application.program?.institutionName : `${application.student?.name} · ${application.student?.email}`}</p></div>
+                                    <div className="flex items-center gap-2"><span className="rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-black uppercase text-blue-700">{titleCase(application.status)}</span>{paid && <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-black uppercase text-emerald-700">Paid</span>}</div>
+                                </div>
+                            </summary>
+                            <div className="mt-4 grid gap-4 border-t border-slate-100 pt-4 lg:grid-cols-2">
+                                <div className="space-y-3 text-sm text-slate-600"><p><span className="font-black text-slate-950">Submitted:</span> {formatDateTime(application.submittedAt)}</p><p><span className="font-black text-slate-950">Statement:</span> {application.personalStatement || 'Not provided'}</p><p><span className="font-black text-slate-950">Academic summary:</span> {application.academicSummary || 'Not provided'}</p>{application.decisionNote && <p><span className="font-black text-slate-950">Decision note:</span> {application.decisionNote}</p>}</div>
+                                <div><p className="text-xs font-black uppercase tracking-wide text-slate-400">Documents</p><div className="mt-2 flex flex-wrap gap-2">{application.documents?.map((document) => <a key={document.id} href={document.previewUrl} target="_blank" rel="noreferrer" className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-black text-[#006a61]">{document.name} · {titleCase(document.status)}</a>)}{!application.documents?.length && <span className="text-sm text-slate-500">No documents attached.</span>}</div></div>
+                            </div>
+                            {canDecide && !['draft', 'withdrawn'].includes(application.status) && <form action={`/admission-applications/${application.id}/decision`} method="POST" className="mt-4 grid gap-3 rounded-xl bg-slate-50 p-3 md:grid-cols-[190px_1fr_auto] md:items-end"><input type="hidden" name="_token" value={csrf} /><label className="text-xs font-black text-slate-600">Decision<select name="status" defaultValue={application.status === 'submitted' ? 'under_review' : application.status} className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2"><option value="under_review">Under review</option><option value="waitlisted">Waitlist</option><option value="accepted">Accept</option><option value="rejected">Reject</option></select></label><LightField label="Decision note" name="decision_note" defaultValue={application.decisionNote || ''} /><button className="rounded-xl bg-[#006a61] px-4 py-2.5 text-sm font-black text-white">Save decision</button></form>}
+                            {role === 'student' && !['accepted', 'rejected', 'withdrawn'].includes(application.status) && <form action={`/admission-applications/${application.id}/withdraw`} method="POST" className="mt-4" onSubmit={(event) => { if (!window.confirm('Withdraw this application?')) event.preventDefault(); }}><input type="hidden" name="_token" value={csrf} /><button className="text-xs font-black text-rose-600">Withdraw application</button></form>}
+                        </details>
+                    );
+                })}
+                {!filtered.length && <EmptyState title="No applications found" message="No application records match the current filters." />}
+            </div>
+        </SaaSCard>
+    );
+}
+
+function StudentSearchApplySection({ csrf, programs = [], applications = [] }) {
+    const [search, setSearch] = useState('');
+    const [location, setLocation] = useState('all');
+    const applied = new Set(applications.map((application) => application.program?.id));
+    const locations = [...new Set(programs.map((program) => program.location).filter(Boolean))].sort();
+    const filtered = programs.filter((program) => (!search || `${program.name} ${program.institutionName} ${program.level || ''}`.toLowerCase().includes(search.toLowerCase())) && (location === 'all' || program.location === location));
+
+    return (
+        <section className="grid gap-4">
+            <div className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-[1fr_220px]">
+                <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search institution, program, or level..." className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-[#006a61]" />
+                <select value={location} onChange={(event) => setLocation(event.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm"><option value="all">All locations</option>{locations.map((value) => <option key={value}>{value}</option>)}</select>
+            </div>
+            <div className="grid gap-4 lg:grid-cols-2">
+                {filtered.map((program) => (
+                    <article key={program.id} className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                        <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-black uppercase tracking-wide text-[#006a61]">{program.institutionName}</p><h2 className="mt-1 text-xl font-black text-slate-950">{program.name}</h2><p className="mt-1 text-sm font-semibold text-slate-500">{program.level || 'Program'} · {program.location || 'Location TBA'}</p></div><span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-black uppercase text-emerald-700">Open</span></div>
+                        <p className="mt-4 text-sm leading-6 text-slate-600">{program.description || 'The institution has not added a description yet.'}</p>
+                        <div className="mt-4 grid grid-cols-2 gap-2"><MiniStat label="Deadline" value={program.deadline ? formatShortDate(program.deadline) : 'Open'} /><MiniStat label="Fee" value={formatCurrency(program.fee, program.currency)} /></div>
+                        <details className="mt-4 rounded-2xl bg-slate-50 p-3"><summary className="cursor-pointer text-sm font-black text-[#006a61]">Requirements and application</summary><p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-600">{program.requirements || 'No additional requirements provided.'}</p>{applied.has(program.id) ? <p className="mt-4 rounded-xl bg-blue-50 px-3 py-2 text-sm font-black text-blue-700">Application already started</p> : <form action="/admission-applications" method="POST" className="mt-4 grid gap-3"><input type="hidden" name="_token" value={csrf} /><input type="hidden" name="institution_program_id" value={program.id} /><input type="hidden" name="submit" value="1" /><LightTextarea label="Personal statement" name="personal_statement" required /><LightTextarea label="Academic summary" name="academic_summary" required /><button className="rounded-xl bg-[#006a61] px-4 py-3 text-sm font-black text-white">Submit application</button></form>}</details>
+                    </article>
+                ))}
+                {!filtered.length && <div className="lg:col-span-2"><EmptyState title="No open programs found" message="Try a different search or location filter." /></div>}
+            </div>
+        </section>
+    );
+}
+
+function StudentDocumentsSection({ csrf, portfolio = {}, applications = [], profile = {} }) {
+    const records = portfolio.academicRecords || [];
+    const documents = portfolio.documents || [];
+    const user = profile.user || {};
+
+    return (
+        <section className="grid gap-5 lg:grid-cols-2">
+            <div className="grid content-start gap-5">
+                <SaaSCard title="Profile image" description="Upload the image used for your student profile.">
+                    <form action="/profile/photo" method="POST" encType="multipart/form-data" className="flex flex-wrap items-end gap-3">
+                        <input type="hidden" name="_token" value={csrf} />
+                        {user.profilePhotoUrl ? <img src={user.profilePhotoUrl} alt="Profile" className="h-16 w-16 rounded-full object-cover" /> : <span className="grid h-16 w-16 place-items-center rounded-full bg-slate-100 text-lg font-black text-slate-600">{initials(user.name || 'Student')}</span>}
+                        <label className="min-w-[220px] flex-1 text-sm font-semibold text-slate-700">Image<input type="file" name="profile_photo" accept="image/png,image/jpeg,image/webp" required className="mt-2 block w-full text-sm" /></label>
+                        <button className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-black text-white">Upload image</button>
+                    </form>
+                </SaaSCard>
+                <SaaSCard title="Academic history" description="Add verified education and qualification details.">
+                    <form action="/student/academic-records" method="POST" className="grid gap-3 sm:grid-cols-2">
+                        <input type="hidden" name="_token" value={csrf} />
+                        <LightField label="Institution" name="institution_name" required />
+                        <LightField label="Qualification" name="qualification" required />
+                        <LightField label="Graduation year" name="graduation_year" type="number" min="1950" max={new Date().getFullYear() + 10} />
+                        <LightField label="GPA or score" name="gpa" type="number" min="0" max="100" step="0.01" />
+                        <div className="sm:col-span-2"><LightTextarea label="Result summary" name="result_summary" /></div>
+                        <button className="rounded-xl bg-[#006a61] px-4 py-2.5 text-sm font-black text-white sm:col-span-2">Add record</button>
+                    </form>
+                    <div className="mt-4 divide-y divide-slate-100">
+                        {records.map((record) => <div key={record.id} className="flex items-start justify-between gap-3 py-3"><div><p className="font-black text-slate-950">{record.qualification}</p><p className="text-sm text-slate-500">{record.institutionName} · {record.graduationYear || 'Year not set'}{record.gpa ? ` · ${record.gpa}` : ''}</p></div><form action={`/student/academic-records/${record.id}`} method="POST" onSubmit={(event) => { if (!window.confirm('Remove this academic record?')) event.preventDefault(); }}><input type="hidden" name="_token" value={csrf} /><input type="hidden" name="_method" value="DELETE" /><button className="text-xs font-black text-rose-600">Remove</button></form></div>)}
+                        {!records.length && <p className="py-4 text-sm text-slate-500">No academic records added yet.</p>}
+                    </div>
+                </SaaSCard>
+            </div>
+            <SaaSCard title="Documents" description="PDF certificates and images are stored privately and downloaded through authorized links.">
+                <form action="/student/documents" method="POST" encType="multipart/form-data" className="grid gap-3 rounded-2xl bg-slate-50 p-4">
+                    <input type="hidden" name="_token" value={csrf} />
+                    <label className="text-sm font-semibold text-slate-700">Category<select name="category" className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5"><option value="certificate">Certificate</option><option value="transcript">Transcript</option><option value="identity">Identity</option><option value="recommendation">Recommendation</option><option value="other">Other</option></select></label>
+                    <label className="text-sm font-semibold text-slate-700">Attach to application<select name="admission_application_id" className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5"><option value="">General profile document</option>{applications.map((application) => <option key={application.id} value={application.id}>{application.reference} · {application.program?.name}</option>)}</select></label>
+                    <label className="text-sm font-semibold text-slate-700">File<input type="file" name="document" accept="application/pdf,image/png,image/jpeg" required className="mt-2 block w-full text-sm" /></label>
+                    <button className="rounded-xl bg-[#006a61] px-4 py-2.5 text-sm font-black text-white">Upload securely</button>
+                </form>
+                <div className="mt-4 grid gap-3">
+                    {documents.map((document) => <article key={document.id} className="rounded-2xl border border-slate-200 p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate font-black text-slate-950">{document.name}</p><p className="mt-1 text-xs font-semibold text-slate-500">{titleCase(document.category)} · {(document.size / 1024).toFixed(1)} KB · {titleCase(document.status)}</p>{document.applicationReference && <p className="mt-1 text-xs font-black text-[#006a61]">{document.applicationReference}</p>}</div><span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-black uppercase text-slate-600">{document.status}</span></div><div className="mt-3 flex flex-wrap gap-2"><a href={document.previewUrl} target="_blank" rel="noreferrer" className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-black text-slate-700">Preview</a><a href={document.downloadUrl} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-black text-[#006a61]">Download</a>{document.status !== 'verified' && <form action={`/student/documents/${document.id}`} method="POST" onSubmit={(event) => { if (!window.confirm('Delete this document?')) event.preventDefault(); }}><input type="hidden" name="_token" value={csrf} /><input type="hidden" name="_method" value="DELETE" /><button className="rounded-lg border border-rose-100 px-3 py-2 text-xs font-black text-rose-600">Delete</button></form>}</div></article>)}
+                    {!documents.length && <EmptyState title="No documents uploaded" message="Upload a PDF certificate, transcript, identity document, recommendation, or image." />}
+                </div>
+            </SaaSCard>
+        </section>
+    );
+}
+
+function StudentPaymentsSection({ csrf, applications = [] }) {
+    const payments = applications.flatMap((application) => (application.payments || []).map((payment) => ({ ...payment, application })));
+    const payable = applications.filter((application) => Number(application.program?.fee || 0) > 0 && ['submitted', 'under_review', 'waitlisted', 'accepted'].includes(application.status) && !(application.payments || []).some((payment) => payment.status === 'paid'));
+
+    return (
+        <section className="grid gap-5 lg:grid-cols-[1fr_0.9fr]">
+            <SaaSCard title="Application fees" description="Start payment only for a submitted application with a configured fee.">
+                <div className="grid gap-3">
+                    {payable.map((application) => <article key={application.id} className="rounded-2xl border border-slate-200 p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-black text-slate-950">{application.program?.name}</p><p className="mt-1 text-xs font-semibold text-slate-500">{application.reference} · {application.program?.institutionName}</p></div><p className="text-lg font-black text-[#006a61]">{formatCurrency(application.program?.fee, application.program?.currency)}</p></div><form action={`/admission-applications/${application.id}/payments/paystack`} method="POST" data-native-submit="true" className="mt-4"><input type="hidden" name="_token" value={csrf} /><button className="w-full rounded-xl bg-[#006a61] px-4 py-3 text-sm font-black text-white">Pay securely with Paystack</button></form></article>)}
+                    {!payable.length && <EmptyState title="No fees due" message="A payable application fee will appear here after an application is submitted." />}
+                </div>
+            </SaaSCard>
+            <SaaSCard title="Payment history" description="Verified transactions and downloadable receipts.">
+                <div className="grid gap-3">
+                    {payments.map((payment) => <article key={payment.id} className="rounded-2xl border border-slate-200 p-4"><div className="flex items-start justify-between gap-3"><div><p className="font-black text-slate-950">{payment.application.program?.name}</p><p className="mt-1 text-xs font-semibold text-slate-500">{payment.reference}</p></div><span className={cx('rounded-full px-2.5 py-1 text-[10px] font-black uppercase', payment.status === 'paid' ? 'bg-emerald-50 text-emerald-700' : payment.status === 'failed' ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-700')}>{payment.status}</span></div><p className="mt-3 text-lg font-black text-slate-950">{formatCurrency(payment.amount, payment.currency)}</p>{payment.receiptUrl && <div className="mt-3 flex gap-2"><a href={payment.receiptUrl} target="_blank" rel="noreferrer" className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-black text-slate-700">View receipt</a><a href={payment.receiptDownloadUrl} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-black text-[#006a61]">Download</a></div>}</article>)}
+                    {!payments.length && <p className="py-8 text-center text-sm font-semibold text-slate-500">No payment attempts yet.</p>}
+                </div>
+            </SaaSCard>
+        </section>
+    );
+}
+
+function PlatformNotificationsSection({ initial = {} }) {
+    const [items, setItems] = useState(initial.items || []);
+    const [error, setError] = useState('');
+    const markRead = async (id) => {
+        setError('');
+        try {
+            await apiRequest(`/api/v1/notifications/${id}/read`, { method: 'PATCH' });
+            setItems((current) => current.map((item) => item.id === id ? { ...item, unread: false, readAt: new Date().toISOString() } : item));
+        } catch (requestError) { setError(requestError.message); }
+    };
+    const markAllRead = async () => {
+        setError('');
+        try {
+            await apiRequest('/api/v1/notifications/read-all', { method: 'PATCH' });
+            setItems((current) => current.map((item) => ({ ...item, unread: false, readAt: item.readAt || new Date().toISOString() })));
+        } catch (requestError) { setError(requestError.message); }
+    };
+    return <SaaSCard title="Notifications" description="Application decisions, messages, payments, and visit updates are stored here."><div className="mb-4 flex justify-end"><button type="button" onClick={markAllRead} disabled={!items.some((item) => item.unread)} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-black text-slate-700 disabled:opacity-40">Mark all read</button></div>{error && <p className="mb-3 rounded-xl bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</p>}<div className="divide-y divide-slate-100">{items.map((item) => <article key={item.id} className={cx('py-4', item.unread && 'rounded-xl bg-blue-50/60 px-3')}><div className="flex items-start justify-between gap-3"><div><p className="font-black text-slate-950">{item.subject}</p><p className="mt-1 text-sm leading-6 text-slate-600">{item.body}</p><p className="mt-2 text-xs font-semibold text-slate-400">{formatDateTime(item.createdAt)}</p></div>{item.unread && <button type="button" onClick={() => markRead(item.id)} className="shrink-0 text-xs font-black text-[#006a61]">Mark read</button>}</div></article>)}{!items.length && <EmptyState title="No notifications" message="Application decisions, messages, payments, and visit alerts will appear here." />}</div></SaaSCard>;
+}
+
+function AdminContentSection({ csrf, content = {} }) {
+    const [tab, setTab] = useState('announcements');
+    const tabs = [['announcements', 'Announcements'], ['faqs', 'FAQs'], ['templates', 'Email templates']];
+    return (
+        <section className="grid gap-4">
+            <div className="flex gap-2 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2">{tabs.map(([id, label]) => <button key={id} type="button" onClick={() => setTab(id)} className={cx('shrink-0 rounded-xl px-4 py-2 text-sm font-black', tab === id ? 'bg-slate-950 text-white' : 'text-slate-600 hover:bg-slate-50')}>{label}</button>)}</div>
+            {tab === 'announcements' && <SaaSCard title="Announcements" description="Publishing sends a notification broadcast to the selected active account audience."><form action="/admin/content/announcements" method="POST" className="grid gap-3 md:grid-cols-2"><input type="hidden" name="_token" value={csrf} /><LightField label="Title" name="title" required /><label className="text-sm font-semibold text-slate-700">Audience<select name="audience" className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5"><option value="all">All users</option><option value="university">Universities</option><option value="school">Schools</option><option value="student">Students</option><option value="admin">Admins</option></select></label><label className="text-sm font-semibold text-slate-700">Status<select name="status" className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5"><option value="draft">Draft</option><option value="published">Published</option></select></label><LightField label="Expires at" name="expires_at" type="datetime-local" /><div className="md:col-span-2"><LightTextarea label="Announcement" name="body" required /></div><button className="rounded-xl bg-[#006a61] px-4 py-2.5 text-sm font-black text-white md:col-span-2">Save announcement</button></form><div className="mt-5 grid gap-3">{(content.announcements || []).map((item) => <details key={item.id} className="rounded-2xl border border-slate-200 p-4"><summary className="cursor-pointer list-none"><div className="flex justify-between gap-3"><div><p className="font-black text-slate-950">{item.title}</p><p className="mt-1 text-xs font-semibold text-slate-500">{titleCase(item.audience)} · {titleCase(item.status)}</p></div><span className="text-xs font-black text-[#006a61]">Edit</span></div></summary><form action={`/admin/content/announcements/${item.id}`} method="POST" className="mt-4 grid gap-3 border-t border-slate-100 pt-4 md:grid-cols-2"><input type="hidden" name="_token" value={csrf} /><input type="hidden" name="_method" value="PUT" /><LightField label="Title" name="title" defaultValue={item.title} required /><label className="text-sm font-semibold text-slate-700">Audience<select name="audience" defaultValue={item.audience} className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5"><option value="all">All users</option><option value="university">Universities</option><option value="school">Schools</option><option value="student">Students</option><option value="admin">Admins</option></select></label><label className="text-sm font-semibold text-slate-700">Status<select name="status" defaultValue={item.status} className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5"><option value="draft">Draft</option><option value="published">Published</option><option value="archived">Archived</option></select></label><LightField label="Expires at" name="expires_at" type="datetime-local" defaultValue={toInputDateTime(item.expiresAt)} /><div className="md:col-span-2"><LightTextarea label="Announcement" name="body" defaultValue={item.body} required /></div><button className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-black text-white">Update</button></form><form action={`/admin/content/announcements/${item.id}`} method="POST" className="mt-2"><input type="hidden" name="_token" value={csrf} /><input type="hidden" name="_method" value="DELETE" /><button className="text-xs font-black text-rose-600">Delete</button></form></details>)}{!(content.announcements || []).length && <EmptyState title="No announcements" message="Create the first platform announcement." />}</div></SaaSCard>}
+            {tab === 'faqs' && <SaaSCard title="FAQs" description="Store and organize audience-scoped FAQ entries in the managed content library."><form action="/admin/content/faqs" method="POST" className="grid gap-3 md:grid-cols-2"><input type="hidden" name="_token" value={csrf} /><LightField label="Question" name="question" required /><label className="text-sm font-semibold text-slate-700">Audience<select name="audience" className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5"><option value="all">All users</option><option value="university">Universities</option><option value="school">Schools</option><option value="student">Students</option></select></label><LightField label="Sort order" name="sort_order" type="number" min="0" defaultValue="0" /><label className="flex items-center gap-2 pt-7 text-sm font-black text-slate-700"><input type="checkbox" name="is_published" value="1" /> Published in library</label><div className="md:col-span-2"><LightTextarea label="Answer" name="answer" required /></div><button className="rounded-xl bg-[#006a61] px-4 py-2.5 text-sm font-black text-white md:col-span-2">Add FAQ</button></form><div className="mt-5 divide-y divide-slate-100">{(content.faqs || []).map((faq) => <details key={faq.id} className="py-4"><summary className="cursor-pointer font-black text-slate-950">{faq.question}</summary><p className="mt-2 whitespace-pre-wrap text-sm text-slate-600">{faq.answer}</p><form action={`/admin/content/faqs/${faq.id}`} method="POST" className="mt-3 grid gap-3 rounded-xl bg-slate-50 p-3 md:grid-cols-2"><input type="hidden" name="_token" value={csrf} /><input type="hidden" name="_method" value="PUT" /><LightField label="Question" name="question" defaultValue={faq.question} required /><label className="text-sm font-semibold text-slate-700">Audience<select name="audience" defaultValue={faq.audience} className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5"><option value="all">All users</option><option value="university">Universities</option><option value="school">Schools</option><option value="student">Students</option></select></label><LightField label="Sort order" name="sort_order" type="number" min="0" defaultValue={faq.sortOrder} /><label className="flex items-center gap-2 pt-7 text-sm font-black text-slate-700"><input type="checkbox" name="is_published" value="1" defaultChecked={faq.isPublished} /> Published in library</label><div className="md:col-span-2"><LightTextarea label="Answer" name="answer" defaultValue={faq.answer} required /></div><button className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-black text-white">Update</button></form><form action={`/admin/content/faqs/${faq.id}`} method="POST" className="mt-2"><input type="hidden" name="_token" value={csrf} /><input type="hidden" name="_method" value="DELETE" /><button className="text-xs font-black text-rose-600">Delete</button></form></details>)}{!(content.faqs || []).length && <EmptyState title="No FAQs" message="Create the first managed FAQ entry." />}</div></SaaSCard>}
+            {tab === 'templates' && <SaaSCard title="Email templates" description="Enabled templates supply notification copy when the template key matches a notification type; disabled templates fall back to built-in copy."><form action="/admin/content/email-templates" method="POST" className="grid gap-3 md:grid-cols-2"><input type="hidden" name="_token" value={csrf} /><LightField label="Template key" name="key" placeholder="application.accepted" required /><LightField label="Display name" name="name" required /><div className="md:col-span-2"><LightField label="Subject" name="subject" required /></div><div className="md:col-span-2"><LightTextarea label="Body" name="body" required /></div><label className="flex items-center gap-2 text-sm font-black text-slate-700"><input type="checkbox" name="enabled" value="1" defaultChecked /> Enabled for matching notifications</label><button className="rounded-xl bg-[#006a61] px-4 py-2.5 text-sm font-black text-white">Create template</button></form><div className="mt-5 grid gap-3">{(content.emailTemplates || []).map((template) => <details key={template.id} className="rounded-2xl border border-slate-200 p-4"><summary className="cursor-pointer font-black text-slate-950">{template.name} <span className="ml-2 text-xs text-slate-400">{template.key}</span></summary><form action={`/admin/content/email-templates/${template.id}`} method="POST" className="mt-4 grid gap-3 md:grid-cols-2"><input type="hidden" name="_token" value={csrf} /><input type="hidden" name="_method" value="PUT" /><LightField label="Template key" name="key" defaultValue={template.key} required /><LightField label="Display name" name="name" defaultValue={template.name} required /><div className="md:col-span-2"><LightField label="Subject" name="subject" defaultValue={template.subject} required /></div><div className="md:col-span-2"><LightTextarea label="Body" name="body" defaultValue={template.body} required /></div><label className="flex items-center gap-2 text-sm font-black text-slate-700"><input type="checkbox" name="enabled" value="1" defaultChecked={template.enabled} /> Enabled for matching notifications</label><button className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-black text-white">Update</button></form><form action={`/admin/content/email-templates/${template.id}`} method="POST" className="mt-2"><input type="hidden" name="_token" value={csrf} /><input type="hidden" name="_method" value="DELETE" /><button className="text-xs font-black text-rose-600">Delete</button></form></details>)}{!(content.emailTemplates || []).length && <EmptyState title="No email templates" message="Create the first managed email template." />}</div></SaaSCard>}
+        </section>
+    );
+}
+
+function ConversationCenterSection({ currentUserId }) {
+    const [threads, setThreads] = useState([]);
+    const [recipients, setRecipients] = useState([]);
+    const [active, setActive] = useState(null);
+    const [messages, setMessages] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
+    const loadThreads = async () => {
+        try {
+            const payload = await apiRequest('/api/v1/conversations?per_page=100');
+            setThreads(payload?.data || []);
+            return payload?.data || [];
+        } catch (requestError) { setError(requestError.message); return []; }
+    };
+    const openThread = async (thread) => {
+        setError('');
+        try {
+            const payload = await apiRequest(`/api/v1/conversations/${thread.id}?per_page=100`);
+            setActive(payload.data.conversation);
+            setMessages([...(payload.data.messages || [])].reverse());
+            await apiRequest(`/api/v1/conversations/${thread.id}/read`, { method: 'PATCH' });
+            setThreads((current) => current.map((item) => item.id === thread.id ? { ...item, unread_count: 0 } : item));
+        } catch (requestError) { setError(requestError.message); }
+    };
+    useEffect(() => {
+        let mounted = true;
+        Promise.all([apiRequest('/api/v1/conversations?per_page=100'), apiRequest('/api/v1/conversations/recipients?per_page=100')]).then(([threadPayload, recipientPayload]) => {
+            if (!mounted) return;
+            setThreads(threadPayload?.data || []); setRecipients(recipientPayload?.data || []);
+        }).catch((requestError) => mounted && setError(requestError.message)).finally(() => mounted && setLoading(false));
+        return () => { mounted = false; };
+    }, []);
+    const startConversation = async (event) => {
+        event.preventDefault(); setError('');
+        const form = event.currentTarget; const formData = new FormData(form);
+        try {
+            const payload = await apiRequest('/api/v1/conversations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.fromEntries(formData)) });
+            form.reset(); await loadThreads(); await openThread(payload.data);
+        } catch (requestError) { setError(requestError.message); }
+    };
+    const reply = async (event) => {
+        event.preventDefault(); if (!active) return;
+        const form = event.currentTarget; const body = new FormData(form).get('body');
+        try {
+            const payload = await apiRequest(`/api/v1/conversations/${active.id}/messages`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body }) });
+            setMessages((current) => [...current, payload.data]); form.reset(); await loadThreads();
+        } catch (requestError) { setError(requestError.message); }
+    };
+    const otherParticipant = active?.participants?.find((participant) => Number(participant.id) !== Number(currentUserId));
+    return (
+        <section className="grid gap-4">
+            <details className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><summary className="cursor-pointer font-black text-slate-950">Start a new conversation</summary><form onSubmit={startConversation} className="mt-4 grid gap-3"><label className="text-sm font-semibold text-slate-700">Recipient<select name="recipient_user_id" required className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5"><option value="">Select a recipient</option>{recipients.map((recipient) => <option key={recipient.id} value={recipient.id}>{recipient.name} · {titleCase(recipient.role)}{recipient.institution_name ? ` · ${recipient.institution_name}` : ''}</option>)}</select></label><LightField label="Subject" name="subject" required /><LightTextarea label="Message" name="body" required /><button className="rounded-xl bg-[#006a61] px-4 py-3 text-sm font-black text-white">Send message</button></form></details>
+            {error && <p className="rounded-xl bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">{error}</p>}
+            <div className="grid min-h-[520px] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm lg:grid-cols-[320px_1fr]">
+                <aside className="border-b border-slate-200 lg:border-b-0 lg:border-r"><div className="border-b border-slate-100 p-4"><p className="font-black text-slate-950">Conversations</p><p className="text-xs font-semibold text-slate-500">Direct, authorized messages only</p></div><div className="max-h-[520px] overflow-y-auto">{threads.map((thread) => { const recipient = thread.participants?.find((participant) => Number(participant.id) !== Number(currentUserId)); return <button key={thread.id} type="button" onClick={() => openThread(thread)} className={cx('w-full border-b border-slate-100 p-4 text-left hover:bg-slate-50', active?.id === thread.id && 'bg-blue-50')}><div className="flex items-start justify-between gap-2"><p className="truncate font-black text-slate-950">{recipient?.name || thread.subject}</p>{thread.unread_count > 0 && <span className="rounded-full bg-[#006a61] px-2 py-0.5 text-[10px] font-black text-white">{thread.unread_count}</span>}</div><p className="mt-1 truncate text-xs font-semibold text-slate-500">{thread.subject}</p><p className="mt-1 truncate text-xs text-slate-400">{thread.latest_message?.body}</p></button>; })}{!threads.length && !loading && <p className="p-6 text-center text-sm text-slate-500">No conversations yet.</p>}{loading && <p className="p-6 text-center text-sm text-slate-500">Loading conversations...</p>}</div></aside>
+                <div className="flex min-h-[420px] flex-col">{active ? <><header className="border-b border-slate-100 p-4"><p className="font-black text-slate-950">{otherParticipant?.name || active.subject}</p><p className="text-xs font-semibold text-slate-500">{active.subject}</p></header><div className="flex-1 space-y-3 overflow-y-auto bg-slate-50/60 p-4">{messages.map((message) => { const mine = Number(message.sender?.id) === Number(currentUserId); return <div key={message.id} className={cx('flex', mine ? 'justify-end' : 'justify-start')}><article className={cx('max-w-[82%] rounded-2xl px-4 py-3 text-sm shadow-sm', mine ? 'bg-[#006a61] text-white' : 'border border-slate-200 bg-white text-slate-700')}><p className="whitespace-pre-wrap leading-6">{message.body}</p><p className={cx('mt-1 text-[10px] font-semibold', mine ? 'text-white/60' : 'text-slate-400')}>{formatDateTime(message.created_at)}</p></article></div>; })}</div><form onSubmit={reply} className="flex gap-2 border-t border-slate-100 p-4"><input name="body" required maxLength="5000" placeholder="Write a message..." className="min-w-0 flex-1 rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#006a61]" /><button className="rounded-xl bg-[#006a61] px-4 py-3 text-sm font-black text-white">Send</button></form></> : <div className="grid flex-1 place-items-center p-8 text-center"><div><Inbox className="mx-auto text-slate-300" size={32} /><p className="mt-3 font-black text-slate-950">Select a conversation</p><p className="mt-1 text-sm text-slate-500">Choose a real thread or start a new message.</p></div></div>}</div>
+            </div>
+        </section>
+    );
+}
+
 function dashboardNavGroups(role) {
     const itemsByRole = {
         university: [
             { id: 'overview', title: 'Overview', icon: LayoutDashboard },
             { id: 'events', title: 'Visit Programs', icon: CalendarDays },
+            { id: 'programs', title: 'Academic Programs', icon: GraduationCap },
+            { id: 'applications', title: 'Applications', icon: FolderKanban },
             { id: 'visit-requests', title: 'Visit Requests', icon: Inbox },
             { id: 'schools', title: 'Partner Schools', icon: School },
             { id: 'attendees', title: 'Attendees', icon: UsersRound },
             { id: 'calendar', title: 'Schedule', icon: CalendarDays },
             { id: 'insights', title: 'Insights', icon: Brain },
             { id: 'messages', title: 'Communications', icon: Send },
-            { id: 'university-prd', title: 'University PRD', icon: CheckSquare },
             { id: 'settings', title: 'Settings', icon: Command },
         ],
         school: [
             { id: 'overview', title: 'Overview', icon: LayoutDashboard },
+            { id: 'programs', title: 'Programs & Classes', icon: GraduationCap },
+            { id: 'applications', title: 'Applications', icon: FolderKanban },
             { id: 'events', title: 'Discover Visits', icon: Search },
             { id: 'bookings', title: 'My Requests', icon: FolderKanban },
             { id: 'itinerary', title: 'Itinerary', icon: RouteIcon },
@@ -8883,6 +11041,8 @@ function dashboardNavGroups(role) {
         ],
         high_school: [
             { id: 'overview', title: 'Overview', icon: LayoutDashboard },
+            { id: 'programs', title: 'Programs & Classes', icon: GraduationCap },
+            { id: 'applications', title: 'Applications', icon: FolderKanban },
             { id: 'events', title: 'Discover Visits', icon: Search },
             { id: 'bookings', title: 'My Requests', icon: FolderKanban },
             { id: 'itinerary', title: 'Itinerary', icon: RouteIcon },
@@ -8893,19 +11053,28 @@ function dashboardNavGroups(role) {
             { id: 'settings', title: 'Settings', icon: Command },
         ],
         student: [
-            { id: 'overview', title: 'Dashboard', icon: LayoutDashboard },
             { id: 'my-visits', title: 'My Visits', icon: FolderKanban },
-            { id: 'explore-visits', title: 'Explore Visits', icon: Search },
+            { id: 'search-apply', title: 'Search & Apply', icon: Search },
+            { id: 'applications', title: 'Applications', icon: GraduationCap },
+            { id: 'documents', title: 'Documents', icon: Upload },
+            { id: 'payments', title: 'Payments', icon: Activity },
             { id: 'messages', title: 'Messages', icon: Inbox },
+            { id: 'itinerary', title: 'Itinerary', icon: RouteIcon },
+            { id: 'notifications', title: 'Notifications', icon: Bell },
+            { id: 'profile', title: 'Profile', icon: UsersRound },
+            { id: 'settings', title: 'Settings', icon: Command },
         ],
         admin: [
             { id: 'overview', title: 'Platform Overview', icon: LayoutDashboard },
             { id: 'universities', title: 'Institutions', icon: GraduationCap },
             { id: 'schools', title: 'Schools', icon: School },
+            { id: 'applications', title: 'Applications', icon: FolderKanban },
+            { id: 'messages', title: 'Messages', icon: Inbox },
+            { id: 'content', title: 'Content', icon: Blocks },
             { id: 'events', title: 'Visit Activity', icon: CalendarDays },
             { id: 'users-access', title: 'Users & Access', icon: ShieldCheck },
             { id: 'analytics', title: 'Analytics', icon: Activity },
-            { id: 'system-health', title: 'System Health', icon: Terminal },
+            { id: 'system-health', title: 'Operational Readiness', icon: Terminal },
             { id: 'settings', title: 'Settings', icon: Command },
         ],
     };
@@ -8919,7 +11088,7 @@ function flatNavItems(groups) {
 }
 
 function dashboardContent(role, activeId, metrics, actions, context = {}) {
-    const { csrf, roadmap, events, registrations, users, schools, students, visitRequests, itineraryItems, archives, tasks, analytics, messages, schoolProfile, securityProfile, universityOverview, systemHealth, platformSettings, errors, old, setActiveId } = context;
+    const { csrf, roadmap, events, scheduleEvents, registrations, users, schools, schoolAccounts, students, visitRequests, itineraryItems, archives, tasks, analytics, messages, schoolProfile, securityProfile, universityOverview, universitySettings, universityCompliance, systemHealth, platformSettings, programs, admissionApplications, studentPortfolio, notifications, contentManagement, errors, old, setActiveId } = context;
     const baseMetrics = metrics.map((metric) => ({ ...metric, trend: metric.trend || 'Ready for live data' }));
 
     const adminOnlySections = ['roadmap', 'request-inbox', 'checkout'];
@@ -8953,8 +11122,16 @@ function dashboardContent(role, activeId, metrics, actions, context = {}) {
             subtitle: 'Create, publish, and manage the visit experiences your institution hosts.',
             action: 'Create program',
             metrics: baseMetrics,
-            custom: <UniversityVisitsSection csrf={csrf} events={events || []} registrations={registrations || []} schools={schools || []} errors={errors || {}} old={old || {}} />,
+            custom: <UniversityVisitsSection csrf={csrf} events={events || []} registrations={registrations || []} schools={schools || []} settings={universitySettings || {}} errors={errors || {}} old={old || {}} />,
         };
+    }
+
+    if (role === 'university' && activeId === 'programs') {
+        return { title: 'Academic Programs', subtitle: 'Manage application requirements, deadlines, fees, and capacity.', action: 'Create program', metrics: baseMetrics, custom: <AcademicProgramsSection csrf={csrf} programs={programs || []} role="university" /> };
+    }
+
+    if (role === 'university' && activeId === 'applications') {
+        return { title: 'Applications', subtitle: 'Review applicants and record admission decisions.', action: 'Review applications', metrics: baseMetrics, custom: <AdmissionApplicationsSection csrf={csrf} applications={admissionApplications || []} role="university" /> };
     }
 
     if (role === 'university' && activeId === 'university-prd') {
@@ -8963,12 +11140,12 @@ function dashboardContent(role, activeId, metrics, actions, context = {}) {
             subtitle: 'Temporary production-readiness checklist for the University Portal.',
             action: 'Review readiness',
             metrics: baseMetrics,
-            custom: <UniversityPrdTracker events={events || []} registrations={registrations || []} schools={schools || []} visitRequests={visitRequests || []} />,
+            custom: <UniversityPrdTracker events={events || []} registrations={registrations || []} schools={schools || []} visitRequests={visitRequests || []} analytics={analytics || {}} settings={universitySettings || {}} compliance={universityCompliance || {}} messages={messages || []} />,
         };
     }
 
     if (role === 'university' && activeId === 'visit-requests') {
-        return { title: 'Visit Requests', subtitle: 'Review and respond to requests submitted by partner schools.', action: 'Review requests', metrics: baseMetrics, custom: <UniversityVisitRequestsSection csrf={csrf} visitRequests={visitRequests || []} schools={schools || []} /> };
+        return { title: 'Visit Requests', subtitle: 'Send requests to school accounts and review requests submitted by schools.', action: 'Review requests', metrics: baseMetrics, custom: <UniversityVisitRequestsSection csrf={csrf} visitRequests={visitRequests || []} schools={schoolAccounts || []} events={events || []} currentUserId={securityProfile?.user?.id} /> };
     }
 
     if (role === 'university' && activeId === 'schools') {
@@ -9004,33 +11181,33 @@ function dashboardContent(role, activeId, metrics, actions, context = {}) {
     if (role === 'university' && activeId === 'insights') {
         return {
             title: 'Recruitment insights',
-            subtitle: 'Review engagement forecasts and opportunity signals.',
+            subtitle: 'Review recorded engagement, funnel activity, and saved school priorities.',
             action: 'Refresh insights',
             metrics: baseMetrics,
-            custom: <AnalyticsForecastSection analytics={analytics || {}} schools={schools || []} />,
+            custom: <AnalyticsForecastSection csrf={csrf} analytics={analytics || {}} schools={schools || []} />,
         };
     }
 
     if (role === 'university' && activeId === 'messages') {
-        return { title: 'Communications', subtitle: 'Send and review campus-visit communications.', action: 'New message', metrics: baseMetrics, custom: <MessageCenterSection csrf={csrf} registrations={registrations || []} messages={messages || []} role="university" /> };
+        return { title: 'Communications', subtitle: 'Send and review direct student communications.', action: 'New message', metrics: baseMetrics, custom: <ConversationCenterSection currentUserId={securityProfile?.user?.id} /> };
     }
 
     if (role === 'university' && activeId === 'settings') {
         return {
             title: 'Settings',
-            subtitle: 'Manage institution access, authentication, and account protection.',
+            subtitle: 'Manage university profile, branding, team contacts, defaults, notifications, integrations, and security.',
             action: 'Save changes',
             metrics: baseMetrics,
-            custom: <SecurityAccessSection csrf={csrf} profile={securityProfile || {}} errors={errors || {}} role={role} />,
+            custom: <UniversitySettingsSection csrf={csrf} settings={universitySettings || {}} securityProfile={securityProfile || {}} compliance={universityCompliance || {}} errors={errors || {}} old={old || {}} />,
         };
     }
 
     if (['school', 'high_school'].includes(role) && activeId === 'overview') {
-        return { title: 'Coordinator Overview', subtitle: 'Monitor campus visits and student engagement metrics.', action: 'New request', metrics: baseMetrics, custom: <SchoolCoordinatorOverviewSection events={events || []} registrations={registrations || []} schools={schools || []} students={students || []} visitRequests={visitRequests || []} analytics={analytics || {}} messages={messages || []} setSection={setActiveId || (() => {})} /> };
+        return { title: 'Coordinator Overview', subtitle: 'Monitor campus visits and student engagement metrics.', action: 'New request', metrics: baseMetrics, custom: <SchoolCoordinatorOverviewSection events={events || []} registrations={registrations || []} schools={schools || []} students={students || []} visitRequests={visitRequests || []} analytics={analytics || {}} messages={messages || []} profile={schoolProfile || {}} setSection={setActiveId || (() => {})} /> };
     }
 
     if (['school', 'high_school'].includes(role) && activeId === 'students') {
-        return { title: 'My Students', subtitle: 'Manage and assign students to upcoming university visits.', action: 'Add student', metrics: baseMetrics, custom: <SchoolStudentsSection csrf={csrf} events={events || []} students={students || []} errors={errors || {}} /> };
+        return { title: 'My Students', subtitle: 'Manage and assign students to upcoming university visits.', action: 'Add student', metrics: baseMetrics, custom: <SchoolStudentsSection csrf={csrf} events={events || []} students={students || []} visitRequests={visitRequests || []} errors={errors || {}} /> };
     }
 
     if (['school', 'high_school'].includes(role) && activeId === 'explore-universities') {
@@ -9042,15 +11219,23 @@ function dashboardContent(role, activeId, metrics, actions, context = {}) {
     }
 
     if (['school', 'high_school'].includes(role) && activeId === 'bookings') {
-        return { title: 'My Requests', subtitle: 'Track pending, approved, and completed visit requests.', action: 'New visit request', metrics: baseMetrics, custom: <SchoolBookingsSection csrf={csrf} visitRequests={visitRequests || []} registrations={registrations || []} events={events || []} setSection={setActiveId || (() => {})} /> };
+        return { title: 'My Requests', subtitle: 'Track pending, approved, and completed visit requests.', action: 'New visit request', metrics: baseMetrics, custom: <SchoolBookingsSection csrf={csrf} visitRequests={visitRequests || []} registrations={registrations || []} events={events || []} currentUserId={securityProfile?.user?.id} setSection={setActiveId || (() => {})} /> };
+    }
+
+    if (['school', 'high_school'].includes(role) && activeId === 'programs') {
+        return { title: 'Programs & Classes', subtitle: 'Manage entry requirements, deadlines, fees, and capacity.', action: 'Create program', metrics: baseMetrics, custom: <AcademicProgramsSection csrf={csrf} programs={programs || []} role="school" /> };
+    }
+
+    if (['school', 'high_school'].includes(role) && activeId === 'applications') {
+        return { title: 'Applications', subtitle: 'Review applicants and record school admission decisions.', action: 'Review applications', metrics: baseMetrics, custom: <AdmissionApplicationsSection csrf={csrf} applications={admissionApplications || []} role="school" /> };
     }
 
     if (['school', 'high_school'].includes(role) && activeId === 'itinerary') {
-        return { title: 'Itinerary', subtitle: 'Build, arrange, and manage a flexible route from live visit destinations.', action: 'Optimize route', metrics: baseMetrics, custom: <SchoolItinerarySection csrf={csrf} visitRequests={visitRequests || []} registrations={registrations || []} events={events || []} students={students || []} itineraryItems={itineraryItems || []} setSection={setActiveId || (() => {})} /> };
+        return { title: 'Itinerary', subtitle: 'Build, arrange, and manage a route from approved visit destinations.', action: 'Manage route', metrics: baseMetrics, custom: <SchoolItinerarySection csrf={csrf} visitRequests={visitRequests || []} registrations={registrations || []} events={scheduleEvents || []} students={students || []} itineraryItems={itineraryItems || []} setSection={setActiveId || (() => {})} /> };
     }
 
     if (['school', 'high_school'].includes(role) && activeId === 'calendar') {
-        return { title: 'My Schedule', subtitle: 'View upcoming visits and student attendance dates.', action: 'Discover visits', metrics: baseMetrics, custom: <EventCalendarSection csrf={csrf} events={(events || []).filter((event) => event.status === 'published')} registrations={registrations || []} title="School Schedule" canManage={false} /> };
+        return { title: 'My Schedule', subtitle: 'View approved visits and student attendance dates.', action: 'Discover visits', metrics: baseMetrics, custom: <EventCalendarSection csrf={csrf} events={scheduleEvents || []} registrations={registrations || []} title="School Schedule" canManage={false} /> };
     }
 
     if (['school', 'high_school'].includes(role) && activeId === 'reports') {
@@ -9064,7 +11249,7 @@ function dashboardContent(role, activeId, metrics, actions, context = {}) {
     }
 
     if (['school', 'high_school'].includes(role) && activeId === 'messages') {
-        return { title: 'Messages', subtitle: 'Review school request updates and communications.', action: 'New message', metrics: baseMetrics, custom: <MessageCenterSection csrf={csrf} registrations={registrations || []} messages={messages || []} role="school" /> };
+        return { title: 'Messages', subtitle: 'Review direct student and administrator communications.', action: 'New message', metrics: baseMetrics, custom: <ConversationCenterSection currentUserId={securityProfile?.user?.id} /> };
     }
 
     if (['school', 'high_school'].includes(role) && activeId === 'settings') {
@@ -9078,15 +11263,43 @@ function dashboardContent(role, activeId, metrics, actions, context = {}) {
     }
 
     if (role === 'student' && activeId === 'my-visits') {
-        return { title: 'My Visits', subtitle: 'Track your upcoming campus visits and current booking status.', action: 'Explore visits', metrics: baseMetrics, custom: <RegistrationTable registrations={registrations || []} /> };
+        return { title: 'My Visits', subtitle: 'Track your assigned campus visits and current attendance status.', action: 'Refresh', metrics: baseMetrics, custom: <StudentVisitsSection csrf={csrf} userId={securityProfile?.user?.id} /> };
     }
 
-    if (role === 'student' && activeId === 'explore-visits') {
-        return { title: 'Explore Visits', subtitle: 'Browse published campus visits and register in one click.', action: 'Register', metrics: baseMetrics, custom: <EventCards csrf={csrf} events={(events || []).filter((event) => event.status === 'published')} role={role} old={old || {}} errors={errors || {}} /> };
+    if (role === 'student' && activeId === 'search-apply') {
+        return { title: 'Search & Apply', subtitle: 'Find real university and school programs and submit an application.', action: 'Search programs', metrics: baseMetrics, custom: <StudentSearchApplySection csrf={csrf} programs={programs || []} applications={admissionApplications || []} /> };
+    }
+
+    if (role === 'student' && activeId === 'applications') {
+        return { title: 'Applications', subtitle: 'Track submitted, reviewed, waitlisted, accepted, or rejected applications.', action: 'Track applications', metrics: baseMetrics, custom: <AdmissionApplicationsSection csrf={csrf} applications={admissionApplications || []} role="student" /> };
+    }
+
+    if (role === 'student' && activeId === 'documents') {
+        return { title: 'Documents', subtitle: 'Manage your academic history and private application documents.', action: 'Upload document', metrics: baseMetrics, custom: <StudentDocumentsSection csrf={csrf} portfolio={studentPortfolio || {}} applications={admissionApplications || []} profile={securityProfile || {}} /> };
+    }
+
+    if (role === 'student' && activeId === 'payments') {
+        return { title: 'Payments', subtitle: 'Pay application fees and view verified receipts.', action: 'Review fees', metrics: baseMetrics, custom: <StudentPaymentsSection csrf={csrf} applications={admissionApplications || []} /> };
     }
 
     if (role === 'student' && activeId === 'messages') {
-        return { title: 'Messages', subtitle: 'Read confirmations, reminders, and visit updates.', action: 'Refresh', metrics: baseMetrics, custom: <MessageCenterSection csrf={csrf} registrations={registrations || []} messages={messages || []} role="student" /> };
+        return { title: 'Messages', subtitle: 'Message schools, universities, and platform administrators directly.', action: 'New message', metrics: baseMetrics, custom: <ConversationCenterSection currentUserId={securityProfile?.user?.id} /> };
+    }
+
+    if (role === 'student' && activeId === 'itinerary') {
+        return { title: 'Itinerary', subtitle: 'View the shared itinerary for your assigned campus visits.', action: 'Refresh', metrics: baseMetrics, custom: <StudentItineraryDashboardSection userId={securityProfile?.user?.id} /> };
+    }
+
+    if (role === 'student' && activeId === 'notifications') {
+        return { title: 'Notifications', subtitle: 'Read application, payment, message, and visit updates.', action: 'Review alerts', metrics: baseMetrics, custom: <PlatformNotificationsSection initial={notifications || {}} /> };
+    }
+
+    if (role === 'student' && activeId === 'profile') {
+        return { title: 'Profile', subtitle: 'Manage student details, guardian information, and visit support needs.', action: 'Save profile', metrics: baseMetrics, custom: <StudentProfileSection csrf={csrf} profile={securityProfile || {}} registrations={registrations || []} errors={errors || {}} old={old || {}} /> };
+    }
+
+    if (role === 'student' && activeId === 'settings') {
+        return { title: 'Settings', subtitle: 'Manage student account security and sessions.', action: 'Save settings', metrics: baseMetrics, custom: <SecurityAccessSection csrf={csrf} profile={securityProfile || {}} errors={errors || {}} role="student" /> };
     }
 
     if (role === 'admin' && activeId === 'universities') {
@@ -9094,15 +11307,27 @@ function dashboardContent(role, activeId, metrics, actions, context = {}) {
     }
 
     if (role === 'admin' && activeId === 'schools') {
-        return { title: 'Schools Directory', subtitle: 'Manage school records, verification status, coordinators, and engagement activity.', action: 'New school', metrics: baseMetrics, custom: <AdminSchoolsSection csrf={csrf} schools={schools || []} visitRequests={visitRequests || []} archives={archives || []} errors={errors || {}} /> };
+        return { title: 'Schools', subtitle: 'Manage registered school accounts and the separate outreach directory.', action: 'Add school account', metrics: baseMetrics, custom: <AdminSchoolsSection csrf={csrf} schools={schools || []} schoolAccounts={schoolAccounts || []} visitRequests={visitRequests || []} archives={archives || []} errors={errors || {}} /> };
     }
 
     if (role === 'admin' && activeId === 'events') {
         return { title: 'Visit Activity', subtitle: 'Monitor visit programs, requests, logistics warnings, and archived visit operations.', action: 'Review activity', metrics: baseMetrics, custom: <AdminVisitActivitySection csrf={csrf} events={events || []} visitRequests={visitRequests || []} registrations={registrations || []} archives={archives || []} /> };
     }
 
+    if (role === 'admin' && activeId === 'applications') {
+        return { title: 'Application Oversight', subtitle: 'Review all platform applications and intervene in decisions when needed.', action: 'Review applications', metrics: baseMetrics, custom: <AdmissionApplicationsSection csrf={csrf} applications={admissionApplications || []} role="admin" /> };
+    }
+
+    if (role === 'admin' && activeId === 'messages') {
+        return { title: 'Messages', subtitle: 'Message any active verified platform user directly.', action: 'New message', metrics: baseMetrics, custom: <ConversationCenterSection currentUserId={securityProfile?.user?.id} /> };
+    }
+
+    if (role === 'admin' && activeId === 'content') {
+        return { title: 'Content', subtitle: 'Manage notification broadcasts, the FAQ library, and active notification delivery templates.', action: 'Manage content', metrics: baseMetrics, custom: <AdminContentSection csrf={csrf} content={contentManagement || {}} /> };
+    }
+
     if (role === 'admin' && activeId === 'users-access') {
-        return { title: 'Users & Access', subtitle: 'Manage platform users, portal roles, security posture, and access status.', action: 'Create user', metrics: baseMetrics, custom: <AdminUsersAccessSection csrf={csrf} users={users || []} errors={errors || {}} /> };
+        return { title: 'Users & Access', subtitle: 'Manage platform users, portal roles, security posture, and access status.', action: 'Create user', metrics: baseMetrics, custom: <AdminUsersAccessSection csrf={csrf} users={users || []} schoolAccounts={schoolAccounts || []} errors={errors || {}} /> };
     }
 
     if (role === 'admin' && activeId === 'analytics') {
@@ -9110,7 +11335,7 @@ function dashboardContent(role, activeId, metrics, actions, context = {}) {
     }
 
     if (role === 'admin' && activeId === 'system-health') {
-        return { title: 'System Health', subtitle: 'Monitor server, database, queues, mail, storage, logs, and audit activity.', action: 'Force sync', metrics: baseMetrics, custom: <AdminSystemHealthSection health={systemHealth || {}} /> };
+        return { title: 'Operational Readiness', subtitle: 'Review configuration, runtime checks, server facts, and audit activity.', action: 'Refresh checks', metrics: baseMetrics, custom: <AdminSystemHealthSection health={systemHealth || {}} /> };
     }
 
     if (role === 'admin' && activeId === 'settings') {
@@ -9260,7 +11485,7 @@ function dashboardContent(role, activeId, metrics, actions, context = {}) {
             events: ['Event management', 'Create, publish, edit, or cancel campus visit events.', 'New event', ['Event', 'Capacity', 'Status'], [['Campus Preview Day', '120 seats', 'Draft'], ['Arts Open House', '80 seats', 'Draft']], 'No events yet.'],
             registrations: ['Registrations', 'View students and schools registered for your visits.', 'Export attendees', ['Registrant', 'Event', 'Status'], [], 'No registrations yet.'],
             attendance: ['Attendance tracking', 'Mark attendance and compare expected versus actual turnout.', 'Mark attendance', ['Event', 'Expected', 'Attended'], [], 'No attendance records yet.'],
-            templates: ['Message templates', 'Prepare confirmation, reminder, and cancellation templates.', 'Create template', ['Template', 'Channel', 'Status'], [['Registration confirmation', 'Email', 'Draft'], ['24h reminder', 'Email/SMS', 'Draft']], 'No templates yet.'],
+            templates: ['Message templates', 'Prepare confirmation, reminder, and cancellation templates.', 'Create template', ['Template', 'Channel', 'Status'], [['Registration confirmation', 'Email', 'Draft'], ['24h reminder', 'Email', 'Draft']], 'No templates yet.'],
         },
         high_school: {
             overview: ['School coordination', 'Manage students, bookings, and visit participation.', 'Add students', ['Student group', 'Event', 'Status'], [['Senior science cohort', 'Unassigned', 'Ready'], ['Guidance office list', 'Unassigned', 'Draft']], 'No groups yet.'],
@@ -9336,9 +11561,29 @@ function AnimatedBackground() {
     const mountRef = useRef(null);
 
     useEffect(() => {
-        if (!mountRef.current) {
+        const mount = mountRef.current;
+        if (!mount) {
             return undefined;
         }
+
+        let disposed = false;
+        let disposeScene;
+
+        void (async () => {
+            const {
+                AdditiveBlending,
+                DoubleSide,
+                Mesh,
+                PerspectiveCamera,
+                QuadraticBezierCurve3,
+                Scene,
+                ShaderMaterial,
+                TubeGeometry,
+                Vector3,
+                WebGLRenderer,
+            } = await import('three');
+
+            if (disposed || !mount.isConnected) return;
 
         const scene = new Scene();
         const camera = new PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -9346,7 +11591,7 @@ function AnimatedBackground() {
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setClearColor(0x000000, 0);
-        mountRef.current.appendChild(renderer.domElement);
+        mount.appendChild(renderer.domElement);
 
         const curve = new QuadraticBezierCurve3(
             new Vector3(-14, -3.2, 0),
@@ -9423,7 +11668,7 @@ function AnimatedBackground() {
         window.addEventListener('resize', handleResize);
         animate();
 
-        return () => {
+        disposeScene = () => {
             window.removeEventListener('resize', handleResize);
             cancelAnimationFrame(animationId);
             renderer.dispose();
@@ -9431,9 +11676,17 @@ function AnimatedBackground() {
             glowGeometry.dispose();
             material.dispose();
             glowMaterial.dispose();
-            if (mountRef.current?.contains(renderer.domElement)) {
-                mountRef.current.removeChild(renderer.domElement);
+            if (mount.contains(renderer.domElement)) {
+                mount.removeChild(renderer.domElement);
             }
+        };
+        })().catch(() => {
+            // The background is decorative; keep the screen usable if WebGL is unavailable.
+        });
+
+        return () => {
+            disposed = true;
+            disposeScene?.();
         };
     }, []);
 

@@ -6,6 +6,4 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 
 #[Fillable(['category', 'title', 'description', 'status', 'sort_order'])]
-class ProjectMilestone extends Model
-{
-}
+class ProjectMilestone extends Model {}

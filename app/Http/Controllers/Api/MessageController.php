@@ -11,9 +11,7 @@ use Illuminate\Http\Request;
 
 class MessageController extends Controller
 {
-    public function __construct(private readonly NotificationService $notifications)
-    {
-    }
+    public function __construct(private readonly NotificationService $notifications) {}
 
     public function index(Request $request): JsonResponse
     {
@@ -30,7 +28,7 @@ class MessageController extends Controller
     {
         $validated = $request->validate([
             'event_id' => ['required', 'integer', 'exists:events,id'],
-            'type' => ['required', 'in:email,sms'],
+            'type' => ['required', 'in:email'],
             'content' => ['required', 'string', 'max:5000'],
         ]);
 

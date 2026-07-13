@@ -49,6 +49,7 @@ function useNotifications() {
 function AuthProvider({ children }) {
     const [token, setToken] = useState(() => localStorage.getItem('campus_api_token'));
     const [user, setUser] = useState(() => JSON.parse(localStorage.getItem('campus_api_user') || 'null'));
+    const [mfaChallenge, setMfaChallenge] = useState(null);
 
     useEffect(() => {
         api.defaults.headers.common.Authorization = token ? `Bearer ${token}` : '';
@@ -85,11 +86,37 @@ function AuthProvider({ children }) {
 
     const login = async (email, password) => {
         const { data } = await api.post('/login', { email, password });
+        if (data.mfa_required) {
+            setMfaChallenge(data);
+            return data;
+        }
+
+        finishLogin(data);
+        return data;
+    };
+
+    const finishLogin = (data) => {
         localStorage.setItem('campus_api_token', data.token);
         localStorage.setItem('campus_api_user', JSON.stringify(data.user));
         setToken(data.token);
         setUser(data.user);
+        setMfaChallenge(null);
         window.location.hash = hashForView(data.user.role, defaultView(data.user.role));
+    };
+
+    const verifyMfa = async (code) => {
+        const { data } = await api.post('/mfa/verify', {
+            challenge_token: mfaChallenge?.challenge_token,
+            code,
+        });
+        finishLogin(data);
+    };
+
+    const resendMfa = async () => {
+        const { data } = await api.post('/mfa/resend', {
+            challenge_token: mfaChallenge?.challenge_token,
+        });
+        setMfaChallenge(data);
     };
 
     const logout = async () => {
@@ -102,10 +129,11 @@ function AuthProvider({ children }) {
             localStorage.removeItem('campus_api_user');
             setToken(null);
             setUser(null);
+            setMfaChallenge(null);
         }
     };
 
-    return <AuthContext.Provider value={{ token, user, login, logout }}>{children}</AuthContext.Provider>;
+    return <AuthContext.Provider value={{ token, user, login, logout, mfaChallenge, verifyMfa, resendMfa, cancelMfa: () => setMfaChallenge(null) }}>{children}</AuthContext.Provider>;
 }
 
 function ToastProvider({ children }) {
@@ -262,10 +290,11 @@ function PlatformApp() {
 }
 
 function LoginScreen() {
-    const { login } = useAuth();
+    const { login, mfaChallenge, verifyMfa, resendMfa, cancelMfa } = useAuth();
     const toast = useToast();
     const [email, setEmail] = useState('university@scalecampuslab.test');
     const [password, setPassword] = useState('password');
+    const [code, setCode] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
 
@@ -275,8 +304,29 @@ function LoginScreen() {
         setError('');
 
         try {
-            await login(email, password);
-            toast.push('Signed in successfully.');
+            if (mfaChallenge) {
+                await verifyMfa(code);
+                toast.push('Signed in successfully.');
+            } else {
+                const result = await login(email, password);
+                if (!result?.mfa_required) toast.push('Signed in successfully.');
+            }
+        } catch (err) {
+            const message = errorMessage(err);
+            setError(message);
+            toast.push(message, 'error');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const resend = async () => {
+        setLoading(true);
+        setError('');
+        try {
+            await resendMfa();
+            setCode('');
+            toast.push('A new sign-in code has been sent.');
         } catch (err) {
             const message = errorMessage(err);
             setError(message);
@@ -306,15 +356,25 @@ function LoginScreen() {
                     </div>
                 </div>
                 <form onSubmit={submit} className="mt-6 space-y-4">
-                    <TextInput label="Email" value={email} onChange={setEmail} type="email" />
-                    <TextInput label="Password" value={password} onChange={setPassword} type="password" />
+                    {mfaChallenge ? (
+                        <>
+                            <p className="rounded-xl bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">Enter the six-digit code sent to {mfaChallenge.masked_email}.</p>
+                            <TextInput label="Verification code" value={code} onChange={(value) => setCode(value.replace(/\D/g, '').slice(0, 6))} type="text" />
+                        </>
+                    ) : (
+                        <>
+                            <TextInput label="Email" value={email} onChange={setEmail} type="email" />
+                            <TextInput label="Password" value={password} onChange={setPassword} type="password" />
+                        </>
+                    )}
                     {error && <ErrorBanner message={error} />}
-                    <button disabled={loading} className="flex w-full items-center justify-center gap-2 rounded-xl bg-gray-950 px-4 py-3 text-sm font-bold text-white disabled:opacity-60">
+                    <button disabled={loading || (mfaChallenge && code.length !== 6)} className="flex w-full items-center justify-center gap-2 rounded-xl bg-gray-950 px-4 py-3 text-sm font-bold text-white disabled:opacity-60">
                         {loading && <Loader2 className="animate-spin" size={16} />}
-                        Sign in
+                        {mfaChallenge ? 'Verify and sign in' : 'Sign in'}
                     </button>
                 </form>
-                <div className="mt-5 rounded-xl bg-gray-50 p-4 text-sm">
+                {mfaChallenge && <div className="mt-3 flex items-center justify-between text-sm font-semibold"><button type="button" disabled={loading} onClick={resend} className="text-emerald-700 disabled:opacity-50">Send a new code</button><button type="button" onClick={() => { cancelMfa(); setCode(''); setError(''); }} className="text-gray-500">Cancel</button></div>}
+                {!mfaChallenge && <div className="mt-5 rounded-xl bg-gray-50 p-4 text-sm">
                     <p className="font-semibold text-gray-950">Demo accounts</p>
                     <div className="mt-2 grid gap-2">
                         {demos.map(([label, demoEmail]) => (
@@ -324,7 +384,7 @@ function LoginScreen() {
                             </button>
                         ))}
                     </div>
-                </div>
+                </div>}
             </section>
         </main>
     );

@@ -232,6 +232,8 @@ class ApiBackendTest extends TestCase
             'email' => $email ?? $role.'-'.uniqid().'@example.com',
             'role' => $role,
             'school_id' => $schoolId,
+            'access_status' => 'active',
+            'email_verified_at' => now(),
             'password' => Hash::make('password'),
         ]);
     }

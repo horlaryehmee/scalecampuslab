@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\School;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -14,12 +15,14 @@ class AdminUserAccessManagementTest extends TestCase
     public function test_admin_can_create_update_suspend_and_delete_user_accounts(): void
     {
         $admin = User::factory()->create(['role' => 'admin', 'access_status' => 'active']);
+        $school = School::create(['name' => 'Jordan School', 'location' => 'Lagos']);
 
         $this->actingAs($admin)->post('/dashboard/admin/users', [
             'name' => 'Jordan Access',
             'email' => 'jordan.access@example.edu',
             'password' => 'Password1234',
             'role' => 'school',
+            'school_id' => $school->id,
             'access_status' => 'active',
             'verified' => '1',
             'two_factor_enabled' => '1',
@@ -39,6 +42,7 @@ class AdminUserAccessManagementTest extends TestCase
             'name' => 'Jordan Updated',
             'email' => 'jordan.updated@example.edu',
             'role' => 'student',
+            'school_id' => $school->id,
             'access_status' => 'pending',
             'verified' => '0',
             'two_factor_enabled' => '0',

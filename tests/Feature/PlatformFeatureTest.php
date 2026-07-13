@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\CampusEvent;
 use App\Models\PlatformSetting;
+use App\Models\School;
 use App\Models\TargetSchool;
 use App\Models\User;
 use App\Models\VisitArchive;
@@ -84,9 +85,32 @@ class PlatformFeatureTest extends TestCase
     public function test_university_can_approve_visit_request(): void
     {
         $university = $this->user('university');
+        $school = School::create(['name' => 'Oakwood Preparatory Academy', 'location' => 'Greenwich']);
+        $schoolUser = User::create([
+            'name' => 'Oakwood Coordinator',
+            'email' => 'oakwood-coordinator@example.com',
+            'role' => 'school',
+            'school_id' => $school->id,
+            'access_status' => 'active',
+            'email_verified_at' => now(),
+            'password' => Hash::make('password'),
+        ]);
+        $event = CampusEvent::create([
+            'university_user_id' => $university->id,
+            'title' => 'Oakwood Campus Preview',
+            'starts_at' => now()->addWeek(),
+            'ends_at' => now()->addWeek()->addHours(2),
+            'venue' => 'Main Hall',
+            'location' => 'Campus',
+            'capacity' => 80,
+            'status' => 'published',
+        ]);
         $request = VisitRequest::create([
-            'target_school_id' => $this->school()->id,
+            'school_id' => $school->id,
+            'campus_event_id' => $event->id,
+            'requested_by_user_id' => $schoolUser->id,
             'requested_window' => 'Oct 14, 2026 - 10:00 AM',
+            'group_size' => 20,
             'status' => 'requested',
             'priority' => 3,
         ]);

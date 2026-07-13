@@ -4,7 +4,10 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Application;
+use App\Models\CampusEvent;
 use App\Models\Event;
+use App\Models\EventRegistration;
+use App\Models\EventRegistrationStudent;
 use App\Models\Registration;
 use App\Models\School;
 use App\Models\SystemLog;
@@ -48,6 +51,10 @@ class AdminController extends Controller
             'school_id' => ['nullable', 'exists:schools,id'],
         ]);
 
+        if (in_array($validated['role'], ['school', 'student'], true)) {
+            abort_unless($validated['school_id'] ?? null, 422, 'school_id is required for school and student accounts.');
+        }
+
         $validated['password'] = Hash::make($validated['password']);
         $user = User::create($validated);
         $this->log($request, 'user.created', $user, ['role' => $user->role]);
@@ -64,6 +71,11 @@ class AdminController extends Controller
             'school_id' => ['nullable', 'exists:schools,id'],
         ]);
 
+        $nextRole = $validated['role'] ?? $user->role;
+        if (in_array($nextRole, ['school', 'student'], true)) {
+            abort_unless(array_key_exists('school_id', $validated) ? $validated['school_id'] : $user->school_id, 422, 'school_id is required for school and student accounts.');
+        }
+
         $user->update($validated);
         $this->log($request, 'user.updated', $user, ['role' => $user->role]);
 
@@ -72,6 +84,21 @@ class AdminController extends Controller
 
     public function destroyUser(Request $request, User $user): JsonResponse
     {
+        abort_if($request->user()->is($user), 422, 'You cannot delete your own administrator account.');
+        abort_if(
+            $user->role === 'university' && CampusEvent::query()->where('university_user_id', $user->id)->exists(),
+            409,
+            'This university owns campus events. Suspend the account or transfer its events instead.'
+        );
+        abort_if(
+            $user->role === 'student' && (
+                EventRegistration::query()->where('user_id', $user->id)->exists()
+                || EventRegistrationStudent::query()->where('user_id', $user->id)->exists()
+            ),
+            409,
+            'This student has campus participation records. Suspend the account to preserve attendance history.'
+        );
+
         $this->log($request, 'user.deleted', $user, ['email' => $user->email, 'role' => $user->role]);
         $user->delete();
 

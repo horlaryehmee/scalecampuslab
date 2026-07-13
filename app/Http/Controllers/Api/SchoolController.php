@@ -38,6 +38,12 @@ class SchoolController extends Controller
 
     public function destroy(School $school): JsonResponse
     {
+        abort_if(
+            $school->users()->exists() || $school->registrations()->exists(),
+            409,
+            'Move or remove the school accounts and participation records before deleting this school.'
+        );
+
         $school->delete();
 
         return response()->json(['message' => 'School deleted.']);

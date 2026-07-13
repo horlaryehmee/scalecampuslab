@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\CampusEvent;
 use App\Models\SchoolItineraryItem;
+use App\Models\VisitRequest;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -21,12 +22,19 @@ class SchoolItineraryController extends Controller
             'notes' => ['nullable', 'string', 'max:1000'],
         ]);
         $event = CampusEvent::query()->whereKey($validated['campus_event_id'])->where('status', 'published')->firstOrFail();
+        abort_unless($user->school_id, 422, 'Your account must be linked to a school.');
+        $visit = VisitRequest::query()
+            ->where('campus_event_id', $event->id)
+            ->where('school_id', $user->school_id)
+            ->whereIn('status', ['approved', 'scheduled'])
+            ->firstOrFail();
         $position = (int) SchoolItineraryItem::where('user_id', $user->id)->max('position') + 1;
 
         SchoolItineraryItem::updateOrCreate(
             ['user_id' => $user->id, 'campus_event_id' => $event->id],
             [
                 'position' => $position,
+                'visit_request_id' => $visit->id,
                 'planned_start_at' => $validated['planned_start_at'] ?? $event->starts_at,
                 'notes' => $validated['notes'] ?? null,
             ]

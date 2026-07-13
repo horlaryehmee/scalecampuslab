@@ -1,3 +1,7 @@
+-- DEPRECATED: do not use this snapshot for new deployments.
+-- Run `php artisan migrate --force` so the canonical ScaleCampusLab workflow
+-- and every later integrity migration are applied in the correct order.
+
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 

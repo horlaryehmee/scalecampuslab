@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Event;
 use App\Models\Registration;
+use Illuminate\Support\Facades\DB;
 
 class WaitlistService
 {
@@ -14,21 +15,26 @@ class WaitlistService
 
     public function promoteNext(Event $event): ?Registration
     {
-        if (! $event->hasCapacity()) {
-            return null;
-        }
+        return DB::transaction(function () use ($event): ?Registration {
+            $lockedEvent = Event::query()->lockForUpdate()->find($event->id);
 
-        $next = $event->registrations()
-            ->where('status', 'waitlisted')
-            ->oldest()
-            ->first();
+            if (! $lockedEvent || ! $lockedEvent->hasCapacity()) {
+                return null;
+            }
 
-        if (! $next) {
-            return null;
-        }
+            $next = $lockedEvent->registrations()
+                ->where('status', 'waitlisted')
+                ->oldest()
+                ->lockForUpdate()
+                ->first();
 
-        $next->update(['status' => 'confirmed']);
+            if (! $next) {
+                return null;
+            }
 
-        return $next;
+            $next->update(['status' => 'confirmed']);
+
+            return $next;
+        });
     }
 }
