@@ -198,6 +198,7 @@ class AuthController extends Controller
         /** @var User $user */
         $user = $request->user();
         $this->ensureNotSuspended($user);
+        $this->startWebSessionWhenAvailable($request, $user, true);
 
         return response()->json(['user' => $this->userPayload($user)]);
     }

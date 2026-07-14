@@ -15,6 +15,8 @@ use Illuminate\View\View;
 
 class AuthController extends Controller
 {
+    private const SPA_TOKEN_NAME = 'scale-campus-spa';
+
     public function __construct(private readonly LoginMfaService $mfa) {}
 
     public function generalLogin(): View|RedirectResponse
@@ -164,12 +166,14 @@ class AuthController extends Controller
 
     public function logout(Request $request): RedirectResponse
     {
+        $request->user()?->tokens()->where('name', self::SPA_TOKEN_NAME)->delete();
+
         Auth::logout();
 
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return redirect()->route('waitlist.landing');
+        return redirect()->route('login')->with('status', 'Signed out successfully.');
     }
 
     public function forgotPassword(): View

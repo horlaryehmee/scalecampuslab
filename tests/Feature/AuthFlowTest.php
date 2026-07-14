@@ -82,6 +82,22 @@ class AuthFlowTest extends TestCase
         ])->assertRedirect('/dashboard/admin');
     }
 
+    public function test_dashboard_logout_clears_web_session_and_saved_spa_token(): void
+    {
+        $user = User::factory()->create(['role' => 'university']);
+        $spaToken = $user->createToken('scale-campus-spa');
+        $integrationToken = $user->createToken('integration-token');
+
+        $this->actingAs($user)
+            ->post('/logout')
+            ->assertRedirect('/login');
+
+        $this->assertGuest();
+        $this->assertDatabaseMissing('personal_access_tokens', ['id' => $spaToken->accessToken->id]);
+        $this->assertDatabaseHas('personal_access_tokens', ['id' => $integrationToken->accessToken->id]);
+        $this->get('/dashboard/university')->assertRedirect('/login');
+    }
+
     public function test_unverified_and_suspended_accounts_cannot_open_the_dashboard_directly(): void
     {
         $unverified = User::factory()->unverified()->create(['role' => 'student']);

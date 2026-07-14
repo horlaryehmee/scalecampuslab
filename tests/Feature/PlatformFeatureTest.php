@@ -181,6 +181,7 @@ class PlatformFeatureTest extends TestCase
             'beta_messaging' => '0',
             'advanced_analytics' => '1',
             'maintenance_mode' => '0',
+            'waitlist_mode' => '1',
             'admin_mfa_required' => '1',
             'session_timeout_minutes' => '45',
             'password_rotation_days' => '120',
@@ -196,6 +197,7 @@ class PlatformFeatureTest extends TestCase
         $this->assertSame('support@example.com', $settings['branding']['supportEmail']);
         $this->assertTrue($settings['features']['aiMatchmaking']);
         $this->assertFalse($settings['features']['betaMessaging']);
+        $this->assertTrue($settings['launch']['waitlistMode']);
         $this->assertSame(45, $settings['security']['sessionTimeoutMinutes']);
         $this->assertSame('Production API Key', $settings['integrations']['apiKeyLabel']);
     }

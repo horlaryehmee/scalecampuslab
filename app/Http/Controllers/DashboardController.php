@@ -34,6 +34,7 @@ use App\Models\User;
 use App\Models\VisitArchive;
 use App\Models\VisitRequest;
 use App\Models\VisitTask;
+use App\Models\WaitlistSignup;
 use App\Services\AccountSessionRevoker;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
@@ -67,8 +68,8 @@ class DashboardController extends Controller
                 'metrics' => [
                     ['label' => 'Total users', 'value' => User::count()],
                     ['label' => 'Universities', 'value' => User::where('role', 'university')->count()],
-                    ['label' => 'Applications', 'value' => AdmissionApplication::whereNotNull('submitted_at')->count()],
-                    ['label' => 'Revenue', 'value' => 'NGN '.number_format((float) ApplicationPayment::where('status', 'paid')->sum('amount'), 2)],
+                    ['label' => 'Visit programs', 'value' => CampusEvent::count()],
+                    ['label' => 'Visit requests', 'value' => VisitRequest::count()],
                 ],
                 'actions' => [
                     'View all users',
@@ -90,9 +91,7 @@ class DashboardController extends Controller
                 'securityProfile' => $this->securityProfile(auth()->user()),
                 'systemHealth' => $this->systemHealth(),
                 'platformSettings' => $this->platformSettings(),
-                'programs' => $this->admissionPrograms($user),
-                'admissionApplications' => $this->admissionApplications($user),
-                'studentPortfolio' => [],
+                'waitlist' => $this->waitlistData(),
                 'notifications' => $this->notificationFeed($user),
                 'contentManagement' => $this->contentManagement($user),
             ],
@@ -105,7 +104,7 @@ class DashboardController extends Controller
 
         return $this->dashboard('university', 'University Dashboard', 'Create campus visit events, manage capacity, and track registrations.', [
             ['label' => 'Published events', 'value' => CampusEvent::where('university_user_id', $user->id)->where('status', 'published')->count()],
-            ['label' => 'Applications', 'value' => AdmissionApplication::whereNotNull('submitted_at')->whereHas('program', fn ($query) => $query->where('university_user_id', $user->id))->count()],
+            ['label' => 'Visit requests', 'value' => VisitRequest::whereHas('event', fn ($query) => $query->where('university_user_id', $user->id))->count()],
             ['label' => 'Attendance rate', 'value' => $this->attendanceRateForUniversity($user->id).'%'],
             ['label' => 'Open seats', 'value' => $this->openSeatsForUniversity($user->id)],
         ], [
@@ -127,9 +126,6 @@ class DashboardController extends Controller
             'universityOverview' => $this->universityOverview($user->id),
             'universitySettings' => $this->universitySettings($user),
             'universityCompliance' => $this->universityCompliance($user),
-            'programs' => $this->admissionPrograms($user),
-            'admissionApplications' => $this->admissionApplications($user),
-            'studentPortfolio' => [],
             'notifications' => $this->notificationFeed($user),
             'contentManagement' => $this->contentManagement($user),
             'schoolAccounts' => $this->schoolAccounts(),
@@ -576,7 +572,7 @@ class DashboardController extends Controller
 
         return $this->dashboard('school', 'School Dashboard', 'Register groups of students and track participation across campus visits.', [
             ['label' => 'Discover Visits', 'value' => CampusEvent::where('status', 'published')->count()],
-            ['label' => 'Applications', 'value' => AdmissionApplication::whereNotNull('submitted_at')->whereHas('program', fn ($query) => $query->where('school_id', $user->school_id))->count()],
+            ['label' => 'Pending Requests', 'value' => VisitRequest::where('school_id', $user->school_id)->whereIn('status', ['requested', 'pending'])->count()],
             ['label' => 'Confirmed Visits', 'value' => VisitRequest::where('school_id', $user->school_id)->whereIn('status', ['approved', 'scheduled'])->count()],
             ['label' => 'My Students', 'value' => User::where('role', 'student')->where('school_id', $user->school_id)->count()],
         ], [
@@ -603,9 +599,6 @@ class DashboardController extends Controller
             'schoolProfile' => $this->schoolProfile($user),
             'students' => $this->students($user),
             'itineraryItems' => $this->itineraryItems($user->id),
-            'programs' => $this->admissionPrograms($user),
-            'admissionApplications' => $this->admissionApplications($user),
-            'studentPortfolio' => [],
             'notifications' => $this->notificationFeed($user),
             'contentManagement' => $this->contentManagement($user),
         ]);
@@ -616,9 +609,9 @@ class DashboardController extends Controller
         $user = auth()->user();
 
         return $this->dashboard('student', 'Student Dashboard', 'Browse visit opportunities, register, and receive updates from institutions.', [
-            ['label' => 'Available programs', 'value' => InstitutionProgram::where('status', 'published')->count()],
-            ['label' => 'Applications', 'value' => AdmissionApplication::where('student_user_id', $user->id)->count()],
-            ['label' => 'Accepted', 'value' => AdmissionApplication::where('student_user_id', $user->id)->where('status', 'accepted')->count()],
+            ['label' => 'Available visits', 'value' => CampusEvent::where('status', 'published')->count()],
+            ['label' => 'My visits', 'value' => EventRegistration::where('user_id', $user->id)->count()],
+            ['label' => 'Confirmed visits', 'value' => EventRegistration::where('user_id', $user->id)->where('status', 'confirmed')->count()],
             ['label' => 'Notifications', 'value' => PlatformNotification::where('user_id', $user->id)->whereNull('read_at')->count()],
         ], [
             'Browse available campus visits',
@@ -635,9 +628,6 @@ class DashboardController extends Controller
             'tasks' => [],
             'analytics' => $this->analytics('student', $user),
             'messages' => $this->messages($user),
-            'programs' => $this->admissionPrograms($user),
-            'admissionApplications' => $this->admissionApplications($user),
-            'studentPortfolio' => $this->studentPortfolio($user),
             'notifications' => $this->notificationFeed($user),
             'contentManagement' => $this->contentManagement($user),
         ]);
@@ -1571,6 +1561,7 @@ class DashboardController extends Controller
             'beta_messaging' => ['nullable', 'boolean'],
             'advanced_analytics' => ['nullable', 'boolean'],
             'maintenance_mode' => ['nullable', 'boolean'],
+            'waitlist_mode' => ['nullable', 'boolean'],
             'admin_mfa_required' => ['nullable', 'boolean'],
             'session_timeout_minutes' => ['required', 'integer', 'min:15', 'max:240'],
             'password_rotation_days' => ['required', 'integer', 'min:30', 'max:365'],
@@ -1601,6 +1592,9 @@ class DashboardController extends Controller
                 'betaMessaging' => $request->boolean('beta_messaging'),
                 'advancedAnalytics' => $request->boolean('advanced_analytics'),
                 'maintenanceMode' => $request->boolean('maintenance_mode'),
+            ],
+            'launch' => [
+                'waitlistMode' => $request->boolean('waitlist_mode'),
             ],
             'security' => [
                 'adminMfaRequired' => $request->boolean('admin_mfa_required'),
@@ -1731,9 +1725,20 @@ class DashboardController extends Controller
             'name' => ['required', 'string', 'max:160'],
             'location' => ['required', 'string', 'max:255'],
             'logo_url' => ['nullable', 'url', 'max:500'],
+            'website' => ['nullable', 'url', 'max:255'],
+            'address' => ['nullable', 'string', 'max:255'],
+            'city' => ['nullable', 'string', 'max:120'],
+            'state' => ['nullable', 'string', 'max:120'],
+            'country' => ['nullable', 'string', 'max:120'],
             'coordinator_name' => ['required', 'string', 'max:160'],
             'coordinator_email' => ['required', 'email:rfc', 'max:160'],
             'coordinator_phone' => ['nullable', 'string', 'max:50'],
+            'principal_name' => ['nullable', 'string', 'max:160'],
+            'counselor_name' => ['nullable', 'string', 'max:160'],
+            'counselor_email' => ['nullable', 'email:rfc', 'max:160'],
+            'grade_range' => ['nullable', 'string', 'max:80'],
+            'student_count' => ['nullable', 'integer', 'min:0', 'max:100000'],
+            'visit_notes' => ['nullable', 'string', 'max:2000'],
             'email_notifications' => ['nullable', 'boolean'],
             'sms_alerts' => ['nullable', 'boolean'],
         ]);
@@ -2595,6 +2600,9 @@ class DashboardController extends Controller
                 'advancedAnalytics' => true,
                 'maintenanceMode' => false,
             ],
+            'launch' => [
+                'waitlistMode' => false,
+            ],
             'security' => [
                 'adminMfaRequired' => true,
                 'sessionTimeoutMinutes' => 30,
@@ -2625,6 +2633,31 @@ class DashboardController extends Controller
         ];
 
         return $settings;
+    }
+
+    private function waitlistData(): array
+    {
+        return [
+            'total' => WaitlistSignup::query()->count(),
+            'roles' => [
+                'university' => WaitlistSignup::query()->where('role', 'university')->count(),
+                'highSchool' => WaitlistSignup::query()->where('role', 'high_school')->count(),
+                'student' => WaitlistSignup::query()->where('role', 'student')->count(),
+            ],
+            'recent' => WaitlistSignup::query()
+                ->latest()
+                ->limit(50)
+                ->get()
+                ->map(fn (WaitlistSignup $signup): array => [
+                    'id' => $signup->id,
+                    'fullName' => $signup->full_name,
+                    'email' => $signup->email,
+                    'role' => $signup->role,
+                    'createdAt' => $signup->created_at?->toIso8601String(),
+                ])
+                ->values()
+                ->all(),
+        ];
     }
 
     private function deviceLabel(string $userAgent): string
@@ -2909,16 +2942,33 @@ class DashboardController extends Controller
 
     private function schools(): array
     {
-        return TargetSchool::query()
+        $targetSchools = TargetSchool::query()
             ->with(['partnerTasks' => fn ($query) => $query->latest()->limit(8)])
             ->withCount(['visitRequests', 'archives', 'partnerTasks'])
             ->orderByDesc('match_score')
             ->limit(250)
+            ->get();
+        $linkedSchools = School::query()
+            ->whereIn('name', $targetSchools->pluck('name')->filter()->unique()->values())
+            ->withCount(['users as active_coordinator_count' => fn ($users) => $users
+                ->whereIn('role', ['school', 'high_school'])
+                ->where('access_status', 'active')
+                ->whereNotNull('email_verified_at')])
             ->get()
-            ->map(fn (TargetSchool $school) => [
+            ->keyBy(fn (School $school) => Str::lower($school->name));
+
+        return $targetSchools
+            ->map(function (TargetSchool $school) use ($linkedSchools): array {
+                /** @var School|null $linkedSchool */
+                $linkedSchool = $linkedSchools->get(Str::lower($school->name));
+
+                return [
                 'id' => $school->id,
                 'canManage' => auth()->user()?->isAdmin() || $school->university_user_id === auth()->id(),
                 'isSharedDirectory' => $school->university_user_id === null,
+                'linkedSchoolId' => $linkedSchool?->id,
+                'linkedSchoolName' => $linkedSchool?->name,
+                'canScheduleVisit' => (bool) ($linkedSchool && $linkedSchool->active_coordinator_count > 0),
                 'code' => $school->school_code ?: $this->schoolCodeFromName($school->name, $school->id),
                 'name' => $school->name,
                 'city' => $school->city,
@@ -2950,7 +3000,8 @@ class DashboardController extends Controller
                 'notes' => $school->notes,
                 'isDemo' => $school->is_demo,
                 'createdAt' => $school->created_at?->toIso8601String(),
-            ])
+                ];
+            })
             ->toArray();
     }
 
@@ -3549,9 +3600,20 @@ class DashboardController extends Controller
             'name' => $school->name,
             'location' => $school->location,
             'logoUrl' => $school->logo_url,
+            'website' => $school->website,
+            'address' => $school->address,
+            'city' => $school->city,
+            'state' => $school->state,
+            'country' => $school->country,
             'coordinatorName' => $school->coordinator_name ?: $user->name,
             'coordinatorEmail' => $school->coordinator_email ?: $user->email,
             'coordinatorPhone' => $school->coordinator_phone,
+            'principalName' => $school->principal_name,
+            'counselorName' => $school->counselor_name,
+            'counselorEmail' => $school->counselor_email,
+            'gradeRange' => $school->grade_range,
+            'studentCount' => $school->student_count,
+            'visitNotes' => $school->visit_notes,
             'emailNotifications' => (bool) $school->email_notifications,
             'smsAlerts' => (bool) $school->sms_alerts,
         ];

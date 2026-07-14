@@ -1,6 +1,8 @@
 <?php
 
 use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\WaitlistController;
+use App\Models\PlatformSetting;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -9,7 +11,15 @@ use Illuminate\Support\Facades\Route;
  * login.authenticate and password.email names do not collide with these pages.
  */
 // Preserve this legacy name because the existing session logout redirects to it.
-Route::view('/', 'marketing')->name('waitlist.landing');
+Route::get('/', function () {
+    $settings = PlatformSetting::query()->find('admin.global')?->value ?? [];
+
+    if ((bool) data_get($settings, 'launch.waitlistMode', false)) {
+        return app(WaitlistController::class)->landing();
+    }
+
+    return view('marketing');
+})->name('waitlist.landing');
 Route::view('/about', 'marketing')->name('saas.about');
 Route::view('/how-it-works', 'marketing')->name('saas.how-it-works');
 Route::view('/contact', 'marketing')->name('saas.contact');

@@ -38,8 +38,15 @@ export function LoginPage() {
     const [search] = useSearchParams();
     const [form, setForm] = useState({ email: '', password: '', remember: true });
     const [loading, setLoading] = useState(false);
+    const [demoLoading, setDemoLoading] = useState('');
     const [error, setError] = useState('');
     const update = (key) => (event) => setForm((current) => ({ ...current, [key]: event.target.type === 'checkbox' ? event.target.checked : event.target.value }));
+    const demoAccounts = [
+        ['Admin', 'admin@scalecampuslab.test', '/dashboard/admin'],
+        ['University', 'university@scalecampuslab.test', '/dashboard/university'],
+        ['School', 'school@scalecampuslab.test', '/dashboard/school'],
+        ['Student', 'student@scalecampuslab.test', '/dashboard/student'],
+    ];
 
     useEffect(() => {
         if (ready && user?.email_verified) window.location.replace(dashboardPath(user));
@@ -80,8 +87,38 @@ export function LoginPage() {
         }
     };
 
+    const openDemo = async (email) => {
+        setDemoLoading(email);
+        setError('');
+        try {
+            const result = await login({ email, password: 'password', remember: true });
+            if (result.mfa_required) {
+                setError('This demo account has extra verification enabled. Use the standard sign-in form.');
+                return;
+            }
+
+            toast.push('Demo workspace opened.');
+            window.location.assign(dashboardPath(result.user));
+        } catch (requestError) {
+            setError(apiError(requestError, 'Unable to open this demo dashboard. Run the demo seeder and try again.'));
+        } finally {
+            setDemoLoading('');
+        }
+    };
+
     return (
         <AuthShell eyebrow="Welcome back" title="Sign in to your workspace" body="Use the account connected to your university, school, student profile, or admin role.">
+            <div className="mb-5 rounded-2xl border border-emerald-100 bg-emerald-50 p-4">
+                <p className="text-sm font-black text-slate-950">Demo dashboards</p>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    {demoAccounts.map(([label, email, path]) => (
+                        <button key={email} type="button" onClick={() => openDemo(email)} disabled={Boolean(demoLoading || loading)} className="flex items-center justify-between rounded-xl border border-emerald-100 bg-white px-3 py-2.5 text-left text-sm font-black text-slate-700 shadow-sm transition hover:border-emerald-300 hover:text-emerald-800 disabled:cursor-not-allowed disabled:opacity-60">
+                            <span>{demoLoading === email ? 'Opening...' : label}</span>
+                            <span className="text-[11px] font-bold text-slate-400">{path.replace('/dashboard/', '')}</span>
+                        </button>
+                    ))}
+                </div>
+            </div>
             <form onSubmit={submit} className="grid gap-4">
                 <Field label="Email address" type="email" autoComplete="email" value={form.email} onChange={update('email')} required autoFocus />
                 <Field label="Password" type="password" autoComplete="current-password" value={form.password} onChange={update('password')} required />

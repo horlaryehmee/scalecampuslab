@@ -5,9 +5,13 @@ namespace Database\Seeders;
 use App\Models\CampusEvent;
 use App\Models\EventItineraryItem;
 use App\Models\EventRegistration;
+use App\Models\EventRegistrationStudent;
+use App\Models\PlatformNotification;
 use App\Models\ProjectMilestone;
 use App\Models\School;
 use App\Models\TargetSchool;
+use App\Models\UniversitySetting;
+use App\Models\UniversityTeamMember;
 use App\Models\User;
 use App\Models\VisitArchive;
 use App\Models\VisitRequest;
@@ -33,6 +37,17 @@ class DatabaseSeeder extends Seeder
                 'coordinator_name' => 'Jane Doe',
                 'coordinator_email' => 'jane.doe@lincolnhigh.edu',
                 'coordinator_phone' => '(555) 123-4567',
+                'website' => 'https://lincolnhigh.scalecampuslab.test',
+                'address' => '123 Education Boulevard',
+                'city' => 'Cityville',
+                'state' => 'ST',
+                'country' => 'United States',
+                'principal_name' => 'Dr. Evelyn Carter',
+                'counselor_name' => 'Jane Doe',
+                'counselor_email' => 'jane.doe@lincolnhigh.edu',
+                'grade_range' => 'Grades 9-12',
+                'student_count' => 1240,
+                'visit_notes' => 'Prefers Wednesday or Friday campus visits. Senior students need accessible transportation and lunch timing confirmed at least one week before travel.',
                 'email_notifications' => true,
                 'sms_alerts' => false,
             ]
@@ -52,24 +67,56 @@ class DatabaseSeeder extends Seeder
                     'name' => $user['name'],
                     'role' => $user['role'],
                     'school_id' => $user['school_id'] ?? null,
+                    'phone' => match ($user['role']) {
+                        'admin' => '+1 555 0100',
+                        'university' => '+1 555 0110',
+                        'school' => '+1 555 0120',
+                        default => '+1 555 0130',
+                    },
+                    'access_status' => 'active',
                     'email_verified_at' => now(),
+                    'is_demo' => true,
+                    'two_factor_enabled' => false,
                     'password' => Hash::make('password'),
                 ]
             );
         }
 
         foreach ([
-            ['Ada Student', 'ada.student@scalecampuslab.test'],
-            ['Maya Student', 'maya.student@scalecampuslab.test'],
-            ['Tunde Student', 'tunde.student@scalecampuslab.test'],
-        ] as [$name, $email]) {
+            ['Ada Student', 'ada.student@scalecampuslab.test', 'ST-1001', '12th', 'Computer Science', '200 Student Lane', 'Cityville', 'ST', 'United States', 'Monica Student', 'Mother', 'monica.student@example.test', '+1 555 0211', 'Eric Student', 'Uncle', '+1 555 0212', 'Peanut allergy', 'Prefers front-row seating for presentations.', 'Vegetarian'],
+            ['Maya Student', 'maya.student@scalecampuslab.test', 'ST-1002', '11th', 'Biomedical Engineering', '204 Student Lane', 'Cityville', 'ST', 'United States', 'Victor Student', 'Father', 'victor.student@example.test', '+1 555 0221', 'Ana Student', 'Aunt', '+1 555 0222', null, 'Needs step-free route where possible.', 'No pork'],
+            ['Tunde Student', 'tunde.student@scalecampuslab.test', 'ST-1003', '12th', 'Business Analytics', '208 Student Lane', 'Cityville', 'ST', 'United States', 'Kemi Student', 'Mother', 'kemi.student@example.test', '+1 555 0231', 'Femi Student', 'Brother', '+1 555 0232', 'Carries inhaler', null, 'None'],
+        ] as [$name, $email, $identifier, $grade, $interest, $address, $city, $state, $country, $guardian, $relationship, $guardianEmail, $guardianPhone, $emergencyName, $emergencyRelationship, $emergencyPhone, $medical, $accessibility, $diet]) {
             User::updateOrCreate(
                 ['email' => $email],
                 [
                     'name' => $name,
                     'role' => 'student',
                     'school_id' => $demoSchool->id,
+                    'phone' => '+1 555 '.substr(str_replace(['ST-', '100'], ['02', ''], $identifier), 0, 4),
+                    'access_status' => 'active',
                     'email_verified_at' => now(),
+                    'is_demo' => true,
+                    'two_factor_enabled' => false,
+                    'student_identifier' => $identifier,
+                    'grade_level' => $grade,
+                    'interest_major' => $interest,
+                    'date_of_birth' => now()->subYears($grade === '11th' ? 16 : 17)->subMonths(4)->toDateString(),
+                    'address' => $address,
+                    'city' => $city,
+                    'state' => $state,
+                    'country' => $country,
+                    'guardian_name' => $guardian,
+                    'guardian_relationship' => $relationship,
+                    'guardian_email' => $guardianEmail,
+                    'guardian_phone' => $guardianPhone,
+                    'emergency_contact_name' => $emergencyName,
+                    'emergency_contact_relationship' => $emergencyRelationship,
+                    'emergency_contact_phone' => $emergencyPhone,
+                    'medical_notes' => $medical,
+                    'accessibility_needs' => $accessibility,
+                    'dietary_restrictions' => $diet,
+                    'consent_to_share' => true,
                     'password' => Hash::make('password'),
                 ]
             );
@@ -78,6 +125,65 @@ class DatabaseSeeder extends Seeder
         $university = User::where('email', 'university@scalecampuslab.test')->first();
 
         if ($university) {
+            UniversitySetting::updateOrCreate(
+                ['university_user_id' => $university->id],
+                [
+                    'institution_name' => 'Scale State University',
+                    'website' => 'https://scale-state.scalecampuslab.test',
+                    'primary_contact_name' => 'Dr. Amara Brooks',
+                    'primary_contact_email' => 'visits@scale-state.scalecampuslab.test',
+                    'primary_contact_phone' => '+1 555 0144',
+                    'address' => '900 University Avenue, Cityville, ST 12345',
+                    'region' => 'Midwest Recruitment Region',
+                    'logo_url' => null,
+                    'brand_color' => '#006a61',
+                    'default_visit_config' => [
+                        'capacity' => 120,
+                        'per_school_capacity' => 45,
+                        'per_group_capacity' => 35,
+                        'visibility' => 'public',
+                        'lifecycle_stage' => 'open',
+                        'duration_minutes' => 210,
+                    ],
+                    'notification_preferences' => [
+                        'request_created' => true,
+                        'request_updated' => true,
+                        'registration_confirmed' => true,
+                        'waitlist_promoted' => true,
+                        'schedule_changed' => true,
+                        'reminder_days_before' => 5,
+                        'email_enabled' => true,
+                        'sms_enabled' => false,
+                    ],
+                    'integration_settings' => [
+                        'calendar_provider' => 'ical',
+                        'crm_provider' => 'none',
+                        'webhook_url' => null,
+                        'api_sync_enabled' => false,
+                    ],
+                    'timezone' => config('app.timezone', 'UTC'),
+                    'calendar_week_start' => 'monday',
+                ]
+            );
+
+            foreach ([
+                ['Dr. Amara Brooks', 'amara.brooks@scale-state.scalecampuslab.test', 'Director of Campus Outreach', '+1 555 0144', 'active'],
+                ['Noah Rivera', 'noah.rivera@scale-state.scalecampuslab.test', 'Visit Logistics Manager', '+1 555 0145', 'active'],
+                ['Priya Shah', 'priya.shah@scale-state.scalecampuslab.test', 'Student Ambassador Lead', '+1 555 0146', 'active'],
+            ] as [$name, $email, $title, $phone, $status]) {
+                UniversityTeamMember::updateOrCreate(
+                    ['university_user_id' => $university->id, 'email' => $email],
+                    [
+                        'name' => $name,
+                        'title' => $title,
+                        'phone' => $phone,
+                        'status' => $status,
+                        'permissions' => ['manage_programs', 'manage_requests', 'send_messages'],
+                        'last_active_at' => now()->subDays(rand(1, 7)),
+                    ]
+                );
+            }
+
             foreach ([
                 ['Campus Preview Day', 3, 'Admissions Welcome Center', 'Main Campus', 'A guided campus experience for prospective students and school groups.', 120, 'published', 10, 14],
                 ['STEM Discovery Fair', 5, 'Engineering Hall', 'North Campus', 'Hands-on faculty sessions, lab tours, and student project showcases.', 80, 'published', 9, 13],
@@ -100,6 +206,7 @@ class DatabaseSeeder extends Seeder
         }
 
         $schools = [
+            ['Lincoln High School', 'Cityville', 'Midwest US', 'public', 'high', 1320, 3.4, 89, 34],
             ['Oakwood Preparatory Academy', 'Greenwich', 'Northeast US', 'private', 'elite', 1480, 4.2, 98, 12],
             ['North Valley Science Magnet', 'San Jose', 'West Coast', 'public', 'high', 1420, 2.8, 91, 8],
             ['International School of Boston', 'Boston', 'Northeast US', 'ib_school', 'high', 1510, 5.1, 95, 18],
@@ -121,7 +228,9 @@ class DatabaseSeeder extends Seeder
                     'yield_rate' => $yield,
                     'match_score' => $score,
                     'active_applicants' => $applicants,
-                    'notes' => 'Seeded target institution for recruitment planning.',
+                    'notes' => $name === 'Lincoln High School'
+                        ? 'Registered school account. Ready for canonical visit scheduling and coordinator approval.'
+                        : 'Seeded target institution for recruitment planning.',
                 ]
             );
         }
@@ -207,6 +316,76 @@ class DatabaseSeeder extends Seeder
                         'position' => $position + 1,
                     ]
                 );
+            }
+
+            $groupRegistration = EventRegistration::query()->firstOrNew([
+                'campus_event_id' => $previewEvent->id,
+                'registrant_email' => $schoolUser->email,
+            ]);
+            $groupRegistration->forceFill([
+                'visit_request_id' => $canonicalVisit->id,
+                'user_id' => $schoolUser->id,
+                'registrant_name' => $demoSchool->name.' Senior Group',
+                'registrant_type' => 'school_group',
+                'party_size' => 4,
+                'status' => 'confirmed',
+                'consent_status' => 'received',
+                'is_minor' => true,
+                'guardian_name' => 'School counselor records',
+                'guardian_email' => $demoSchool->coordinator_email,
+                'guardian_phone' => $demoSchool->coordinator_phone,
+                'emergency_contact_name' => $demoSchool->coordinator_name,
+                'emergency_contact_phone' => $demoSchool->coordinator_phone,
+                'is_demo' => true,
+            ])->save();
+
+            foreach (User::query()->where('role', 'student')->where('school_id', $demoSchool->id)->limit(4)->get() as $index => $rosterStudent) {
+                EventRegistrationStudent::updateOrCreate(
+                    [
+                        'event_registration_id' => $groupRegistration->id,
+                        'email' => $rosterStudent->email,
+                    ],
+                    [
+                        'user_id' => $rosterStudent->id,
+                        'name' => $rosterStudent->name,
+                        'student_identifier' => $rosterStudent->student_identifier,
+                        'grade_level' => $rosterStudent->grade_level,
+                        'interest_major' => $rosterStudent->interest_major,
+                        'status' => 'confirmed',
+                        'consent_status' => 'received',
+                        'is_minor' => true,
+                        'guardian_name' => $rosterStudent->guardian_name,
+                        'guardian_email' => $rosterStudent->guardian_email,
+                        'guardian_phone' => $rosterStudent->guardian_phone,
+                        'emergency_contact_name' => $rosterStudent->emergency_contact_name,
+                        'emergency_contact_phone' => $rosterStudent->emergency_contact_phone,
+                        'medical_notes' => $rosterStudent->medical_notes,
+                        'student_confirmed_at' => $index === 0 ? now()->subDay() : null,
+                    ]
+                );
+            }
+
+            foreach ([
+                [$university, $previewEvent, 'Demo university profile ready', 'Your university profile, team contacts, visit defaults, and published visit programs have been seeded.'],
+                [$schoolUser, $previewEvent, 'Demo school profile ready', 'Your school profile, student roster, and approved visit request are ready to explore.'],
+                [$student, $previewEvent, 'Demo student profile ready', 'Your student profile and assigned campus visit are ready to review.'],
+            ] as [$recipient, $event, $subject, $body]) {
+                PlatformNotification::withoutEvents(fn () => PlatformNotification::updateOrCreate(
+                    [
+                        'user_id' => $recipient->id,
+                        'campus_event_id' => $event->id,
+                        'subject' => $subject,
+                    ],
+                    [
+                        'notification_type' => 'demo.seeded',
+                        'channel' => 'email',
+                        'body' => $body,
+                        'status' => 'sent',
+                        'sent_at' => now()->subMinutes(15),
+                        'read_at' => null,
+                        'metadata' => ['source' => 'database_seeder'],
+                    ]
+                ));
             }
         }
 

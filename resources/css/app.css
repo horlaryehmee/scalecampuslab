@@ -28,3 +28,82 @@ select {
     transition-duration: 180ms;
     transition-timing-function: ease;
 }
+
+.waitlist-stage {
+    --waitlist-tag-orbit: 50rem;
+}
+
+.waitlist-orbit {
+    width: var(--orbit-radius);
+    height: var(--orbit-radius);
+    margin-left: calc(var(--orbit-radius) / -2);
+    margin-top: calc(var(--orbit-radius) / -2);
+    animation: waitlist-orbit-spin var(--orbit-duration) linear infinite;
+    transform: rotate(var(--orbit-start));
+}
+
+.waitlist-orbit-chip {
+    position: absolute;
+    left: 50%;
+    top: 0;
+    animation: waitlist-orbit-counter var(--orbit-duration) linear infinite;
+    transform: translate(-50%, -50%) rotate(calc(var(--orbit-start) * -1));
+}
+
+.waitlist-beam {
+    width: var(--orbit-radius);
+    height: var(--orbit-radius);
+    margin-left: calc(var(--orbit-radius) / -2);
+    margin-top: calc(var(--orbit-radius) / -2);
+    border-radius: 9999px;
+    opacity: 0.82;
+    animation: waitlist-orbit-spin var(--orbit-duration) linear infinite;
+    background: conic-gradient(from 0deg, transparent 0deg, transparent 300deg, var(--beam-soft) 322deg, var(--beam-strong) 342deg, transparent 360deg);
+    mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px));
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px));
+    transform: rotate(var(--orbit-start));
+}
+
+.waitlist-beam-blue {
+    --beam-soft: rgba(37, 99, 235, 0.08);
+    --beam-strong: rgba(37, 99, 235, 0.65);
+}
+
+.waitlist-beam-violet {
+    --beam-soft: rgba(147, 51, 234, 0.08);
+    --beam-strong: rgba(236, 72, 153, 0.58);
+}
+
+@keyframes waitlist-orbit-spin {
+    from {
+        transform: rotate(var(--orbit-start));
+    }
+
+    to {
+        transform: rotate(calc(var(--orbit-start) + 360deg));
+    }
+}
+
+@keyframes waitlist-orbit-counter {
+    from {
+        transform: translate(-50%, -50%) rotate(calc(var(--orbit-start) * -1));
+    }
+
+    to {
+        transform: translate(-50%, -50%) rotate(calc((var(--orbit-start) + 360deg) * -1));
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .waitlist-orbit,
+    .waitlist-orbit-chip,
+    .waitlist-beam {
+        animation: none;
+    }
+}
+
+@media (min-width: 768px) {
+    .waitlist-stage {
+        --waitlist-tag-orbit: 68rem;
+    }
+}

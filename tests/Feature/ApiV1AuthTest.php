@@ -205,6 +205,22 @@ class ApiV1AuthTest extends TestCase
         $this->get('/dashboard/university')->assertOk();
     }
 
+    public function test_me_restores_the_web_session_for_a_saved_spa_token(): void
+    {
+        $user = User::factory()->create(['role' => 'school']);
+        $token = $user->createToken('scale-campus-spa')->plainTextToken;
+
+        $this->assertGuest();
+
+        $this->withToken($token)
+            ->getJson('/api/v1/me')
+            ->assertOk()
+            ->assertJsonPath('user.dashboard_path', '/dashboard/school');
+
+        $this->assertAuthenticatedAs($user);
+        $this->get('/dashboard/school')->assertOk();
+    }
+
     public function test_logout_revokes_the_spa_token_without_revoking_integration_tokens(): void
     {
         $user = User::factory()->create(['role' => 'university']);

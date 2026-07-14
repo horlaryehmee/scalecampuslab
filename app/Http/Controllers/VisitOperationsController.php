@@ -128,7 +128,7 @@ class VisitOperationsController extends Controller
 
         $recipientSchool = School::query()->where('name', $school->name)->first();
         if (! $recipientSchool) {
-            return back()->withErrors(['school_visit' => 'Link this directory entry to a real School account before scheduling a visit.']);
+            return back()->withErrors(['school_visit' => 'This partner-school record is only an outreach directory entry. Create or link a registered School account before scheduling a visit request.']);
         }
 
         $event = CampusEvent::query()

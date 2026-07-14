@@ -68,6 +68,11 @@ function cx(...classes) {
     return classes.filter(Boolean).join(' ');
 }
 
+function clearStoredSpaAuth() {
+    window.localStorage.removeItem('scalecampuslab.auth.token');
+    window.localStorage.removeItem('scalecampuslab.auth.user');
+}
+
 async function apiRequest(url, options = {}) {
     const headers = {
         Accept: 'application/json',
@@ -137,7 +142,7 @@ class AppErrorBoundary extends Component {
                         <p className="mt-2 text-sm leading-6 text-white/60">Please reload the workspace. If this continues, sign out and sign in again.</p>
                         <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
                             <a href="/dashboard" onClick={resetWorkspace} className="inline-flex rounded-xl bg-lime-300 px-4 py-2.5 text-sm font-black text-black">Reload workspace</a>
-                            <a href="/logout" onClick={(event) => { event.preventDefault(); document.getElementById('fallback-logout')?.submit(); }} className="inline-flex rounded-xl border border-white/15 px-4 py-2.5 text-sm font-black text-white">Sign out</a>
+                            <a href="/logout" onClick={(event) => { event.preventDefault(); clearStoredSpaAuth(); document.getElementById('fallback-logout')?.submit(); }} className="inline-flex rounded-xl border border-white/15 px-4 py-2.5 text-sm font-black text-white">Sign out</a>
                         </div>
                         <form id="fallback-logout" action="/logout" method="POST" className="hidden"><input type="hidden" name="_token" value={document.querySelector('meta[name=csrf-token]')?.content || ''} /></form>
                     </section>
@@ -251,75 +256,126 @@ function BrandMark() {
 }
 
 function LandingPage({ csrf, errors, old, signupCount }) {
-    const timeLeft = useCountdown('2027-02-01T09:00:00Z');
-    const joinedCount = Math.max(signupCount, 1);
-
     return (
-        <DarkShell className="bg-[#101010]">
-            <div className="pointer-events-none absolute inset-0 z-[1] opacity-[0.42]">
-                <div className="absolute left-1/2 top-[-14rem] h-[42rem] w-[42rem] -translate-x-1/2 rounded-[42%_58%_38%_62%] border border-white/10" />
-                <div className="absolute left-[55%] top-[-21rem] h-[55rem] w-[55rem] -translate-x-1/2 rotate-[-18deg] rounded-[45%_55%_34%_66%] border border-white/[0.075]" />
-                <div className="absolute left-[62%] top-[8rem] h-[40rem] w-[40rem] rotate-[28deg] rounded-[38%_62%_52%_48%] border border-white/[0.06]" />
-            </div>
+        <main className="min-h-screen bg-[#f8f4f2] p-2 text-slate-950 sm:p-3">
+            <section className="waitlist-stage relative min-h-[calc(100vh-1rem)] overflow-hidden rounded-[1.8rem] border border-white/80 bg-[#fbf8f7] shadow-[inset_0_0_0_1px_rgba(255,255,255,.7),0_0_0_2px_rgba(15,23,42,.85),0_0_34px_rgba(236,72,153,.55),0_0_70px_rgba(37,99,235,.35)] sm:min-h-[calc(100vh-1.5rem)] sm:rounded-[2rem]">
+                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,.96)_0%,rgba(250,247,246,.95)_38%,rgba(244,240,239,.92)_100%)]" />
+                <div className="pointer-events-none absolute left-1/2 top-1/2 h-[50rem] w-[50rem] -translate-x-1/2 -translate-y-1/2 rounded-full border border-slate-300/50" />
+                <div className="pointer-events-none absolute left-1/2 top-1/2 h-[68rem] w-[68rem] -translate-x-1/2 -translate-y-1/2 rounded-full border border-slate-300/45" />
+                <div className="pointer-events-none absolute -left-6 top-20 h-2 w-2 rounded-full bg-slate-300 shadow-[7rem_8rem_0_6px_rgba(148,163,184,.28),18rem_20rem_0_2px_rgba(148,163,184,.36),55rem_14rem_0_7px_rgba(148,163,184,.22),62rem_3rem_0_3px_rgba(148,163,184,.32),72rem_31rem_0_2px_rgba(148,163,184,.35)]" />
 
-            <section className="relative z-10 mx-auto flex min-h-screen max-w-5xl flex-col items-center justify-center px-5 py-12 text-center sm:px-8">
-                <div className="absolute right-5 top-5 sm:right-8 sm:top-8">
-                    <a href="/login" className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/10 px-4 py-2 text-sm font-bold text-white backdrop-blur transition hover:bg-white/15">
-                        Sign in <ArrowRight size={15} />
-                    </a>
-                </div>
-                <EarlyAccessLogo />
+                <WaitlistBeam radius="var(--waitlist-tag-orbit)" duration="58s" start={315} tone="violet" />
+                <WaitlistOrbit radius="var(--waitlist-tag-orbit)" duration="58s" start={315}>
+                    <WaitlistChip icon={<Grid2X2 size={15} />} tone="blue" label="Universities" />
+                </WaitlistOrbit>
+                <WaitlistOrbit radius="var(--waitlist-tag-orbit)" duration="58s" start={45}>
+                    <WaitlistChip icon={<School size={15} />} tone="amber" label="Schools" />
+                </WaitlistOrbit>
+                <WaitlistOrbit radius="var(--waitlist-tag-orbit)" duration="58s" start={135}>
+                    <WaitlistChip icon={<CalendarDays size={15} />} tone="orange" label="Visits" />
+                </WaitlistOrbit>
+                <WaitlistOrbit radius="var(--waitlist-tag-orbit)" duration="58s" start={225}>
+                    <WaitlistChip icon={<UsersRound size={15} />} tone="violet" label="Students" />
+                </WaitlistOrbit>
 
-                <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.055] px-3 py-1.5 shadow-2xl shadow-black/30 backdrop-blur">
-                    <span className="h-2 w-2 rounded-full bg-lime-300 shadow-[0_0_14px_rgba(217,255,0,.9)]" />
-                    <span className="text-[11px] font-black uppercase tracking-normal text-white/62">Available in early 2027</span>
-                </div>
+                <section className="relative z-10 mx-auto flex min-h-[calc(100vh-1rem)] max-w-3xl flex-col items-center justify-center px-5 py-14 text-center sm:min-h-[calc(100vh-1.5rem)]">
+                    <img
+                        src="/images/scalecampus-labs-logo.png"
+                        alt="ScaleCampus Labs"
+                        className="h-auto w-36 rounded-xl object-contain sm:w-44"
+                    />
 
-                <h1 className="mt-7 text-4xl font-semibold leading-tight tracking-normal text-white sm:text-5xl">Get notified when we launch</h1>
-                <p className="mt-3 max-w-xl text-sm leading-6 text-white/42 sm:text-base">
-                    Leave your email and we will let you know when ScaleCampusLab officially launches. This does not create an account or give you platform access.
-                </p>
+                    <h1 className="mt-5 text-5xl font-black leading-[1.05] tracking-[-0.06em] text-black sm:text-6xl">
+                        Plan.<br />
+                        Visit. <span className="mx-2 inline-block align-middle text-3xl sm:text-4xl">Grow.</span>
+                    </h1>
+                    <p className="mt-6 max-w-xl text-sm font-semibold leading-6 text-slate-700 sm:text-base">
+                        ScaleCampusLab helps universities and schools coordinate outreach visits without spreadsheets, scattered emails, or manual follow-up. Join the waitlist for the launch notification. This does not create an account or password.
+                    </p>
 
-                <WaitlistForm csrf={csrf} errors={errors} old={old} />
-                <AudienceStrip signupCount={joinedCount} />
-                <Countdown timeLeft={timeLeft} />
+                    <WaitlistForm csrf={csrf} errors={errors} old={old} />
 
-                <div className="mt-5 flex items-center gap-2 text-[11px] font-black uppercase tracking-normal text-white/58">
-                    <CalendarDays size={14} className="text-white/35" />
-                    Left until full release
-                </div>
-
+                </section>
             </section>
-        </DarkShell>
+        </main>
     );
+}
+
+function WaitlistBeam({ radius, duration, start = 0, tone = 'blue' }) {
+    return (
+        <div
+            className={cx('waitlist-beam pointer-events-none absolute left-1/2 top-1/2 z-[5] block', `waitlist-beam-${tone}`)}
+            style={{
+                '--orbit-radius': radius,
+                '--orbit-duration': duration,
+                '--orbit-start': `${start}deg`,
+            }}
+        />
+    );
+}
+
+function WaitlistOrbit({ children, radius, duration, start = 0 }) {
+    return (
+        <div
+            className="waitlist-orbit pointer-events-none absolute left-1/2 top-1/2 z-10 block"
+            style={{
+                '--orbit-radius': radius,
+                '--orbit-duration': duration,
+                '--orbit-start': `${start}deg`,
+            }}
+        >
+            <div className="waitlist-orbit-chip">{children}</div>
+        </div>
+    );
+}
+
+function WaitlistChip({ icon, label, tone }) {
+    const tones = {
+        blue: 'text-blue-500 before:border-blue-500',
+        amber: 'text-amber-500 before:border-amber-500',
+        orange: 'text-orange-500 before:border-orange-500',
+        violet: 'text-violet-500 before:border-violet-500',
+    };
+    return (
+        <div className="flex items-center gap-4 rounded-[0.85rem] border border-slate-200/70 bg-white/88 py-2 pl-2 pr-5 text-[12px] font-black text-slate-700 shadow-[0_7px_18px_rgba(15,23,42,.12)] backdrop-blur-md">
+            <span className={cx('relative grid h-9 w-9 place-items-center rounded-[0.65rem] border border-slate-100 bg-white shadow-[0_4px_12px_rgba(15,23,42,.10)] before:absolute before:-right-2 before:-top-2 before:h-4 before:w-4 before:rounded-full before:border-t-2 before:border-r-2 before:border-l-0 before:border-b-0', tones[tone])}>{icon}</span>
+            {label}
+        </div>
+    );
+}
+
+function SocialDot({ label }) {
+    return <span className="grid h-9 w-9 place-items-center rounded-full bg-white text-xs font-black text-slate-700 shadow-sm ring-1 ring-slate-200">{label}</span>;
 }
 
 function WaitlistForm({ csrf, errors, old }) {
     return (
-        <section id="waitlist" className="mt-7 w-full max-w-[520px]">
+        <section id="waitlist" className="mt-8 w-full max-w-[430px]">
             <form action="/waitlist" method="POST">
                 <input type="hidden" name="_token" value={csrf} />
-                <input type="hidden" name="full_name" value={old.full_name || 'Launch Notification Subscriber'} />
-                <input type="hidden" name="role" value={old.role || 'student'} />
                 <input type="hidden" name="consent" value="1" />
-                <div className="flex h-11 items-center gap-2 rounded-xl border border-white/[0.055] bg-white/[0.045] p-1.5 shadow-2xl shadow-black/20 backdrop-blur">
-                    <label htmlFor="email" className="sr-only">Email address</label>
-                    <input
-                        id="email"
-                        name="email"
-                        type="email"
-                        placeholder="Email"
-                        defaultValue={old.email || ''}
-                        autoComplete="email"
-                        className="min-w-0 flex-1 bg-transparent px-2.5 text-sm font-semibold text-white outline-none placeholder:text-white/28"
-                    />
-                    <button className="h-8 shrink-0 rounded-lg bg-lime-300 px-4 text-sm font-black text-black shadow-[0_0_22px_rgba(217,255,0,.28)] hover:bg-lime-200">
+                <div className="flex flex-col gap-3 rounded-3xl bg-white p-4 shadow-[0_18px_45px_rgba(15,23,42,.08)] sm:h-[3.4rem] sm:flex-row sm:items-center sm:gap-2 sm:rounded-full sm:p-1.5">
+                    <label htmlFor="email" className="sr-only">Your email</label>
+                    <div className="min-w-0 flex-1 rounded-2xl border border-slate-200 bg-white px-5 py-4 text-left sm:h-10 sm:rounded-full sm:px-6 sm:py-1.5">
+                        <p className="text-[9px] font-black leading-none text-slate-800">Your email</p>
+                        <input
+                            id="email"
+                            name="email"
+                            type="email"
+                            placeholder="designer@example.com"
+                            defaultValue={old.email || ''}
+                            autoComplete="email"
+                            required
+                            className="mt-0.5 w-full min-w-0 bg-transparent text-[11px] font-bold text-slate-950 outline-none placeholder:text-slate-500"
+                        />
+                    </div>
+                    <button className="h-12 shrink-0 rounded-2xl bg-black px-6 text-xs font-black text-white transition hover:bg-slate-800 sm:h-10 sm:min-w-[9.7rem] sm:rounded-full sm:text-[11px]">
                         Join waitlist
                     </button>
                 </div>
-                {errors.email?.[0] && <p className="mt-2 text-sm font-semibold text-red-300">{errors.email[0]}</p>}
+                {errors.email?.[0] && <p className="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{errors.email[0]}</p>}
                 {(errors.full_name?.[0] || errors.role?.[0] || errors.consent?.[0]) && (
-                    <p className="mt-2 text-sm font-semibold text-red-300">Please refresh and try again.</p>
+                    <p className="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">Please refresh and try again.</p>
                 )}
             </form>
         </section>
@@ -551,12 +607,12 @@ function ForgotPasswordPage({ csrf, errors, old, action, flash }) {
     );
 }
 
-function RoleDashboard({ csrf, role, title, subtitle, metrics, actions, roadmap = {}, events = [], scheduleEvents = [], registrations = [], users = [], schools = [], schoolAccounts = [], students = [], visitRequests = [], itineraryItems = [], archives = [], tasks = [], analytics = {}, messages = [], schoolProfile = {}, securityProfile = {}, universityOverview = {}, universitySettings = {}, universityCompliance = {}, systemHealth = {}, platformSettings = {}, programs = [], admissionApplications = [], studentPortfolio = {}, notifications = {}, contentManagement = {}, errors = {}, old = {}, flash = {} }) {
+function RoleDashboard({ csrf, role, title, subtitle, metrics, actions, roadmap = {}, events = [], scheduleEvents = [], registrations = [], users = [], schools = [], schoolAccounts = [], students = [], visitRequests = [], itineraryItems = [], archives = [], tasks = [], analytics = {}, messages = [], schoolProfile = {}, securityProfile = {}, universityOverview = {}, universitySettings = {}, universityCompliance = {}, systemHealth = {}, platformSettings = {}, waitlist = {}, programs = [], admissionApplications = [], studentPortfolio = {}, notifications = {}, contentManagement = {}, errors = {}, old = {}, flash = {} }) {
     const navGroups = dashboardNavGroups(role);
     const navItems = flatNavItems(navGroups);
     const defaultActiveId = navItems[0]?.id || 'overview';
     const storageKey = `scalecampus.activeTab.${role}`;
-    const [dashboardData, setDashboardData] = useState({ metrics, roadmap, events, scheduleEvents, registrations, users, schools, schoolAccounts, students, visitRequests, itineraryItems, archives, tasks, analytics, messages, schoolProfile, securityProfile, universityOverview, universitySettings, universityCompliance, systemHealth, platformSettings, programs, admissionApplications, studentPortfolio, notifications, contentManagement });
+    const [dashboardData, setDashboardData] = useState({ metrics, roadmap, events, scheduleEvents, registrations, users, schools, schoolAccounts, students, visitRequests, itineraryItems, archives, tasks, analytics, messages, schoolProfile, securityProfile, universityOverview, universitySettings, universityCompliance, systemHealth, platformSettings, waitlist, programs, admissionApplications, studentPortfolio, notifications, contentManagement });
     const [formErrors, setFormErrors] = useState(errors);
     const [formOld, setFormOld] = useState(old);
     const [localFlash, setLocalFlash] = useState(flash);
@@ -652,6 +708,7 @@ function RoleDashboard({ csrf, role, title, subtitle, metrics, actions, roadmap 
                         universityCompliance: nextProps.universityCompliance ?? current.universityCompliance,
                         systemHealth: nextProps.systemHealth ?? current.systemHealth,
                         platformSettings: nextProps.platformSettings ?? current.platformSettings,
+                        waitlist: nextProps.waitlist ?? current.waitlist,
                         programs: nextProps.programs ?? current.programs,
                         admissionApplications: nextProps.admissionApplications ?? current.admissionApplications,
                         studentPortfolio: nextProps.studentPortfolio ?? current.studentPortfolio,
@@ -857,11 +914,11 @@ function DashboardFrame({ csrf, children, role, title, subtitle, activeId, activ
     const navItems = flatNavItems(navGroups);
     const compactMobilePage = ['school', 'high_school'].includes(role) && activeId === 'bookings';
     const customHeaderPages = {
-        university: ['overview', 'events', 'programs', 'applications', 'visit-requests', 'schools', 'attendees', 'calendar', 'insights', 'messages', 'settings'],
-        school: ['overview', 'programs', 'applications', 'events', 'bookings', 'itinerary', 'students', 'calendar', 'messages', 'reports', 'settings'],
-        high_school: ['overview', 'programs', 'applications', 'events', 'bookings', 'itinerary', 'students', 'calendar', 'messages', 'reports', 'settings'],
-        admin: ['overview', 'universities', 'schools', 'applications', 'messages', 'content', 'events', 'users-access', 'analytics', 'system-health', 'settings'],
-        student: ['my-visits', 'search-apply', 'applications', 'documents', 'payments', 'messages', 'itinerary', 'notifications', 'profile', 'settings'],
+        university: ['overview', 'events', 'visit-requests', 'schools', 'attendees', 'calendar', 'insights', 'messages', 'settings'],
+        school: ['overview', 'events', 'bookings', 'itinerary', 'students', 'calendar', 'messages', 'reports', 'settings'],
+        high_school: ['overview', 'events', 'bookings', 'itinerary', 'students', 'calendar', 'messages', 'reports', 'settings'],
+        admin: ['overview', 'universities', 'schools', 'messages', 'content', 'waitlist', 'events', 'users-access', 'analytics', 'system-health', 'settings'],
+        student: ['my-visits', 'messages', 'itinerary', 'notifications', 'profile', 'settings'],
     };
     const hideMobilePageHeader = compactMobilePage || (customHeaderPages[role] || []).includes(activeId);
 
@@ -1174,7 +1231,7 @@ function SidebarNav({ groups, activeId, onSelect, workspace, role, csrf, logoutA
                     <p className={cx('truncate text-xs font-black', dark ? 'text-white' : 'text-slate-950')}>{workspace}</p>
                     <p className={cx('mt-0.5 text-[10px] font-semibold', dark ? 'text-white/40' : 'text-slate-400')}>Signed in workspace</p>
                 </div>
-                <form action={logoutAction} method="POST">
+                <form action={logoutAction} method="POST" onSubmit={clearStoredSpaAuth}>
                     <input type="hidden" name="_token" value={csrf} />
                     <button className={cx('mt-1 flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-[13px] font-bold', dark ? 'text-white/55 hover:bg-white/10 hover:text-white' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-950')}>
                         <LogOut size={16} strokeWidth={1.6} />
@@ -2193,7 +2250,7 @@ function UniversityPrdTracker({ events = [], registrations = [], schools = [], v
             ['Full partner school relationship management', schools.some((school) => school.notes || school.taskCount || school.tier) ? 'done' : 'midway', 'Partner schools support tiering, notes, contact actions, engagement history, scheduling, and actionable recommendation tasks.'],
             ['Robust attendee workflows', registrations.some((item) => item.checkedIn || item.consentStatus || (item.students || []).length) ? 'done' : 'midway', 'Attendee workflows cover grouped rosters, check-in/out, bulk updates, import/export, waitlist visibility, consent, emergency, and profile views.'],
             ['Intelligent scheduling and calendar logic', events.some((event) => event.lastScheduleChangeAt || event.externalCalendarUid || event.recurrenceRule) ? 'done' : 'midway', 'Scheduling includes editable time slots, conflict blocking, drag/move flows, recurrence fields, ICS export, and schedule-change notices.'],
-            ['Deep analytics and reporting', analytics.predictiveScore && (analytics.schoolProgramFunnel || []).length ? 'done' : 'midway', 'Insights use database registrations, attendance, schools, applications, trends, date ranges, saved recommendations, predictive score, and export endpoint.'],
+            ['Deep analytics and reporting', analytics.predictiveScore && (analytics.schoolProgramFunnel || []).length ? 'done' : 'midway', 'Insights use database registrations, attendance, schools, visit trends, date ranges, saved recommendations, predictive score, and export endpoint.'],
             ['Notification visibility and automation', messages.some((message) => message.notificationType || message.scheduledFor || message.status === 'failed') ? 'done' : 'midway', 'University users can see automation state, notification history, queued/sent/failed counts, preview notices, queue reminders, and retry failures.'],
         ]],
         ['Security, Compliance, and Permissions', [
@@ -4390,7 +4447,7 @@ function AdminAnalyticsSection({ analytics = {}, users = [], events = [], regist
                         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                             <div>
                                 <h2 className="text-xl font-black text-slate-950">Main Conversion Funnel</h2>
-                                <p className="mt-1 text-sm text-slate-500">Registered seats to confirmed visits, attendance, and applications.</p>
+                                <p className="mt-1 text-sm text-slate-500">Registered seats to confirmed visits, attendance, and engagement.</p>
                             </div>
                             <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">{funnel.length} tracked stage(s)</span>
                         </div>
@@ -4664,10 +4721,79 @@ function ServerFact({ label, value, warning = false }) {
     return <div className="flex items-center justify-between gap-4 rounded-xl bg-slate-50 px-3 py-3"><p className="text-xs font-black uppercase tracking-[0.1em] text-slate-500">{label}</p><p className={cx('text-right text-sm font-black', warning ? 'text-amber-700' : 'text-slate-950')}>{String(value)}</p></div>;
 }
 
+function AdminWaitlistSection({ waitlist = {} }) {
+    const rows = waitlist.recent || [];
+    const roles = waitlist.roles || {};
+    const stats = [
+        ['Total signups', waitlist.total || 0, 'All launch-interest records'],
+        ['Universities', roles.university || 0, 'Institution leads'],
+        ['Schools', roles.highSchool || 0, 'School coordinator leads'],
+        ['Students', roles.student || 0, 'Student leads'],
+    ];
+
+    return (
+        <div className="grid gap-6">
+            <section className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                    <p className="text-xs font-black uppercase tracking-[0.16em] text-blue-700">Launch interest</p>
+                    <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-950">Waitlist Records</h1>
+                    <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">People who submitted the public waitlist form. These are notification leads only; no account, password, payment, or application is created.</p>
+                </div>
+                <a href="/admin/waitlist/export" className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-3 text-sm font-black text-white shadow-sm hover:bg-slate-800">
+                    <Download size={16} /> Export CSV
+                </a>
+            </section>
+
+            <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                {stats.map(([label, value, detail]) => (
+                    <article key={label} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                        <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-400">{label}</p>
+                        <p className="mt-3 text-3xl font-black text-slate-950">{Number(value || 0).toLocaleString()}</p>
+                        <p className="mt-2 text-xs font-semibold text-slate-500">{detail}</p>
+                    </article>
+                ))}
+            </section>
+
+            <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                <div className="flex items-center justify-between gap-4 border-b border-slate-100 p-5">
+                    <div>
+                        <h2 className="text-lg font-black text-slate-950">Recent signups</h2>
+                        <p className="mt-1 text-sm text-slate-500">Latest 50 waitlist records from the database.</p>
+                    </div>
+                </div>
+                <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-slate-100 text-left text-sm">
+                        <thead className="bg-slate-50 text-xs font-black uppercase tracking-[0.12em] text-slate-500">
+                            <tr>
+                                <th className="px-5 py-3">Name</th>
+                                <th className="px-5 py-3">Email</th>
+                                <th className="px-5 py-3">Role</th>
+                                <th className="px-5 py-3">Joined</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {rows.map((row) => (
+                                <tr key={row.id} className="hover:bg-slate-50/80">
+                                    <td className="px-5 py-4 font-black text-slate-950">{row.fullName || 'Launch Subscriber'}</td>
+                                    <td className="px-5 py-4 font-semibold text-slate-600">{row.email}</td>
+                                    <td className="px-5 py-4"><span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-black uppercase text-blue-700">{roleLabels[row.role] || titleCase(row.role || 'lead')}</span></td>
+                                    <td className="px-5 py-4 font-semibold text-slate-500">{formatDateTime(row.createdAt)}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+                {!rows.length && <EmptyState title="No waitlist signups yet" message="Public waitlist records will appear here after visitors submit their email." />}
+            </section>
+        </div>
+    );
+}
+
 function AdminSettingsSection({ csrf, settings = {}, profile = {}, errors = {} }) {
     const branding = settings.branding || {};
     const localization = settings.localization || {};
     const features = settings.features || {};
+    const launch = settings.launch || {};
     const security = settings.security || {};
     const integrations = settings.integrations || {};
     const system = settings.system || {};
@@ -4750,6 +4876,20 @@ function AdminSettingsSection({ csrf, settings = {}, profile = {}, errors = {} }
                     </div>
 
                     <aside className="space-y-6">
+                        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                            <div className="flex items-center gap-3">
+                                <span className="grid h-10 w-10 place-items-center rounded-xl bg-violet-50 text-violet-700"><UserPlus size={18} /></span>
+                                <div>
+                                    <h2 className="text-lg font-black text-slate-950">Public Launch Page</h2>
+                                    <p className="mt-1 text-sm text-slate-500">Control whether visitors see the waitlist page before the marketing landing page.</p>
+                                </div>
+                            </div>
+                            <div className="mt-5 space-y-4">
+                                <ToggleBox name="waitlist_mode" label="Hide landing page and show waitlist first" defaultChecked={!!launch.waitlistMode} />
+                                <p className="rounded-xl bg-slate-50 px-3 py-3 text-xs font-semibold leading-5 text-slate-600">When enabled, the root URL shows the waitlist page. Login, dashboards, and direct marketing routes remain available.</p>
+                            </div>
+                        </section>
+
                         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                             <div className="flex items-center justify-between gap-3">
                                 <h2 className="text-lg font-black text-slate-950">Feature Flags</h2>
@@ -6458,7 +6598,25 @@ function SchoolSettingsSection({ csrf, profile, errors, old }) {
                             </div>
                             <div className="grid gap-4">
                                 <LightField label="School Name" name="name" defaultValue={value('name')} error={errors.name?.[0]} />
-                                <LightTextarea label="Address" name="location" defaultValue={value('location')} error={errors.location?.[0]} />
+                                <LightField label="Website" name="website" type="url" placeholder="https://school.edu" defaultValue={value('website', profile.website || '')} error={errors.website?.[0]} />
+                                <LightTextarea label="Public location" name="location" defaultValue={value('location')} error={errors.location?.[0]} />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                        <h2 className="text-lg font-black text-slate-950">Campus Details</h2>
+                        <div className="mt-4 grid gap-4 border-t border-slate-100 pt-4 md:grid-cols-2">
+                            <div className="md:col-span-2">
+                                <LightField label="Street Address" name="address" defaultValue={value('address', profile.address || '')} error={errors.address?.[0]} />
+                            </div>
+                            <LightField label="City" name="city" defaultValue={value('city', profile.city || '')} error={errors.city?.[0]} />
+                            <LightField label="State / Province" name="state" defaultValue={value('state', profile.state || '')} error={errors.state?.[0]} />
+                            <LightField label="Country" name="country" defaultValue={value('country', profile.country || '')} error={errors.country?.[0]} />
+                            <LightField label="Grade Range" name="grade_range" defaultValue={value('grade_range', profile.gradeRange || '')} error={errors.grade_range?.[0]} />
+                            <LightField label="Student Count" name="student_count" type="number" min="0" defaultValue={value('student_count', profile.studentCount || '')} error={errors.student_count?.[0]} />
+                            <div className="md:col-span-2">
+                                <LightTextarea label="Visit Notes" name="visit_notes" defaultValue={value('visit_notes', profile.visitNotes || '')} error={errors.visit_notes?.[0]} />
                             </div>
                         </div>
                     </div>
@@ -6471,6 +6629,11 @@ function SchoolSettingsSection({ csrf, profile, errors, old }) {
                             </div>
                             <LightField label="Email Address" name="coordinator_email" type="email" defaultValue={value('coordinator_email', profile.coordinatorEmail || '')} error={errors.coordinator_email?.[0]} />
                             <LightField label="Phone Number" name="coordinator_phone" defaultValue={value('coordinator_phone', profile.coordinatorPhone || '')} error={errors.coordinator_phone?.[0]} />
+                            <LightField label="Principal Name" name="principal_name" defaultValue={value('principal_name', profile.principalName || '')} error={errors.principal_name?.[0]} />
+                            <LightField label="Counselor Name" name="counselor_name" defaultValue={value('counselor_name', profile.counselorName || '')} error={errors.counselor_name?.[0]} />
+                            <div className="md:col-span-2">
+                                <LightField label="Counselor Email" name="counselor_email" type="email" defaultValue={value('counselor_email', profile.counselorEmail || '')} error={errors.counselor_email?.[0]} />
+                            </div>
                         </div>
                     </div>
 
@@ -9262,12 +9425,18 @@ function PartnerSchoolDetail({ csrf, school, archives, visitsCount, onBack, onEd
                     {school.canManage && <button type="button" onClick={onEdit} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700">
                         <Edit3 size={14} /> Edit Relationship
                     </button>}
-                    <form action={`/partner-schools/${school.id}/schedule-visit`} method="POST">
-                        <input type="hidden" name="_token" value={csrf} />
-                        <button className="inline-flex items-center gap-2 rounded-lg bg-slate-950 px-3 py-2 text-xs font-black text-white">
-                            <CalendarDays size={14} /> Schedule New Visit
-                        </button>
-                    </form>
+                    {school.canScheduleVisit ? (
+                        <form action={`/partner-schools/${school.id}/schedule-visit`} method="POST">
+                            <input type="hidden" name="_token" value={csrf} />
+                            <button className="inline-flex items-center gap-2 rounded-lg bg-slate-950 px-3 py-2 text-xs font-black text-white">
+                                <CalendarDays size={14} /> Schedule New Visit
+                            </button>
+                        </form>
+                    ) : (
+                        <span className="inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-black text-amber-800" title="Create or link a registered School account with an active coordinator before scheduling a visit.">
+                            <CalendarDays size={14} /> Link School Account
+                        </span>
+                    )}
                     <button type="button" onClick={onBack} className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 bg-white text-slate-500" aria-label="Back to schools"><X size={15} /></button>
                 </div>
             </div>
@@ -10115,7 +10284,7 @@ function AnalyticsForecastSection({ csrf = '', analytics = {}, schools = [] }) {
                                         <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
                                             <MiniStat label="Registered" value={cycle.registered} />
                                             <MiniStat label="Attended" value={cycle.attended} />
-                                            <MiniStat label="Applications" value={cycle.applications} />
+                                            <MiniStat label="Engagement" value={cycle.applications} />
                                             <MiniStat label="Attendance" value={`${cycle.attendanceRate}%`} />
                                         </div>
                                     </article>
@@ -10934,7 +11103,7 @@ function PlatformNotificationsSection({ initial = {} }) {
             setItems((current) => current.map((item) => ({ ...item, unread: false, readAt: item.readAt || new Date().toISOString() })));
         } catch (requestError) { setError(requestError.message); }
     };
-    return <SaaSCard title="Notifications" description="Application decisions, messages, payments, and visit updates are stored here."><div className="mb-4 flex justify-end"><button type="button" onClick={markAllRead} disabled={!items.some((item) => item.unread)} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-black text-slate-700 disabled:opacity-40">Mark all read</button></div>{error && <p className="mb-3 rounded-xl bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</p>}<div className="divide-y divide-slate-100">{items.map((item) => <article key={item.id} className={cx('py-4', item.unread && 'rounded-xl bg-blue-50/60 px-3')}><div className="flex items-start justify-between gap-3"><div><p className="font-black text-slate-950">{item.subject}</p><p className="mt-1 text-sm leading-6 text-slate-600">{item.body}</p><p className="mt-2 text-xs font-semibold text-slate-400">{formatDateTime(item.createdAt)}</p></div>{item.unread && <button type="button" onClick={() => markRead(item.id)} className="shrink-0 text-xs font-black text-[#006a61]">Mark read</button>}</div></article>)}{!items.length && <EmptyState title="No notifications" message="Application decisions, messages, payments, and visit alerts will appear here." />}</div></SaaSCard>;
+    return <SaaSCard title="Notifications" description="Messages, visit requests, attendance reminders, and visit updates are stored here."><div className="mb-4 flex justify-end"><button type="button" onClick={markAllRead} disabled={!items.some((item) => item.unread)} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-black text-slate-700 disabled:opacity-40">Mark all read</button></div>{error && <p className="mb-3 rounded-xl bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</p>}<div className="divide-y divide-slate-100">{items.map((item) => <article key={item.id} className={cx('py-4', item.unread && 'rounded-xl bg-blue-50/60 px-3')}><div className="flex items-start justify-between gap-3"><div><p className="font-black text-slate-950">{item.subject}</p><p className="mt-1 text-sm leading-6 text-slate-600">{item.body}</p><p className="mt-2 text-xs font-semibold text-slate-400">{formatDateTime(item.createdAt)}</p></div>{item.unread && <button type="button" onClick={() => markRead(item.id)} className="shrink-0 text-xs font-black text-[#006a61]">Mark read</button>}</div></article>)}{!items.length && <EmptyState title="No notifications" message="Messages, reminders, and visit alerts will appear here." />}</div></SaaSCard>;
 }
 
 function AdminContentSection({ csrf, content = {} }) {
@@ -11016,8 +11185,6 @@ function dashboardNavGroups(role) {
         university: [
             { id: 'overview', title: 'Overview', icon: LayoutDashboard },
             { id: 'events', title: 'Visit Programs', icon: CalendarDays },
-            { id: 'programs', title: 'Academic Programs', icon: GraduationCap },
-            { id: 'applications', title: 'Applications', icon: FolderKanban },
             { id: 'visit-requests', title: 'Visit Requests', icon: Inbox },
             { id: 'schools', title: 'Partner Schools', icon: School },
             { id: 'attendees', title: 'Attendees', icon: UsersRound },
@@ -11028,8 +11195,6 @@ function dashboardNavGroups(role) {
         ],
         school: [
             { id: 'overview', title: 'Overview', icon: LayoutDashboard },
-            { id: 'programs', title: 'Programs & Classes', icon: GraduationCap },
-            { id: 'applications', title: 'Applications', icon: FolderKanban },
             { id: 'events', title: 'Discover Visits', icon: Search },
             { id: 'bookings', title: 'My Requests', icon: FolderKanban },
             { id: 'itinerary', title: 'Itinerary', icon: RouteIcon },
@@ -11041,8 +11206,6 @@ function dashboardNavGroups(role) {
         ],
         high_school: [
             { id: 'overview', title: 'Overview', icon: LayoutDashboard },
-            { id: 'programs', title: 'Programs & Classes', icon: GraduationCap },
-            { id: 'applications', title: 'Applications', icon: FolderKanban },
             { id: 'events', title: 'Discover Visits', icon: Search },
             { id: 'bookings', title: 'My Requests', icon: FolderKanban },
             { id: 'itinerary', title: 'Itinerary', icon: RouteIcon },
@@ -11054,10 +11217,6 @@ function dashboardNavGroups(role) {
         ],
         student: [
             { id: 'my-visits', title: 'My Visits', icon: FolderKanban },
-            { id: 'search-apply', title: 'Search & Apply', icon: Search },
-            { id: 'applications', title: 'Applications', icon: GraduationCap },
-            { id: 'documents', title: 'Documents', icon: Upload },
-            { id: 'payments', title: 'Payments', icon: Activity },
             { id: 'messages', title: 'Messages', icon: Inbox },
             { id: 'itinerary', title: 'Itinerary', icon: RouteIcon },
             { id: 'notifications', title: 'Notifications', icon: Bell },
@@ -11068,9 +11227,9 @@ function dashboardNavGroups(role) {
             { id: 'overview', title: 'Platform Overview', icon: LayoutDashboard },
             { id: 'universities', title: 'Institutions', icon: GraduationCap },
             { id: 'schools', title: 'Schools', icon: School },
-            { id: 'applications', title: 'Applications', icon: FolderKanban },
             { id: 'messages', title: 'Messages', icon: Inbox },
             { id: 'content', title: 'Content', icon: Blocks },
+            { id: 'waitlist', title: 'Waitlist', icon: UserPlus },
             { id: 'events', title: 'Visit Activity', icon: CalendarDays },
             { id: 'users-access', title: 'Users & Access', icon: ShieldCheck },
             { id: 'analytics', title: 'Analytics', icon: Activity },
@@ -11088,8 +11247,12 @@ function flatNavItems(groups) {
 }
 
 function dashboardContent(role, activeId, metrics, actions, context = {}) {
-    const { csrf, roadmap, events, scheduleEvents, registrations, users, schools, schoolAccounts, students, visitRequests, itineraryItems, archives, tasks, analytics, messages, schoolProfile, securityProfile, universityOverview, universitySettings, universityCompliance, systemHealth, platformSettings, programs, admissionApplications, studentPortfolio, notifications, contentManagement, errors, old, setActiveId } = context;
+    const { csrf, roadmap, events, scheduleEvents, registrations, users, schools, schoolAccounts, students, visitRequests, itineraryItems, archives, tasks, analytics, messages, schoolProfile, securityProfile, universityOverview, universitySettings, universityCompliance, systemHealth, platformSettings, waitlist, programs, admissionApplications, studentPortfolio, notifications, contentManagement, errors, old, setActiveId } = context;
     const baseMetrics = metrics.map((metric) => ({ ...metric, trend: metric.trend || 'Ready for live data' }));
+    const removedAdmissionsSections = ['programs', 'applications', 'search-apply', 'documents', 'payments'];
+    if (removedAdmissionsSections.includes(activeId)) {
+        activeId = role === 'student' ? 'my-visits' : role === 'admin' ? 'overview' : ['school', 'high_school'].includes(role) ? 'events' : 'events';
+    }
 
     const adminOnlySections = ['roadmap', 'request-inbox', 'checkout'];
     if (role !== 'admin' && adminOnlySections.includes(activeId)) {
@@ -11324,6 +11487,10 @@ function dashboardContent(role, activeId, metrics, actions, context = {}) {
 
     if (role === 'admin' && activeId === 'content') {
         return { title: 'Content', subtitle: 'Manage notification broadcasts, the FAQ library, and active notification delivery templates.', action: 'Manage content', metrics: baseMetrics, custom: <AdminContentSection csrf={csrf} content={contentManagement || {}} /> };
+    }
+
+    if (role === 'admin' && activeId === 'waitlist') {
+        return { title: 'Waitlist', subtitle: 'Review launch-interest records captured from the public waitlist page.', action: 'Export CSV', metrics: baseMetrics, custom: <AdminWaitlistSection waitlist={waitlist || {}} /> };
     }
 
     if (role === 'admin' && activeId === 'users-access') {
