@@ -113,6 +113,16 @@ class AuthFlowTest extends TestCase
         ]);
     }
 
+    public function test_web_dashboard_session_can_use_student_workflow_api(): void
+    {
+        $student = User::factory()->create(['role' => 'student']);
+
+        $this->actingAs($student)
+            ->getJson('/api/v1/student/visits/upcoming')
+            ->assertOk()
+            ->assertJsonPath('meta.total', 0);
+    }
+
     public function test_unverified_and_suspended_accounts_cannot_open_the_dashboard_directly(): void
     {
         $unverified = User::factory()->unverified()->create(['role' => 'student']);

@@ -84,8 +84,12 @@ async function apiRequest(url, options = {}) {
     const payload = response.status === 204 ? null : await response.json().catch(() => null);
 
     if (!response.ok) {
+        if (response.status === 401) {
+            throw new Error('Your dashboard session needs to be refreshed. Please sign out, then open the demo dashboard again.');
+        }
         const validationMessage = payload?.errors ? Object.values(payload.errors).flat().find(Boolean) : null;
-        throw new Error(validationMessage || payload?.message || `Request failed with status ${response.status}.`);
+        const message = validationMessage || payload?.message || `Request failed with status ${response.status}.`;
+        throw new Error(message === 'Unauthenticated.' ? 'Your dashboard session needs to be refreshed. Please sign out, then open the demo dashboard again.' : message);
     }
 
     return payload;

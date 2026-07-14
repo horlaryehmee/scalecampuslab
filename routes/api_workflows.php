@@ -22,7 +22,7 @@ use App\Http\Controllers\StudentPortfolioController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')
-    ->middleware(['auth:sanctum', 'active', 'verified'])
+    ->middleware(['auth:sanctum,web', 'active', 'verified'])
     ->name('api.v1.workflow.')
     ->group(function (): void {
         Route::get('/dashboard', [DashboardController::class, 'show'])->name('dashboard');
