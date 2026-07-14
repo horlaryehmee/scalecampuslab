@@ -32,7 +32,7 @@ function AuthShell({ eyebrow, title, body, children }) {
 }
 
 export function LoginPage() {
-    const { login, user, ready } = useAuth();
+    const { login } = useAuth();
     const toast = useToast();
     const navigate = useNavigate();
     const [search] = useSearchParams();
@@ -47,11 +47,6 @@ export function LoginPage() {
         ['School', 'school@scalecampuslab.test', '/dashboard/school'],
         ['Student', 'student@scalecampuslab.test', '/dashboard/student'],
     ];
-
-    useEffect(() => {
-        if (ready && user?.email_verified) window.location.replace(dashboardPath(user));
-        if (ready && user?.email_verified === false) navigate('/verify-email', { replace: true });
-    }, [navigate, ready, user]);
 
     useEffect(() => {
         if (search.get('verified') === '1') toast.push('Your email has been verified. You can continue to your workspace.');
