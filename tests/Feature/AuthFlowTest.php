@@ -98,6 +98,21 @@ class AuthFlowTest extends TestCase
         $this->get('/dashboard/university')->assertRedirect('/login');
     }
 
+    public function test_demo_login_post_creates_session_and_redirects_to_dashboard(): void
+    {
+        $this->post('/demo-login', [
+            'role' => 'student',
+        ])->assertRedirect('/dashboard/student');
+
+        $this->assertAuthenticated();
+        $this->assertDatabaseHas('users', [
+            'email' => 'student@scalecampuslab.test',
+            'role' => 'student',
+            'access_status' => 'active',
+            'is_demo' => true,
+        ]);
+    }
+
     public function test_unverified_and_suspended_accounts_cannot_open_the_dashboard_directly(): void
     {
         $unverified = User::factory()->unverified()->create(['role' => 'student']);

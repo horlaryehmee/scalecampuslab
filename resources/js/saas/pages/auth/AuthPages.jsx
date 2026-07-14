@@ -5,7 +5,7 @@ import { Button, Field, PageState } from '../../components/ui';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 import { useApi } from '../../hooks/useApi';
-import { api, apiError, dashboardPath, saveSession } from '../../services/api';
+import { api, apiError, dashboardPath } from '../../services/api';
 
 const MFA_CHALLENGE_KEY = 'scalecampuslab.login.mfa';
 
@@ -38,8 +38,8 @@ export function LoginPage() {
     const [search] = useSearchParams();
     const [form, setForm] = useState({ email: '', password: '', remember: true });
     const [loading, setLoading] = useState(false);
-    const [demoLoading, setDemoLoading] = useState('');
     const [error, setError] = useState('');
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
     const update = (key) => (event) => setForm((current) => ({ ...current, [key]: event.target.type === 'checkbox' ? event.target.checked : event.target.value }));
     const demoAccounts = [
         ['Admin', 'admin', '/dashboard/admin'],
@@ -82,32 +82,20 @@ export function LoginPage() {
         }
     };
 
-    const openDemo = async (role) => {
-        setDemoLoading(role);
-        setError('');
-        try {
-            const response = await api.post('/demo-login', { role });
-            const result = response.data || {};
-            saveSession(result.token, result.user);
-            toast.push('Demo workspace opened.');
-            window.location.assign(dashboardPath(result.user));
-        } catch (requestError) {
-            setError(apiError(requestError, 'Unable to open this demo dashboard. Please try again.'));
-        } finally {
-            setDemoLoading('');
-        }
-    };
-
     return (
         <AuthShell eyebrow="Welcome back" title="Sign in to your workspace" body="Use the account connected to your university, school, student profile, or admin role.">
             <div className="mb-5 rounded-2xl border border-emerald-100 bg-emerald-50 p-4">
                 <p className="text-sm font-black text-slate-950">Demo dashboards</p>
                 <div className="mt-3 grid gap-2 sm:grid-cols-2">
                     {demoAccounts.map(([label, role, path]) => (
-                        <button key={role} type="button" onClick={() => openDemo(role)} disabled={Boolean(demoLoading || loading)} className="flex items-center justify-between rounded-xl border border-emerald-100 bg-white px-3 py-2.5 text-left text-sm font-black text-slate-700 shadow-sm transition hover:border-emerald-300 hover:text-emerald-800 disabled:cursor-not-allowed disabled:opacity-60">
-                            <span>{demoLoading === role ? 'Opening...' : label}</span>
-                            <span className="text-[11px] font-bold text-slate-400">{path.replace('/dashboard/', '')}</span>
-                        </button>
+                        <form key={role} action="/demo-login" method="POST">
+                            <input type="hidden" name="_token" value={csrfToken} />
+                            <input type="hidden" name="role" value={role} />
+                            <button type="submit" disabled={loading} className="flex w-full items-center justify-between rounded-xl border border-emerald-100 bg-white px-3 py-2.5 text-left text-sm font-black text-slate-700 shadow-sm transition hover:border-emerald-300 hover:text-emerald-800 disabled:cursor-not-allowed disabled:opacity-60">
+                                <span>{label}</span>
+                                <span className="text-[11px] font-bold text-slate-400">{path.replace('/dashboard/', '')}</span>
+                            </button>
+                        </form>
                     ))}
                 </div>
             </div>

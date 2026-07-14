@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\School;
 use App\Models\User;
 use App\Services\LoginMfaService;
 use Illuminate\Http\RedirectResponse;
@@ -10,6 +11,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
@@ -102,6 +104,71 @@ class AuthController extends Controller
         }
 
         return redirect()->intended($this->redirectPath($user->role));
+    }
+
+    public function demoLogin(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'role' => ['required', Rule::in(['admin', 'university', 'school', 'student'])],
+        ]);
+
+        $role = $validated['role'];
+        $school = null;
+
+        if (in_array($role, ['school', 'student'], true)) {
+            $school = School::query()->updateOrCreate(
+                ['name' => 'Lincoln High School'],
+                [
+                    'location' => '123 Education Blvd, Cityville, ST 12345',
+                    'coordinator_name' => 'Jane Doe',
+                    'coordinator_email' => 'jane.doe@lincolnhigh.edu',
+                    'coordinator_phone' => '(555) 123-4567',
+                    'website' => 'https://lincolnhigh.scalecampuslab.test',
+                    'address' => '123 Education Boulevard',
+                    'city' => 'Cityville',
+                    'state' => 'ST',
+                    'country' => 'United States',
+                    'principal_name' => 'Dr. Evelyn Carter',
+                    'counselor_name' => 'Jane Doe',
+                    'counselor_email' => 'jane.doe@lincolnhigh.edu',
+                    'grade_range' => 'Grades 9-12',
+                    'student_count' => 1240,
+                    'visit_notes' => 'Demo school profile for ScaleCampusLab campus visit workflows.',
+                    'email_notifications' => true,
+                    'sms_alerts' => false,
+                ],
+            );
+        }
+
+        $profile = match ($role) {
+            'admin' => ['name' => 'Platform Admin', 'email' => 'admin@scalecampuslab.test', 'phone' => '+1 555 0100'],
+            'university' => ['name' => 'University Demo', 'email' => 'university@scalecampuslab.test', 'phone' => '+1 555 0110'],
+            'school' => ['name' => 'School Demo', 'email' => 'school@scalecampuslab.test', 'phone' => '+1 555 0120'],
+            default => ['name' => 'Student Demo', 'email' => 'student@scalecampuslab.test', 'phone' => '+1 555 0130'],
+        };
+
+        $user = User::query()->updateOrCreate(
+            ['email' => $profile['email']],
+            [
+                'name' => $profile['name'],
+                'phone' => $profile['phone'],
+                'password' => 'password',
+                'role' => $role,
+                'access_status' => 'active',
+                'email_verified_at' => now(),
+                'school_id' => $school?->id,
+                'student_identifier' => $role === 'student' ? 'DEMO-STUDENT' : null,
+                'grade_level' => $role === 'student' ? '12th' : null,
+                'interest_major' => $role === 'student' ? 'Campus Visits' : null,
+                'is_demo' => true,
+                'two_factor_enabled' => false,
+            ],
+        );
+
+        Auth::guard('web')->login($user, true);
+        $request->session()->regenerate();
+
+        return redirect()->to($this->redirectPath($user->role));
     }
 
     public function mfaChallenge(Request $request): View|RedirectResponse

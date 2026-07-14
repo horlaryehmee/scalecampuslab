@@ -23,6 +23,7 @@ Route::get('/platform', static function () {
 Route::get('/waitlist', [WaitlistController::class, 'landing'])->name('waitlist.join');
 Route::post('/waitlist', [WaitlistController::class, 'store'])->middleware('throttle:10,1')->name('waitlist.store');
 Route::get('/thank-you', [WaitlistController::class, 'success'])->name('waitlist.success');
+Route::post('/demo-login', [AuthController::class, 'demoLogin'])->middleware('throttle:20,1')->name('demo-login');
 
 Route::middleware('guest')->group(function (): void {
     Route::post('/login', [AuthController::class, 'authenticate'])->middleware('throttle:5,1')->name('login.authenticate');
