@@ -35,7 +35,6 @@ class WaitlistController extends Controller
         $validated = $request->validate([
             'full_name' => ['sometimes', 'nullable', 'string', 'max:120'],
             'email' => ['required', 'email:rfc', 'max:255', 'unique:waitlist_signups,email'],
-            'role' => ['sometimes', 'nullable', 'in:university,high_school,student'],
             'consent' => ['sometimes', 'accepted'],
         ], [
             'consent.accepted' => 'Please confirm that you want to receive the launch notification.',
@@ -43,7 +42,6 @@ class WaitlistController extends Controller
 
         $emailName = Str::of($validated['email'])->before('@')->toString();
         $validated['full_name'] = ($validated['full_name'] ?? '') ?: Str::of(str_replace(['.', '_', '-'], ' ', $emailName))->title()->toString();
-        $validated['role'] = ($validated['role'] ?? '') ?: 'university';
         unset($validated['consent']);
 
         WaitlistSignup::create($validated);

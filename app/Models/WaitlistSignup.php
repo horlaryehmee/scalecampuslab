@@ -12,6 +12,5 @@ class WaitlistSignup extends Model
     protected $fillable = [
         'full_name',
         'email',
-        'role',
     ];
 }

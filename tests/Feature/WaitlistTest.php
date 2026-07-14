@@ -2,8 +2,8 @@
 
 namespace Tests\Feature;
 
-use App\Models\WaitlistSignup;
 use App\Models\PlatformSetting;
+use App\Models\WaitlistSignup;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -24,7 +24,6 @@ class WaitlistTest extends TestCase
         $response = $this->post('/waitlist', [
             'full_name' => 'Ada Recruiter',
             'email' => 'ada@example.com',
-            'role' => 'university',
             'consent' => '1',
         ]);
 
@@ -33,7 +32,6 @@ class WaitlistTest extends TestCase
         $this->assertDatabaseHas('waitlist_signups', [
             'full_name' => 'Ada Recruiter',
             'email' => 'ada@example.com',
-            'role' => 'university',
         ]);
     }
 
@@ -46,7 +44,6 @@ class WaitlistTest extends TestCase
         $this->assertDatabaseHas('waitlist_signups', [
             'full_name' => 'Launch',
             'email' => 'launch@example.com',
-            'role' => 'university',
         ]);
     }
 
@@ -68,13 +65,11 @@ class WaitlistTest extends TestCase
         WaitlistSignup::create([
             'full_name' => 'Existing Lead',
             'email' => 'lead@example.com',
-            'role' => 'student',
         ]);
 
         $response = $this->from('/')->post('/waitlist', [
             'full_name' => 'Second Lead',
             'email' => 'lead@example.com',
-            'role' => 'student',
             'consent' => '1',
         ]);
 
@@ -96,7 +91,6 @@ class WaitlistTest extends TestCase
         WaitlistSignup::create([
             'full_name' => 'Guidance Counselor',
             'email' => 'counselor@example.com',
-            'role' => 'high_school',
         ]);
 
         $this->post('/admin/waitlist/login', ['password' => 'admin123'])
@@ -113,7 +107,6 @@ class WaitlistTest extends TestCase
         WaitlistSignup::create([
             'full_name' => 'Student Lead',
             'email' => 'student@example.com',
-            'role' => 'student',
         ]);
 
         $response = $this->withSession(['waitlist_admin_authenticated' => true])

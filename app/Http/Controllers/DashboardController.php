@@ -2635,20 +2635,15 @@ class DashboardController extends Controller
     {
         return [
             'total' => WaitlistSignup::query()->count(),
-            'roles' => [
-                'university' => WaitlistSignup::query()->where('role', 'university')->count(),
-                'highSchool' => WaitlistSignup::query()->where('role', 'high_school')->count(),
-                'student' => WaitlistSignup::query()->where('role', 'student')->count(),
-            ],
             'recent' => WaitlistSignup::query()
                 ->latest()
                 ->limit(50)
                 ->get()
-                ->map(fn (WaitlistSignup $signup): array => [
+                ->map(fn (WaitlistSignup $signup, int $index): array => [
+                    'position' => $index + 1,
                     'id' => $signup->id,
                     'fullName' => $signup->full_name,
                     'email' => $signup->email,
-                    'role' => $signup->role,
                     'createdAt' => $signup->created_at?->toIso8601String(),
                 ])
                 ->values()

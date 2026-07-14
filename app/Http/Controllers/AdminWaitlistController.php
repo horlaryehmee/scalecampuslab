@@ -50,12 +50,7 @@ class AdminWaitlistController extends Controller
 
     public function index(Request $request): View
     {
-        $role = $request->query('role');
         $query = WaitlistSignup::query()->latest();
-
-        if (in_array($role, ['university', 'high_school', 'student'], true)) {
-            $query->where('role', $role);
-        }
 
         $signups = $query->paginate(20)->withQueryString();
 
@@ -69,13 +64,16 @@ class AdminWaitlistController extends Controller
                     'total' => $signups->total(),
                     'nextPageUrl' => $signups->nextPageUrl(),
                     'previousPageUrl' => $signups->previousPageUrl(),
+                    'firstItem' => $signups->firstItem(),
+                    'pages' => collect(range(1, $signups->lastPage()))
+                        ->map(fn (int $page): array => [
+                            'page' => $page,
+                            'url' => $signups->url($page),
+                        ])
+                        ->all(),
                 ],
-                'role' => $role,
                 'stats' => [
                     'total' => WaitlistSignup::count(),
-                    'university' => WaitlistSignup::where('role', 'university')->count(),
-                    'highSchool' => WaitlistSignup::where('role', 'high_school')->count(),
-                    'student' => WaitlistSignup::where('role', 'student')->count(),
                 ],
             ],
         ]);
@@ -88,14 +86,13 @@ class AdminWaitlistController extends Controller
         return ResponseFactory::streamDownload(function (): void {
             $handle = fopen('php://output', 'w');
 
-            fputcsv($handle, ['Full Name', 'Email', 'Role', 'Joined At']);
+            fputcsv($handle, ['Full Name', 'Email', 'Joined At']);
 
             WaitlistSignup::orderBy('created_at')->chunk(200, function ($signups) use ($handle): void {
                 foreach ($signups as $signup) {
                     fputcsv($handle, [
                         $signup->full_name,
                         $signup->email,
-                        str_replace('_', ' ', ucfirst($signup->role)),
                         optional($signup->created_at)->toDateTimeString(),
                     ]);
                 }

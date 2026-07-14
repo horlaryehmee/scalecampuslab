@@ -811,27 +811,21 @@ function MfaChallengePage({ csrf, errors, flash, maskedEmail, expiresAt, action,
     );
 }
 
-function AdminDashboard({ csrf, signups, pagination, stats, role }) {
-    const filters = useMemo(() => [
-        ['All', '/admin/waitlist', !role],
-        ['Universities', '/admin/waitlist?role=university', role === 'university'],
-        ['High Schools', '/admin/waitlist?role=high_school', role === 'high_school'],
-        ['Students', '/admin/waitlist?role=student', role === 'student'],
-    ], [role]);
-
+function AdminDashboard({ csrf, signups, pagination, stats }) {
     const metrics = [
         { label: 'Total signups', value: stats.total, trend: 'Captured leads' },
-        { label: 'Universities', value: stats.university, trend: 'Institution demand' },
-        { label: 'High schools', value: stats.highSchool, trend: 'Group booking demand' },
-        { label: 'Students', value: stats.student, trend: 'Direct student interest' },
+        { label: 'Current page', value: pagination.currentPage, trend: `Page ${pagination.currentPage} of ${pagination.lastPage || 1}` },
+        { label: 'Per page', value: signups.length, trend: 'Visible records' },
     ];
+    const firstItem = pagination.firstItem || 1;
+    const pages = pagination.pages || [];
 
     return (
         <DashboardFrame
             csrf={csrf}
             role="admin"
             title="Waitlist Operations"
-            subtitle="Review notification subscribers, filter by audience, and export the launch contact list."
+            subtitle="Review notification subscribers and export the launch contact list."
             activeId="waitlist"
             activeTitle="Waitlist"
             navGroups={dashboardNavGroups('admin')}
@@ -849,27 +843,20 @@ function AdminDashboard({ csrf, signups, pagination, stats, role }) {
                     <div className="flex flex-col gap-4 border-b border-gray-200 p-4 md:flex-row md:items-center md:justify-between md:p-5">
                         <div>
                             <h2 className="text-lg font-semibold text-gray-950">Notification list</h2>
-                            <p className="mt-1 text-sm text-gray-500">Filter by role or export the full CSV for the launch announcement.</p>
-                        </div>
-                        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
-                            {filters.map(([label, href, active]) => (
-                                <a key={label} href={href} className={cx('rounded-md px-3 py-2 text-center text-sm font-medium', active ? 'bg-gray-950 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200')}>
-                                    {label}
-                                </a>
-                            ))}
+                            <p className="mt-1 text-sm text-gray-500">Public waitlist leads only. These records are not user accounts and have no dashboard role.</p>
                         </div>
                     </div>
                     <div className="space-y-3 p-4 sm:hidden">
                         {signups.length === 0 ? (
                             <p className="rounded-lg bg-gray-50 px-4 py-8 text-center text-sm font-medium text-gray-500">No signups yet.</p>
-                        ) : signups.map((signup) => (
+                        ) : signups.map((signup, index) => (
                             <article key={signup.id} className="rounded-lg border border-gray-200 bg-gray-50 p-4">
                                 <div className="flex items-start justify-between gap-3">
+                                    <span className="shrink-0 rounded-full bg-gray-950 px-2.5 py-1 text-xs font-semibold text-white">{firstItem + index}</span>
                                     <div className="min-w-0">
                                         <p className="truncate text-sm font-semibold text-gray-950">{signup.full_name}</p>
                                         <p className="mt-1 break-all text-sm text-gray-600">{signup.email}</p>
                                     </div>
-                                    <span className="shrink-0 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">{roleLabels[signup.role]}</span>
                                 </div>
                                 <p className="mt-3 text-xs font-medium text-gray-400">{new Date(signup.created_at).toLocaleString()}</p>
                             </article>
@@ -879,9 +866,9 @@ function AdminDashboard({ csrf, signups, pagination, stats, role }) {
                         <table className="w-full min-w-[760px] text-left">
                             <thead className="border-b border-gray-200 bg-gray-50 text-xs font-semibold uppercase text-gray-500">
                                 <tr>
+                                    <th className="px-5 py-3">#</th>
                                     <th className="px-5 py-3">Name</th>
                                     <th className="px-5 py-3">Email</th>
-                                    <th className="px-5 py-3">Role</th>
                                     <th className="px-5 py-3">Joined</th>
                                 </tr>
                             </thead>
@@ -890,20 +877,30 @@ function AdminDashboard({ csrf, signups, pagination, stats, role }) {
                                     <tr>
                                         <td colSpan="4" className="px-5 py-10 text-center font-medium text-gray-500">No signups yet.</td>
                                     </tr>
-                                ) : signups.map((signup) => (
+                                ) : signups.map((signup, index) => (
                                     <tr key={signup.id} className="hover:bg-gray-50">
+                                        <td className="px-5 py-4 font-semibold text-gray-500">{firstItem + index}</td>
                                         <td className="px-5 py-4 font-semibold text-gray-950">{signup.full_name}</td>
                                         <td className="px-5 py-4 text-gray-600">{signup.email}</td>
-                                        <td className="px-5 py-4"><span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">{roleLabels[signup.role]}</span></td>
                                         <td className="px-5 py-4 text-gray-500">{new Date(signup.created_at).toLocaleString()}</td>
                                     </tr>
                                 ))}
                             </tbody>
                         </table>
                     </div>
-                    <div className="flex items-center justify-between gap-3 border-t border-gray-200 p-4 text-sm sm:p-5">
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 p-4 text-sm sm:p-5">
                         <a href={pagination.previousPageUrl || '#'} className={cx('font-semibold', pagination.previousPageUrl ? 'text-gray-700 hover:text-gray-950' : 'pointer-events-none text-gray-300')}>Previous</a>
-                        <span className="text-center font-medium text-gray-500">Page {pagination.currentPage} of {pagination.lastPage}</span>
+                        <div className="flex flex-wrap items-center justify-center gap-1">
+                            {pages.map(({ page, url }) => (
+                                <a
+                                    key={page}
+                                    href={url}
+                                    className={cx('inline-flex h-9 min-w-9 items-center justify-center rounded-md px-3 text-sm font-semibold', page === pagination.currentPage ? 'bg-gray-950 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200')}
+                                >
+                                    {page}
+                                </a>
+                            ))}
+                        </div>
                         <a href={pagination.nextPageUrl || '#'} className={cx('font-semibold', pagination.nextPageUrl ? 'text-gray-700 hover:text-gray-950' : 'pointer-events-none text-gray-300')}>Next</a>
                     </div>
                 </section>
@@ -4731,12 +4728,9 @@ function ServerFact({ label, value, warning = false }) {
 
 function AdminWaitlistSection({ waitlist = {} }) {
     const rows = waitlist.recent || [];
-    const roles = waitlist.roles || {};
     const stats = [
         ['Total signups', waitlist.total || 0, 'All launch-interest records'],
-        ['Universities', roles.university || 0, 'Institution leads'],
-        ['Schools', roles.highSchool || 0, 'School coordinator leads'],
-        ['Students', roles.student || 0, 'Student leads'],
+        ['Latest records', rows.length, 'Visible in this dashboard'],
     ];
 
     return (
@@ -4773,18 +4767,18 @@ function AdminWaitlistSection({ waitlist = {} }) {
                     <table className="min-w-full divide-y divide-slate-100 text-left text-sm">
                         <thead className="bg-slate-50 text-xs font-black uppercase tracking-[0.12em] text-slate-500">
                             <tr>
+                                <th className="px-5 py-3">#</th>
                                 <th className="px-5 py-3">Name</th>
                                 <th className="px-5 py-3">Email</th>
-                                <th className="px-5 py-3">Role</th>
                                 <th className="px-5 py-3">Joined</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
                             {rows.map((row) => (
                                 <tr key={row.id} className="hover:bg-slate-50/80">
+                                    <td className="px-5 py-4 font-black text-slate-500">{row.position}</td>
                                     <td className="px-5 py-4 font-black text-slate-950">{row.fullName || 'Launch Subscriber'}</td>
                                     <td className="px-5 py-4 font-semibold text-slate-600">{row.email}</td>
-                                    <td className="px-5 py-4"><span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-black uppercase text-blue-700">{roleLabels[row.role] || titleCase(row.role || 'lead')}</span></td>
                                     <td className="px-5 py-4 font-semibold text-slate-500">{formatDateTime(row.createdAt)}</td>
                                 </tr>
                             ))}

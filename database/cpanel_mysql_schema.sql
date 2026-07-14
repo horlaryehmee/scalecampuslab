@@ -117,12 +117,10 @@ CREATE TABLE IF NOT EXISTS `waitlist_signups` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `full_name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `email` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `role` enum('university','high_school','student') COLLATE utf8mb4_unicode_ci NOT NULL,
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `waitlist_signups_email_unique` (`email`),
-  KEY `waitlist_signups_role_created_at_index` (`role`,`created_at`)
+  UNIQUE KEY `waitlist_signups_email_unique` (`email`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `project_milestones` (
@@ -303,6 +301,7 @@ INSERT IGNORE INTO `migrations` (`migration`, `batch`) VALUES
 ('2026_07_09_010000_add_role_to_users_table', 3),
 ('2026_07_10_100000_create_platform_foundation_tables', 4),
 ('2026_07_10_110000_create_recruitment_operations_tables', 5),
-('2026_07_11_231000_create_platform_settings_table', 6);
+('2026_07_11_231000_create_platform_settings_table', 6),
+('2026_07_14_020000_remove_role_from_waitlist_signups', 7);
 
 SET FOREIGN_KEY_CHECKS = 1;
