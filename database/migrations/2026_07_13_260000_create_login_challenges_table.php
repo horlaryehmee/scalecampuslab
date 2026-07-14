@@ -18,9 +18,9 @@ return new class extends Migration
             $table->unsignedTinyInteger('attempts')->default(0);
             $table->unsignedTinyInteger('max_attempts')->default(5);
             $table->unsignedTinyInteger('resend_count')->default(0);
-            $table->timestamp('last_sent_at');
-            $table->timestamp('expires_at')->index();
-            $table->timestamp('consumed_at')->nullable()->index();
+            $table->dateTime('last_sent_at');
+            $table->dateTime('expires_at')->index();
+            $table->dateTime('consumed_at')->nullable()->index();
             $table->timestamps();
 
             $table->index(['user_id', 'context', 'consumed_at']);
