@@ -902,7 +902,6 @@ function UniversityMessages({ events }) {
                         Channel
                         <select value={type} onChange={(event) => setType(event.target.value)} className="mt-2 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 outline-none focus:border-gray-400">
                             <option value="email">Email</option>
-                            <option value="sms">SMS</option>
                         </select>
                     </label>
                     <label className="block text-sm font-semibold text-gray-700">

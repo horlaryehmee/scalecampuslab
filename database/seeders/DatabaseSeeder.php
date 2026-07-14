@@ -31,11 +31,11 @@ class DatabaseSeeder extends Seeder
         }
 
         $demoSchool = School::updateOrCreate(
-            ['name' => 'Lincoln High School'],
+            ['coordinator_email' => 'demo-school@scalecampuslab.test'],
             [
+                'name' => 'Lincoln High School (Demo)',
                 'location' => '123 Education Blvd, Cityville, ST 12345',
                 'coordinator_name' => 'Jane Doe',
-                'coordinator_email' => 'jane.doe@lincolnhigh.edu',
                 'coordinator_phone' => '(555) 123-4567',
                 'website' => 'https://lincolnhigh.scalecampuslab.test',
                 'address' => '123 Education Boulevard',
@@ -49,7 +49,6 @@ class DatabaseSeeder extends Seeder
                 'student_count' => 1240,
                 'visit_notes' => 'Prefers Wednesday or Friday campus visits. Senior students need accessible transportation and lunch timing confirmed at least one week before travel.',
                 'email_notifications' => true,
-                'sms_alerts' => false,
             ]
         );
 
@@ -153,7 +152,6 @@ class DatabaseSeeder extends Seeder
                         'schedule_changed' => true,
                         'reminder_days_before' => 5,
                         'email_enabled' => true,
-                        'sms_enabled' => false,
                     ],
                     'integration_settings' => [
                         'calendar_provider' => 'ical',
@@ -465,7 +463,6 @@ class DatabaseSeeder extends Seeder
             ['Registrations', 'Waitlist promotion workflow', 'Full events move new registrations to a waitlist and promote users when slots open.', 'planned'],
             ['Scheduling', 'Calendar view', 'Weekly and monthly visual schedules for campus visits.', 'planned'],
             ['Notifications', 'Email confirmations and reminders', 'Transactional messages for confirmations, changes, reminders, and cancellations.', 'planned'],
-            ['Notifications', 'SMS delivery', 'Optional SMS delivery for time-sensitive visit updates.', 'planned'],
             ['Analytics', 'Reports and exports', 'Registration, attendance, conversion, and school engagement reporting.', 'planned'],
             ['AI', 'School matchmaking', 'Recommend high schools based on recruitment goals and historical engagement.', 'planned'],
             ['AI', 'Predictive school scoring', 'Rank schools by engagement, application quality, and enrollment outcomes.', 'planned'],

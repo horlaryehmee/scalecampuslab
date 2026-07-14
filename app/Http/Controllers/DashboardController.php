@@ -1740,7 +1740,6 @@ class DashboardController extends Controller
             'student_count' => ['nullable', 'integer', 'min:0', 'max:100000'],
             'visit_notes' => ['nullable', 'string', 'max:2000'],
             'email_notifications' => ['nullable', 'boolean'],
-            'sms_alerts' => ['nullable', 'boolean'],
         ]);
 
         $school = $request->user()->school;
@@ -1751,7 +1750,6 @@ class DashboardController extends Controller
 
         $school->update(array_merge($validated, [
             'email_notifications' => $request->boolean('email_notifications'),
-            'sms_alerts' => $request->boolean('sms_alerts'),
         ]));
 
         return back()->with('status', 'School settings saved.');
@@ -1813,7 +1811,6 @@ class DashboardController extends Controller
                     'schedule_changed' => $request->boolean('notify_schedule_changed'),
                     'reminder_days_before' => (int) $validated['reminder_days_before'],
                     'email_enabled' => $request->boolean('email_enabled'),
-                    'sms_enabled' => $request->boolean('sms_enabled'),
                 ],
                 'integration_settings' => [
                     'calendar_provider' => $validated['calendar_provider'],
@@ -2130,7 +2127,6 @@ class DashboardController extends Controller
                     'schedule_changed' => true,
                     'reminder_days_before' => 7,
                     'email_enabled' => true,
-                    'sms_enabled' => false,
                 ],
                 'integration_settings' => [
                     'calendar_provider' => 'ical',
@@ -2963,43 +2959,43 @@ class DashboardController extends Controller
                 $linkedSchool = $linkedSchools->get(Str::lower($school->name));
 
                 return [
-                'id' => $school->id,
-                'canManage' => auth()->user()?->isAdmin() || $school->university_user_id === auth()->id(),
-                'isSharedDirectory' => $school->university_user_id === null,
-                'linkedSchoolId' => $linkedSchool?->id,
-                'linkedSchoolName' => $linkedSchool?->name,
-                'canScheduleVisit' => (bool) ($linkedSchool && $linkedSchool->active_coordinator_count > 0),
-                'code' => $school->school_code ?: $this->schoolCodeFromName($school->name, $school->id),
-                'name' => $school->name,
-                'city' => $school->city,
-                'region' => $school->region,
-                'country' => $school->country,
-                'latitude' => $school->latitude !== null ? (float) $school->latitude : null,
-                'longitude' => $school->longitude !== null ? (float) $school->longitude : null,
-                'district' => $school->district ?: $school->region,
-                'coordinatorName' => $school->coordinator_name ?: 'Coordinator pending',
-                'coordinatorEmail' => $school->coordinator_email,
-                'status' => $school->status ?: 'verified',
-                'type' => $school->school_type,
-                'tier' => $school->performance_tier,
-                'sat' => $school->average_sat,
-                'yieldRate' => (float) $school->yield_rate,
-                'matchScore' => $school->match_score,
-                'activeApplicants' => $school->active_applicants,
-                'visitRequests' => $school->visit_requests_count,
-                'archiveVisits' => $school->archives_count,
-                'taskCount' => $school->partner_tasks_count,
-                'tasks' => $school->partnerTasks->map(fn (PartnerSchoolTask $task) => [
-                    'id' => $task->id,
-                    'title' => $task->title,
-                    'description' => $task->description,
-                    'status' => $task->status,
-                    'aiSuggested' => $task->ai_suggested,
-                    'createdAt' => $task->created_at?->toIso8601String(),
-                ])->toArray(),
-                'notes' => $school->notes,
-                'isDemo' => $school->is_demo,
-                'createdAt' => $school->created_at?->toIso8601String(),
+                    'id' => $school->id,
+                    'canManage' => auth()->user()?->isAdmin() || $school->university_user_id === auth()->id(),
+                    'isSharedDirectory' => $school->university_user_id === null,
+                    'linkedSchoolId' => $linkedSchool?->id,
+                    'linkedSchoolName' => $linkedSchool?->name,
+                    'canScheduleVisit' => (bool) ($linkedSchool && $linkedSchool->active_coordinator_count > 0),
+                    'code' => $school->school_code ?: $this->schoolCodeFromName($school->name, $school->id),
+                    'name' => $school->name,
+                    'city' => $school->city,
+                    'region' => $school->region,
+                    'country' => $school->country,
+                    'latitude' => $school->latitude !== null ? (float) $school->latitude : null,
+                    'longitude' => $school->longitude !== null ? (float) $school->longitude : null,
+                    'district' => $school->district ?: $school->region,
+                    'coordinatorName' => $school->coordinator_name ?: 'Coordinator pending',
+                    'coordinatorEmail' => $school->coordinator_email,
+                    'status' => $school->status ?: 'verified',
+                    'type' => $school->school_type,
+                    'tier' => $school->performance_tier,
+                    'sat' => $school->average_sat,
+                    'yieldRate' => (float) $school->yield_rate,
+                    'matchScore' => $school->match_score,
+                    'activeApplicants' => $school->active_applicants,
+                    'visitRequests' => $school->visit_requests_count,
+                    'archiveVisits' => $school->archives_count,
+                    'taskCount' => $school->partner_tasks_count,
+                    'tasks' => $school->partnerTasks->map(fn (PartnerSchoolTask $task) => [
+                        'id' => $task->id,
+                        'title' => $task->title,
+                        'description' => $task->description,
+                        'status' => $task->status,
+                        'aiSuggested' => $task->ai_suggested,
+                        'createdAt' => $task->created_at?->toIso8601String(),
+                    ])->toArray(),
+                    'notes' => $school->notes,
+                    'isDemo' => $school->is_demo,
+                    'createdAt' => $school->created_at?->toIso8601String(),
                 ];
             })
             ->toArray();
@@ -3070,7 +3066,6 @@ class DashboardController extends Controller
         ]);
 
         $validated['email_notifications'] = $request->boolean('email_notifications');
-        $validated['sms_alerts'] = false;
 
         return $validated;
     }
@@ -3615,7 +3610,6 @@ class DashboardController extends Controller
             'studentCount' => $school->student_count,
             'visitNotes' => $school->visit_notes,
             'emailNotifications' => (bool) $school->email_notifications,
-            'smsAlerts' => (bool) $school->sms_alerts,
         ];
     }
 

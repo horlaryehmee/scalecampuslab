@@ -4,7 +4,9 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 class AuthFlowTest extends TestCase
@@ -113,12 +115,45 @@ class AuthFlowTest extends TestCase
         ]);
     }
 
-    public function test_web_dashboard_session_can_use_student_workflow_api(): void
+    public function test_demo_dashboard_sessions_can_use_workflow_apis_on_the_current_deployment_host(): void
     {
-        $student = User::factory()->create(['role' => 'student']);
+        $host = 'scalecampuslab.example.test';
 
-        $this->actingAs($student)
-            ->getJson('/api/v1/student/visits/upcoming')
+        $this->assertContains(Sanctum::$currentRequestHostPlaceholder, config('sanctum.stateful'));
+
+        foreach (['admin', 'university', 'school', 'student'] as $role) {
+            $this->withHeader('Host', $host)
+                ->post('/demo-login', ['role' => $role])
+                ->assertRedirect("/dashboard/{$role}");
+
+            // Force the next request to resolve the user from the session
+            // cookie, matching a real browser request after the redirect.
+            Auth::forgetGuards();
+
+            $this->withHeaders([
+                'Host' => $host,
+                'Origin' => "https://{$host}",
+                'Referer' => "https://{$host}/dashboard/{$role}",
+            ])->getJson('/api/v1/dashboard')
+                ->assertOk()
+                ->assertJsonPath('data.user.role', $role);
+        }
+
+        Auth::forgetGuards();
+
+        $this->withHeaders([
+            'Host' => $host,
+            'Origin' => "https://{$host}",
+            'Referer' => "https://{$host}/dashboard/student",
+        ])->getJson('/api/v1/student/visits/upcoming')
+            ->assertOk()
+            ->assertJsonPath('meta.total', 0);
+
+        $this->withHeaders([
+            'Host' => $host,
+            'Origin' => "https://{$host}",
+            'Referer' => "https://{$host}/dashboard/student",
+        ])->getJson('/api/v1/student/visits/history')
             ->assertOk()
             ->assertJsonPath('meta.total', 0);
     }

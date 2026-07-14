@@ -221,7 +221,10 @@ class ApiV1AuthTest extends TestCase
             ->assertJsonStructure(['token', 'user']);
 
         $this->assertAuthenticated();
-        $this->assertDatabaseHas('schools', ['name' => 'Lincoln High School']);
+        $this->assertDatabaseHas('schools', [
+            'name' => 'Lincoln High School (Demo)',
+            'coordinator_email' => 'demo-school@scalecampuslab.test',
+        ]);
         $this->get('/dashboard/school')->assertOk();
     }
 

@@ -274,7 +274,7 @@ class AdmissionPlatformWorkflowTest extends TestCase
         $this->actingAs($university)
             ->get('/dashboard/university')
             ->assertOk()
-            ->assertViewHas('props', fn (array $props): bool => $props['admissionApplications'] === []);
+            ->assertViewHas('props', fn (array $props): bool => ! array_key_exists('admissionApplications', $props));
 
         Sanctum::actingAs($admin);
         $this->getJson('/api/v1/applications')

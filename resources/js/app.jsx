@@ -74,10 +74,14 @@ function clearStoredSpaAuth() {
 }
 
 async function apiRequest(url, options = {}) {
+    const storedToken = typeof window !== 'undefined'
+        ? window.localStorage.getItem('scalecampuslab.auth.token')
+        : null;
     const headers = {
         Accept: 'application/json',
         'X-Requested-With': 'XMLHttpRequest',
         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+        ...(storedToken ? { Authorization: `Bearer ${storedToken}` } : {}),
         ...(options.headers || {}),
     };
     const response = await fetch(url, { credentials: 'same-origin', ...options, headers });
@@ -6347,7 +6351,6 @@ function UniversitySettingsSection({ csrf, settings = {}, securityProfile = {}, 
                             <SettingsCheckbox name="notify_waitlist_promoted" label="Waitlist promotions · stored only" defaultChecked={notifications.waitlist_promoted !== false} disabled />
                             <SettingsCheckbox name="notify_schedule_changed" label="Schedule changes · stored only" defaultChecked={notifications.schedule_changed !== false} disabled />
                             <SettingsCheckbox name="email_enabled" label="Email notifications" defaultChecked={notifications.email_enabled !== false} />
-                            <SettingsCheckbox name="sms_enabled" label="SMS notifications · provider not configured" defaultChecked={false} disabled />
                             <LightField label="Stored reminder default · not automatically applied" name="reminder_days_before" type="number" min="0" defaultValue={old.reminder_days_before || notifications.reminder_days_before || 7} error={errors.reminder_days_before?.[0]} readOnly />
                         </div>
                     </section>
@@ -6655,17 +6658,10 @@ function SchoolSettingsSection({ csrf, profile, errors, old }) {
                             description="Receive request and visit updates via email."
                             defaultChecked={boolValue('email_notifications', true)}
                         />
-                        <SettingToggle
-                            name="sms_alerts"
-                            title="SMS Alerts · unavailable"
-                            description="Connect an SMS provider before enabling text delivery."
-                            defaultChecked={false}
-                            disabled
-                        />
                         <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
                             <div className="flex gap-2">
                                 <Sparkles size={17} className="mt-0.5 shrink-0 text-emerald-600" />
-                                <p className="text-xs font-semibold leading-5 text-emerald-800">Email preferences are saved with this school profile. SMS remains unavailable until a delivery provider is configured.</p>
+                                <p className="text-xs font-semibold leading-5 text-emerald-800">Email preferences are saved with this school profile.</p>
                             </div>
                         </div>
                     </div>
@@ -7267,7 +7263,6 @@ function UniversityAttendeesSection({ csrf, registrations = [], events = [] }) {
                             <select name="channel" defaultValue="email" className="mt-2 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm font-semibold">
                                 <option value="email">Email</option>
                             </select>
-                            <span className="mt-1 block text-xs font-semibold text-slate-400">SMS delivery is unavailable until a provider is configured.</span>
                         </label>
                         <LightTextarea label="Message" name="content" placeholder="Type the update attendees should receive..." />
                         <div className="flex justify-end gap-3">

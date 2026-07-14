@@ -25,7 +25,6 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'student_count',
     'visit_notes',
     'email_notifications',
-    'sms_alerts',
 ])]
 class School extends Model
 {
@@ -33,7 +32,6 @@ class School extends Model
     {
         return [
             'email_notifications' => 'boolean',
-            'sms_alerts' => 'boolean',
         ];
     }
 

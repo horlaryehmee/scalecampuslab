@@ -26,7 +26,6 @@ class AdminSchoolAccountManagementTest extends TestCase
 
         $school = School::query()->where('name', 'Production Secondary School')->firstOrFail();
         $this->assertTrue($school->email_notifications);
-        $this->assertFalse($school->sms_alerts);
 
         $this->put("/dashboard/admin/school-accounts/{$school->id}", [
             'name' => 'Production Secondary School Updated',
@@ -41,7 +40,6 @@ class AdminSchoolAccountManagementTest extends TestCase
             'name' => 'Production Secondary School Updated',
             'location' => 'Abuja, Nigeria',
             'email_notifications' => false,
-            'sms_alerts' => false,
         ]);
 
         $this->delete("/dashboard/admin/school-accounts/{$school->id}")

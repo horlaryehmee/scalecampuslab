@@ -147,11 +147,11 @@ class AuthController extends Controller
 
             if (in_array($role, ['school', 'student'], true)) {
                 $school = School::query()->updateOrCreate(
-                    ['name' => 'Lincoln High School'],
+                    ['coordinator_email' => 'demo-school@scalecampuslab.test'],
                     [
+                        'name' => 'Lincoln High School (Demo)',
                         'location' => '123 Education Blvd, Cityville, ST 12345',
                         'coordinator_name' => 'Jane Doe',
-                        'coordinator_email' => 'jane.doe@lincolnhigh.edu',
                         'coordinator_phone' => '(555) 123-4567',
                         'website' => 'https://lincolnhigh.scalecampuslab.test',
                         'address' => '123 Education Boulevard',
@@ -165,7 +165,6 @@ class AuthController extends Controller
                         'student_count' => 1240,
                         'visit_notes' => 'Demo school profile for ScaleCampusLab campus visit workflows.',
                         'email_notifications' => true,
-                        'sms_alerts' => false,
                     ],
                 );
             }

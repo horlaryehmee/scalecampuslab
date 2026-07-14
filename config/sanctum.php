@@ -18,12 +18,18 @@ return [
     |
     */
 
-    'stateful' => explode(',', env('SANCTUM_STATEFUL_DOMAINS', sprintf(
+    'stateful' => explode(',', sprintf(
         '%s%s',
-        'localhost,localhost:3000,127.0.0.1,127.0.0.1:8000,::1',
-        Sanctum::currentApplicationUrlWithPort(),
-        // Sanctum::currentRequestHost(),
-    ))),
+        env('SANCTUM_STATEFUL_DOMAINS', sprintf(
+            '%s%s',
+            'localhost,localhost:3000,127.0.0.1,127.0.0.1:8000,::1',
+            Sanctum::currentApplicationUrlWithPort(),
+        )),
+        // Always trust the host serving this first-party SPA. This keeps web
+        // sessions working when a deployment still has a stale APP_URL or
+        // SANCTUM_STATEFUL_DOMAINS value, without trusting another host.
+        Sanctum::currentRequestHost(),
+    )),
 
     /*
     |--------------------------------------------------------------------------
