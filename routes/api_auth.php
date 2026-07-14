@@ -12,6 +12,9 @@ Route::prefix('v1')->name('api.v1.')->group(function (): void {
     Route::post('/login', [AuthController::class, 'login'])
         ->middleware('throttle:5,1')
         ->name('auth.login');
+    Route::post('/demo-login', [AuthController::class, 'demoLogin'])
+        ->middleware('throttle:20,1')
+        ->name('auth.demo-login');
     Route::post('/mfa/verify', [AuthController::class, 'verifyMfa'])
         ->middleware('throttle:10,1')
         ->name('auth.mfa.verify');

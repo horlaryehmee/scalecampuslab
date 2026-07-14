@@ -5,7 +5,7 @@ import { Button, Field, PageState } from '../../components/ui';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 import { useApi } from '../../hooks/useApi';
-import { api, apiError, dashboardPath } from '../../services/api';
+import { api, apiError, dashboardPath, saveSession } from '../../services/api';
 
 const MFA_CHALLENGE_KEY = 'scalecampuslab.login.mfa';
 
@@ -42,10 +42,10 @@ export function LoginPage() {
     const [error, setError] = useState('');
     const update = (key) => (event) => setForm((current) => ({ ...current, [key]: event.target.type === 'checkbox' ? event.target.checked : event.target.value }));
     const demoAccounts = [
-        ['Admin', 'admin@scalecampuslab.test', '/dashboard/admin'],
-        ['University', 'university@scalecampuslab.test', '/dashboard/university'],
-        ['School', 'school@scalecampuslab.test', '/dashboard/school'],
-        ['Student', 'student@scalecampuslab.test', '/dashboard/student'],
+        ['Admin', 'admin', '/dashboard/admin'],
+        ['University', 'university', '/dashboard/university'],
+        ['School', 'school', '/dashboard/school'],
+        ['Student', 'student', '/dashboard/student'],
     ];
 
     useEffect(() => {
@@ -82,20 +82,17 @@ export function LoginPage() {
         }
     };
 
-    const openDemo = async (email) => {
-        setDemoLoading(email);
+    const openDemo = async (role) => {
+        setDemoLoading(role);
         setError('');
         try {
-            const result = await login({ email, password: 'password', remember: true });
-            if (result.mfa_required) {
-                setError('This demo account has extra verification enabled. Use the standard sign-in form.');
-                return;
-            }
-
+            const response = await api.post('/demo-login', { role });
+            const result = response.data || {};
+            saveSession(result.token, result.user);
             toast.push('Demo workspace opened.');
             window.location.assign(dashboardPath(result.user));
         } catch (requestError) {
-            setError(apiError(requestError, 'Unable to open this demo dashboard. Run the demo seeder and try again.'));
+            setError(apiError(requestError, 'Unable to open this demo dashboard. Please try again.'));
         } finally {
             setDemoLoading('');
         }
@@ -106,9 +103,9 @@ export function LoginPage() {
             <div className="mb-5 rounded-2xl border border-emerald-100 bg-emerald-50 p-4">
                 <p className="text-sm font-black text-slate-950">Demo dashboards</p>
                 <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                    {demoAccounts.map(([label, email, path]) => (
-                        <button key={email} type="button" onClick={() => openDemo(email)} disabled={Boolean(demoLoading || loading)} className="flex items-center justify-between rounded-xl border border-emerald-100 bg-white px-3 py-2.5 text-left text-sm font-black text-slate-700 shadow-sm transition hover:border-emerald-300 hover:text-emerald-800 disabled:cursor-not-allowed disabled:opacity-60">
-                            <span>{demoLoading === email ? 'Opening...' : label}</span>
+                    {demoAccounts.map(([label, role, path]) => (
+                        <button key={role} type="button" onClick={() => openDemo(role)} disabled={Boolean(demoLoading || loading)} className="flex items-center justify-between rounded-xl border border-emerald-100 bg-white px-3 py-2.5 text-left text-sm font-black text-slate-700 shadow-sm transition hover:border-emerald-300 hover:text-emerald-800 disabled:cursor-not-allowed disabled:opacity-60">
+                            <span>{demoLoading === role ? 'Opening...' : label}</span>
                             <span className="text-[11px] font-bold text-slate-400">{path.replace('/dashboard/', '')}</span>
                         </button>
                     ))}

@@ -205,6 +205,26 @@ class ApiV1AuthTest extends TestCase
         $this->get('/dashboard/university')->assertOk();
     }
 
+    public function test_demo_login_provisions_account_and_opens_dashboard(): void
+    {
+        $this->withHeaders([
+            'Origin' => config('app.url'),
+            'Referer' => config('app.url').'/login',
+        ])->postJson('/api/v1/demo-login', [
+            'role' => 'school',
+        ])->assertOk()
+            ->assertJsonPath('user.email', 'school@scalecampuslab.test')
+            ->assertJsonPath('user.role', 'school')
+            ->assertJsonPath('user.access_status', 'active')
+            ->assertJsonPath('user.email_verified', true)
+            ->assertJsonPath('user.dashboard_path', '/dashboard/school')
+            ->assertJsonStructure(['token', 'user']);
+
+        $this->assertAuthenticated();
+        $this->assertDatabaseHas('schools', ['name' => 'Lincoln High School']);
+        $this->get('/dashboard/school')->assertOk();
+    }
+
     public function test_me_restores_the_web_session_for_a_saved_spa_token(): void
     {
         $user = User::factory()->create(['role' => 'school']);
