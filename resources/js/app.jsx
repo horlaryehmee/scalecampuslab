@@ -213,6 +213,10 @@ function App() {
         return <AdminLogin csrf={csrf} errors={errors} />;
     }
 
+    if (page === 'pin-gate') {
+        return <PinGatePage csrf={csrf} errors={errors} old={old} {...props} />;
+    }
+
     if (page === 'admin') {
         return <AdminDashboard csrf={csrf} {...props} />;
     }
@@ -522,6 +526,31 @@ function AdminLogin({ csrf, errors }) {
                     <Field label="Password" name="password" type="password" error={errors.password?.[0]} autoComplete="current-password" />
                     <button className="w-full rounded-2xl bg-red-600 px-5 py-3.5 text-sm font-black text-white shadow-lg shadow-red-500/25 hover:bg-red-700">
                         Open Dashboard
+                    </button>
+                </form>
+            </div>
+        </CenteredShell>
+    );
+}
+
+function PinGatePage({ csrf, errors, old, title, subtitle, action, redirectTo, buttonLabel = 'Continue' }) {
+    return (
+        <CenteredShell>
+            <div className="mx-auto w-full max-w-md rounded-[2rem] border border-white/15 bg-black/55 p-7 shadow-2xl shadow-black/40 backdrop-blur-2xl">
+                <BrandMark />
+                <div className="mt-8">
+                    <div className="grid h-12 w-12 place-items-center rounded-xl border border-white/15 bg-white/10 text-white">
+                        <ShieldCheck size={24} />
+                    </div>
+                    <h1 className="mt-5 text-3xl font-light tracking-normal text-white">{title || 'Access required'}</h1>
+                    <p className="mt-2 text-sm leading-6 text-white/60">{subtitle || 'Enter the access PIN to continue.'}</p>
+                </div>
+                <form action={action} method="POST" className="mt-7 space-y-5">
+                    <input type="hidden" name="_token" value={csrf} />
+                    <input type="hidden" name="redirect" value={redirectTo || '/login'} />
+                    <Field label="Access PIN" name="pin" type="password" defaultValue={old.pin || ''} error={errors.pin?.[0]} autoComplete="off" autoFocus />
+                    <button className="w-full rounded-2xl bg-lime-300 px-5 py-3.5 text-sm font-black text-black shadow-[0_0_24px_rgba(217,255,0,.18)] hover:bg-lime-200">
+                        {buttonLabel}
                     </button>
                 </form>
             </div>
@@ -4704,7 +4733,38 @@ function ServerFact({ label, value, warning = false }) {
     return <div className="flex items-center justify-between gap-4 rounded-xl bg-slate-50 px-3 py-3"><p className="text-xs font-black uppercase tracking-[0.1em] text-slate-500">{label}</p><p className={cx('text-right text-sm font-black', warning ? 'text-amber-700' : 'text-slate-950')}>{String(value)}</p></div>;
 }
 
-function AdminWaitlistSection({ waitlist = {} }) {
+function AdminWaitlistSection({ csrf, waitlist = {}, errors = {} }) {
+    if (waitlist.locked) {
+        return (
+            <section className="mx-auto max-w-xl rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <span className="grid h-12 w-12 place-items-center rounded-2xl bg-slate-950 text-white">
+                    <ShieldCheck size={22} />
+                </span>
+                <h1 className="mt-5 text-2xl font-black text-slate-950">Waitlist records locked</h1>
+                <p className="mt-2 text-sm leading-6 text-slate-500">
+                    Enter the waitlist PIN to view captured waitlist emails and export records.
+                </p>
+                <form action={waitlist.unlockAction || '/dashboard/admin/waitlist-pin'} method="POST" className="mt-6 grid gap-3">
+                    <input type="hidden" name="_token" value={csrf} />
+                    <label className="text-sm font-semibold text-slate-700">
+                        Waitlist PIN
+                        <input
+                            name="pin"
+                            type="password"
+                            autoComplete="off"
+                            className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-[#006a61] focus:ring-4 focus:ring-emerald-50"
+                            required
+                        />
+                    </label>
+                    {errors.pin?.[0] && <p className="rounded-xl bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{errors.pin[0]}</p>}
+                    <button className="rounded-xl bg-slate-950 px-4 py-3 text-sm font-black text-white hover:bg-slate-800">
+                        Unlock waitlist
+                    </button>
+                </form>
+            </section>
+        );
+    }
+
     const rows = waitlist.recent || [];
     const stats = [
         ['Total signups', waitlist.total || 0, 'All launch-interest records'],
@@ -11461,7 +11521,7 @@ function dashboardContent(role, activeId, metrics, actions, context = {}) {
     }
 
     if (role === 'admin' && activeId === 'waitlist') {
-        return { title: 'Waitlist', subtitle: 'Review launch-interest records captured from the public waitlist page.', action: 'Export CSV', metrics: baseMetrics, custom: <AdminWaitlistSection waitlist={waitlist || {}} /> };
+        return { title: 'Waitlist', subtitle: 'Review launch-interest records captured from the public waitlist page.', action: 'Export CSV', metrics: baseMetrics, custom: <AdminWaitlistSection csrf={csrf} waitlist={waitlist || {}} errors={errors || {}} /> };
     }
 
     if (role === 'admin' && activeId === 'users-access') {

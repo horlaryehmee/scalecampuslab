@@ -11,8 +11,48 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AdminWaitlistController extends Controller
 {
+    private const WAITLIST_PIN = 'Bakhtech01';
+
+    public function pin(): View|RedirectResponse
+    {
+        if (session('admin_waitlist_unlocked')) {
+            return redirect()->route('admin.waitlist.login');
+        }
+
+        return view('app', [
+            'page' => 'pin-gate',
+            'props' => [
+                'title' => 'Waitlist access',
+                'subtitle' => 'Enter the waitlist PIN before opening waitlist records.',
+                'action' => route('admin.waitlist.pin.verify'),
+                'redirectTo' => route('admin.waitlist.login'),
+                'buttonLabel' => 'Unlock waitlist',
+            ],
+        ]);
+    }
+
+    public function verifyPin(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'pin' => ['required', 'string'],
+            'redirect' => ['nullable', 'string'],
+        ]);
+
+        if (! hash_equals(self::WAITLIST_PIN, $validated['pin'])) {
+            return back()->withErrors(['pin' => 'The waitlist PIN is incorrect.'])->withInput();
+        }
+
+        $request->session()->put('admin_waitlist_unlocked', true);
+
+        return redirect()->to($validated['redirect'] ?: route('admin.waitlist.login'));
+    }
+
     public function login(): View|RedirectResponse
     {
+        if (! session('admin_waitlist_unlocked')) {
+            return redirect()->route('admin.waitlist.pin');
+        }
+
         if (session('waitlist_admin_authenticated')) {
             return redirect()->route('admin.waitlist.index');
         }
@@ -43,13 +83,17 @@ class AdminWaitlistController extends Controller
 
     public function logout(Request $request): RedirectResponse
     {
-        $request->session()->forget('waitlist_admin_authenticated');
+        $request->session()->forget(['waitlist_admin_authenticated', 'admin_waitlist_unlocked']);
 
         return redirect()->route('admin.waitlist.login');
     }
 
-    public function index(Request $request): View
+    public function index(Request $request): View|RedirectResponse
     {
+        if (! session('admin_waitlist_unlocked')) {
+            return redirect()->route('admin.waitlist.pin');
+        }
+
         $query = WaitlistSignup::query()->latest();
 
         $signups = $query->paginate(20)->withQueryString();
@@ -81,6 +125,8 @@ class AdminWaitlistController extends Controller
 
     public function export(): StreamedResponse
     {
+        abort_unless(session('admin_waitlist_unlocked'), 403);
+
         $filename = 'scalecampuslab-waitlist-'.now()->format('Y-m-d-His').'.csv';
 
         return ResponseFactory::streamDownload(function (): void {

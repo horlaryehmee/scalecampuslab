@@ -15,8 +15,8 @@ class WaitlistTest extends TestCase
     {
         $source = file_get_contents(resource_path('js/app.jsx'));
 
-        $this->assertStringContainsString('Plan.', $source);
-        $this->assertStringContainsString('Join the waitlist for the launch notification. This does not create an account or password.', $source);
+        $this->assertStringContainsString('Campus visit planning, finally coordinated', $source);
+        $this->assertStringContainsString('Join the waitlist to be notified when early access opens.', $source);
     }
 
     public function test_waitlist_signup_is_stored_and_redirects_to_success_page(): void
@@ -93,13 +93,31 @@ class WaitlistTest extends TestCase
             'email' => 'counselor@example.com',
         ]);
 
-        $this->post('/admin/waitlist/login', ['password' => 'admin123'])
+        $this->withSession(['admin_waitlist_unlocked' => true])
+            ->post('/admin/waitlist/login', ['password' => 'admin123'])
             ->assertRedirect('/admin/waitlist');
 
-        $this->withSession(['waitlist_admin_authenticated' => true])
+        $this->withSession(['waitlist_admin_authenticated' => true, 'admin_waitlist_unlocked' => true])
             ->get('/admin/waitlist')
             ->assertOk()
             ->assertSee('Guidance Counselor');
+    }
+
+    public function test_waitlist_admin_requires_pin_before_password_login(): void
+    {
+        $this->get('/admin/waitlist/login')
+            ->assertRedirect('/admin/waitlist/pin');
+
+        $this->post('/admin/waitlist/pin', [
+            'pin' => 'wrong',
+            'redirect' => '/admin/waitlist/login',
+        ])->assertSessionHasErrors('pin');
+
+        $this->post('/admin/waitlist/pin', [
+            'pin' => 'Bakhtech01',
+            'redirect' => '/admin/waitlist/login',
+        ])->assertRedirect('/admin/waitlist/login')
+            ->assertSessionHas('admin_waitlist_unlocked', true);
     }
 
     public function test_admin_can_export_waitlist_csv(): void
@@ -109,7 +127,7 @@ class WaitlistTest extends TestCase
             'email' => 'student@example.com',
         ]);
 
-        $response = $this->withSession(['waitlist_admin_authenticated' => true])
+        $response = $this->withSession(['waitlist_admin_authenticated' => true, 'admin_waitlist_unlocked' => true])
             ->get('/admin/waitlist/export');
 
         $response->assertOk();

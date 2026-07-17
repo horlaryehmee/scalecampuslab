@@ -81,11 +81,20 @@ class PublicBackendTest extends TestCase
 
     public function test_public_spa_pages_are_all_live_and_use_the_platform_entry(): void
     {
-        foreach (['/', '/about', '/how-it-works', '/contact', '/faq', '/register', '/login', '/forgot-password'] as $path) {
+        foreach (['/', '/about', '/how-it-works', '/contact', '/faq', '/register', '/forgot-password'] as $path) {
             $this->get($path)
                 ->assertOk()
                 ->assertSee('platform-root');
         }
+
+        $this->get('/login')
+            ->assertOk()
+            ->assertSee('Login access');
+
+        $this->withSession(['login_access_unlocked' => true])
+            ->get('/login')
+            ->assertOk()
+            ->assertSee('platform-root');
 
         $this->get('/reset-password/example-token?email=user%40example.com')
             ->assertOk()

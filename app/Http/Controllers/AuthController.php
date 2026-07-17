@@ -19,6 +19,8 @@ class AuthController extends Controller
 {
     private const SPA_TOKEN_NAME = 'scale-campus-spa';
 
+    private const LOGIN_ACCESS_PIN = 'Bakhtech';
+
     public function __construct(private readonly LoginMfaService $mfa) {}
 
     public function generalLogin(): View|RedirectResponse
@@ -40,6 +42,15 @@ class AuthController extends Controller
 
     public function adminLogin(): View|RedirectResponse
     {
+        if (! session('login_access_unlocked')) {
+            return $this->pinGate(
+                title: 'Login access',
+                subtitle: 'Enter the access PIN before opening the admin sign-in page.',
+                action: route('login.pin.verify'),
+                redirectTo: route('admin.login'),
+            );
+        }
+
         if (Auth::check() && Auth::user()->isAdmin()) {
             return redirect()->route('dashboard.admin');
         }
@@ -53,6 +64,22 @@ class AuthController extends Controller
                 'action' => route('admin.login.authenticate'),
             ],
         ]);
+    }
+
+    public function verifyLoginPin(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'pin' => ['required', 'string'],
+            'redirect' => ['nullable', 'string'],
+        ]);
+
+        if (! hash_equals(self::LOGIN_ACCESS_PIN, $validated['pin'])) {
+            return back()->withErrors(['pin' => 'The access PIN is incorrect.'])->withInput();
+        }
+
+        $request->session()->put('login_access_unlocked', true);
+
+        return redirect()->to($validated['redirect'] ?: route('login'));
     }
 
     public function authenticate(Request $request): RedirectResponse
@@ -248,6 +275,20 @@ class AuthController extends Controller
             'page' => 'forgot-password',
             'props' => [
                 'action' => route('password.email'),
+            ],
+        ]);
+    }
+
+    public function pinGate(string $title, string $subtitle, string $action, string $redirectTo): View
+    {
+        return view('app', [
+            'page' => 'pin-gate',
+            'props' => [
+                'title' => $title,
+                'subtitle' => $subtitle,
+                'action' => $action,
+                'redirectTo' => $redirectTo,
+                'buttonLabel' => 'Continue',
             ],
         ]);
     }

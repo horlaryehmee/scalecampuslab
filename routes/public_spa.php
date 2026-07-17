@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\AuthController as WebAuthController;
 use App\Http\Controllers\WaitlistController;
 use App\Models\PlatformSetting;
 use Illuminate\Support\Facades\Route;
@@ -25,7 +26,18 @@ Route::view('/how-it-works', 'marketing')->name('saas.how-it-works');
 Route::view('/contact', 'marketing')->name('saas.contact');
 Route::view('/faq', 'marketing')->name('saas.faq');
 Route::view('/register', 'marketing')->name('register');
-Route::view('/login', 'marketing')->name('login');
+Route::get('/login', function () {
+    if (! session('login_access_unlocked')) {
+        return app(WebAuthController::class)->pinGate(
+            title: 'Login access',
+            subtitle: 'Enter the access PIN before opening the portal sign-in page.',
+            action: route('login.pin.verify'),
+            redirectTo: route('login'),
+        );
+    }
+
+    return view('marketing');
+})->name('login');
 Route::view('/mfa-challenge', 'marketing')->name('saas.mfa.challenge');
 Route::view('/forgot-password', 'marketing')->name('password.request');
 Route::view('/reset-password/{token}', 'marketing')->name('password.reset');

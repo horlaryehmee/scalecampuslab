@@ -91,11 +91,26 @@ class DashboardController extends Controller
                 'securityProfile' => $this->securityProfile(auth()->user()),
                 'systemHealth' => $this->systemHealth(),
                 'platformSettings' => $this->platformSettings(),
-                'waitlist' => $this->waitlistData(),
+                'waitlist' => $this->adminWaitlistAccessData(),
                 'notifications' => $this->notificationFeed($user),
                 'contentManagement' => $this->contentManagement($user),
             ],
         ]);
+    }
+
+    public function unlockAdminWaitlist(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'pin' => ['required', 'string'],
+        ]);
+
+        if (! hash_equals('Bakhtech01', $validated['pin'])) {
+            return back()->withErrors(['pin' => 'The waitlist PIN is incorrect.']);
+        }
+
+        $request->session()->put('admin_waitlist_unlocked', true);
+
+        return redirect()->route('dashboard.admin')->with('status', 'Waitlist records unlocked.');
     }
 
     public function university(): View
@@ -2648,6 +2663,21 @@ class DashboardController extends Controller
                 ])
                 ->values()
                 ->all(),
+        ];
+    }
+
+    private function adminWaitlistAccessData(): array
+    {
+        if (! session('admin_waitlist_unlocked')) {
+            return [
+                'locked' => true,
+                'unlockAction' => route('dashboard.admin.waitlist.pin'),
+            ];
+        }
+
+        return $this->waitlistData() + [
+            'locked' => false,
+            'unlockAction' => route('dashboard.admin.waitlist.pin'),
         ];
     }
 

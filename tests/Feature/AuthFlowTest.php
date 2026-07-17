@@ -13,6 +13,24 @@ class AuthFlowTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_login_page_requires_access_pin(): void
+    {
+        $this->get('/login')
+            ->assertOk()
+            ->assertSee('Login access');
+
+        $this->post('/login/pin', [
+            'pin' => 'wrong',
+            'redirect' => '/login',
+        ])->assertSessionHasErrors('pin');
+
+        $this->post('/login/pin', [
+            'pin' => 'Bakhtech',
+            'redirect' => '/login',
+        ])->assertRedirect('/login')
+            ->assertSessionHas('login_access_unlocked', true);
+    }
+
     public function test_university_login_redirects_to_university_dashboard(): void
     {
         User::create([

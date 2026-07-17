@@ -26,6 +26,7 @@ Route::get('/thank-you', [WaitlistController::class, 'success'])->name('waitlist
 Route::post('/demo-login', [AuthController::class, 'demoLogin'])->middleware('throttle:20,1')->name('demo-login');
 
 Route::middleware('guest')->group(function (): void {
+    Route::post('/login/pin', [AuthController::class, 'verifyLoginPin'])->middleware('throttle:5,1')->name('login.pin.verify');
     Route::post('/login', [AuthController::class, 'authenticate'])->middleware('throttle:5,1')->name('login.authenticate');
     Route::get('/admin/login', [AuthController::class, 'adminLogin'])->name('admin.login');
     Route::post('/admin/login', [AuthController::class, 'authenticate'])->middleware('throttle:5,1')->name('admin.login.authenticate');
@@ -108,6 +109,7 @@ Route::middleware(['auth', 'active', 'verified'])->group(function (): void {
     Route::delete('/dashboard/admin/users/{managedUser}', [DashboardController::class, 'destroyAdminUser'])->middleware('role:admin')->name('dashboard.admin.users.destroy');
     Route::post('/dashboard/admin/users/{managedUser}/access', [DashboardController::class, 'updateAdminUserAccess'])->middleware('role:admin')->name('dashboard.admin.users.access');
     Route::post('/dashboard/admin/settings', [DashboardController::class, 'updateAdminPlatformSettings'])->middleware('role:admin')->name('dashboard.admin.settings.update');
+    Route::post('/dashboard/admin/waitlist-pin', [DashboardController::class, 'unlockAdminWaitlist'])->middleware('role:admin')->name('dashboard.admin.waitlist.pin');
     Route::post('/dashboard/security/password', [DashboardController::class, 'updateSecurityPassword'])->name('dashboard.security.password');
     Route::post('/dashboard/security/preferences', [DashboardController::class, 'updateSecurityPreferences'])->name('dashboard.security.preferences');
     Route::delete('/dashboard/security/sessions', [DashboardController::class, 'revokeOtherSessions'])->name('dashboard.security.sessions.revoke');
@@ -152,6 +154,8 @@ Route::middleware(['auth', 'active', 'verified'])->group(function (): void {
 });
 
 Route::prefix('admin/waitlist')->name('admin.waitlist.')->group(function (): void {
+    Route::get('/pin', [AdminWaitlistController::class, 'pin'])->name('pin');
+    Route::post('/pin', [AdminWaitlistController::class, 'verifyPin'])->middleware('throttle:5,1')->name('pin.verify');
     Route::get('/login', [AdminWaitlistController::class, 'login'])->name('login');
     Route::post('/login', [AdminWaitlistController::class, 'authenticate'])->middleware('throttle:5,1')->name('authenticate');
 
