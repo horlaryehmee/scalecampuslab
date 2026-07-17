@@ -287,7 +287,7 @@ function LandingPage({ csrf, errors, old, signupCount }) {
                         className="h-auto w-28 rounded-lg object-contain sm:w-36"
                     />
 
-                    <h1 className="mt-7 max-w-[39rem] font-serif text-[2.35rem] font-normal leading-[1.04] tracking-normal text-[#262323] sm:text-[3.45rem]">
+                    <h1 className="mt-7 max-w-[39rem] text-[2.35rem] font-normal leading-[1.04] tracking-normal text-[#262323] [font-family:Georgia,Cambria,'Times_New_Roman',Times,serif] sm:text-[3.45rem]">
                         Campus visit planning, finally coordinated
                     </h1>
                     <p className="mt-3 max-w-[42rem] text-sm font-normal leading-6 text-[#555151] sm:text-[17px] sm:leading-7">
@@ -315,7 +315,7 @@ function WaitlistFaqs() {
         <section className="mx-auto w-full max-w-4xl px-5 py-16 text-left sm:py-20 lg:py-24">
             <div className="mx-auto mb-8 max-w-2xl text-center">
                 <p className="text-[11px] font-medium uppercase tracking-[0.24em] text-slate-500">FAQ</p>
-                <h2 className="mt-3 font-serif text-3xl font-normal tracking-normal text-[#262323] sm:text-[2.75rem]">Before you join the waitlist</h2>
+                <h2 className="mt-3 text-3xl font-normal tracking-normal text-[#262323] [font-family:Georgia,Cambria,'Times_New_Roman',Times,serif] sm:text-[2.75rem]">Before you join the waitlist</h2>
                 <p className="mt-3 text-[15px] font-normal leading-7 text-slate-600">
                     Clear answers for teams evaluating ScaleCampusLab before launch.
                 </p>
