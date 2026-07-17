@@ -273,14 +273,14 @@ function LandingPage({ csrf, errors, old, signupCount }) {
     return (
         <main className="min-h-screen bg-[#f8f4f2] p-2 text-slate-950 sm:p-3">
             <section
-                className="infinite-grid-bg relative min-h-[calc(100vh-1rem)] overflow-hidden rounded-[1.4rem] bg-[#fbf8f7] sm:min-h-[calc(100vh-1.5rem)] sm:rounded-[1.6rem]"
+                className="infinite-grid-bg relative mx-auto min-h-[min(760px,calc(100vh-1rem))] max-w-[430px] overflow-hidden rounded-[2rem] bg-[#fbf8f7] sm:min-h-[calc(100vh-1.5rem)] sm:max-w-none sm:rounded-[1.6rem]"
                 onMouseMove={moveGridSpotlight}
             >
                 <div className="infinite-grid-wash" aria-hidden="true" />
                 <div className="infinite-grid-layer infinite-grid-layer-soft" aria-hidden="true" />
                 <div className="infinite-grid-layer infinite-grid-layer-focus" aria-hidden="true" />
 
-                <section className="relative z-10 mx-auto flex min-h-[calc(100vh-1rem)] max-w-3xl flex-col items-center justify-center px-5 py-12 text-center sm:min-h-[calc(100vh-1.5rem)]">
+                <section className="relative z-10 mx-auto flex min-h-[min(760px,calc(100vh-1rem))] max-w-3xl flex-col items-center justify-center px-5 py-10 text-center sm:min-h-[calc(100vh-1.5rem)] sm:py-12">
                     <img
                         src="/images/scalecampus-labs-logo.png"
                         alt="ScaleCampus Labs"
