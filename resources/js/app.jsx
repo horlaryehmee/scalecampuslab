@@ -264,120 +264,98 @@ function BrandMark() {
 }
 
 function LandingPage({ csrf, errors, old, signupCount }) {
+    const moveGridSpotlight = (event) => {
+        const rect = event.currentTarget.getBoundingClientRect();
+        event.currentTarget.style.setProperty('--grid-x', `${event.clientX - rect.left}px`);
+        event.currentTarget.style.setProperty('--grid-y', `${event.clientY - rect.top}px`);
+    };
+
     return (
         <main className="min-h-screen bg-[#f8f4f2] p-2 text-slate-950 sm:p-3">
-            <section className="waitlist-stage relative min-h-[calc(100vh-1rem)] overflow-hidden rounded-[1.8rem] border border-white/80 bg-[#fbf8f7] shadow-[inset_0_0_0_1px_rgba(255,255,255,.7),0_0_0_2px_rgba(15,23,42,.85),0_0_34px_rgba(236,72,153,.55),0_0_70px_rgba(37,99,235,.35)] sm:min-h-[calc(100vh-1.5rem)] sm:rounded-[2rem]">
-                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,.96)_0%,rgba(250,247,246,.95)_38%,rgba(244,240,239,.92)_100%)]" />
-                <div className="pointer-events-none absolute left-1/2 top-1/2 h-[50rem] w-[50rem] -translate-x-1/2 -translate-y-1/2 rounded-full border border-slate-300/50" />
-                <div className="pointer-events-none absolute left-1/2 top-1/2 h-[68rem] w-[68rem] -translate-x-1/2 -translate-y-1/2 rounded-full border border-slate-300/45" />
-                <div className="pointer-events-none absolute -left-6 top-20 h-2 w-2 rounded-full bg-slate-300 shadow-[7rem_8rem_0_6px_rgba(148,163,184,.28),18rem_20rem_0_2px_rgba(148,163,184,.36),55rem_14rem_0_7px_rgba(148,163,184,.22),62rem_3rem_0_3px_rgba(148,163,184,.32),72rem_31rem_0_2px_rgba(148,163,184,.35)]" />
+            <section
+                className="infinite-grid-bg relative min-h-[calc(100vh-1rem)] overflow-hidden rounded-[1.4rem] bg-[#fbf8f7] sm:min-h-[calc(100vh-1.5rem)] sm:rounded-[1.6rem]"
+                onMouseMove={moveGridSpotlight}
+            >
+                <div className="infinite-grid-wash" aria-hidden="true" />
+                <div className="infinite-grid-layer infinite-grid-layer-soft" aria-hidden="true" />
+                <div className="infinite-grid-layer infinite-grid-layer-focus" aria-hidden="true" />
 
-                <WaitlistBeam radius="var(--waitlist-tag-orbit)" duration="58s" start={315} tone="violet" />
-                <WaitlistOrbit radius="var(--waitlist-tag-orbit)" duration="58s" start={315}>
-                    <WaitlistChip icon={<Grid2X2 size={15} />} tone="blue" label="Universities" />
-                </WaitlistOrbit>
-                <WaitlistOrbit radius="var(--waitlist-tag-orbit)" duration="58s" start={45}>
-                    <WaitlistChip icon={<School size={15} />} tone="amber" label="Schools" />
-                </WaitlistOrbit>
-                <WaitlistOrbit radius="var(--waitlist-tag-orbit)" duration="58s" start={135}>
-                    <WaitlistChip icon={<CalendarDays size={15} />} tone="orange" label="Visits" />
-                </WaitlistOrbit>
-                <WaitlistOrbit radius="var(--waitlist-tag-orbit)" duration="58s" start={225}>
-                    <WaitlistChip icon={<UsersRound size={15} />} tone="violet" label="Students" />
-                </WaitlistOrbit>
-
-                <section className="relative z-10 mx-auto flex min-h-[calc(100vh-1rem)] max-w-3xl flex-col items-center justify-center px-5 py-14 text-center sm:min-h-[calc(100vh-1.5rem)]">
+                <section className="relative z-10 mx-auto flex min-h-[calc(100vh-1rem)] max-w-3xl flex-col items-center justify-center px-5 py-12 text-center sm:min-h-[calc(100vh-1.5rem)]">
                     <img
                         src="/images/scalecampus-labs-logo.png"
                         alt="ScaleCampus Labs"
-                        className="h-auto w-36 rounded-xl object-contain sm:w-44"
+                        className="h-auto w-28 rounded-lg object-contain sm:w-36"
                     />
 
-                    <h1 className="mt-5 text-5xl font-black leading-[1.05] tracking-[-0.06em] text-black sm:text-6xl">
-                        Plan.<br />
-                        Visit. <span className="mx-2 inline-block align-middle text-3xl sm:text-4xl">Grow.</span>
+                    <h1 className="mt-7 max-w-[39rem] font-serif text-[2.35rem] font-normal leading-[1.04] tracking-normal text-[#262323] sm:text-[3.45rem]">
+                        Campus visit planning, finally coordinated
                     </h1>
-                    <p className="mt-6 max-w-xl text-sm font-semibold leading-6 text-slate-700 sm:text-base">
-                        ScaleCampusLab helps universities and schools coordinate outreach visits without spreadsheets, scattered emails, or manual follow-up. Join the waitlist for the launch notification. This does not create an account or password.
+                    <p className="mt-3 max-w-[42rem] text-sm font-normal leading-6 text-[#555151] sm:text-[17px] sm:leading-7">
+                        ScaleCampusLab gives universities and schools one organized workspace for outreach visits, approvals, schedules, student participation, and follow-up. Join the waitlist to be notified when early access opens.
                     </p>
 
                     <WaitlistForm csrf={csrf} errors={errors} old={old} />
 
                 </section>
             </section>
+            <WaitlistFaqs />
         </main>
     );
 }
 
-function WaitlistBeam({ radius, duration, start = 0, tone = 'blue' }) {
-    return (
-        <div
-            className={cx('waitlist-beam pointer-events-none absolute left-1/2 top-1/2 z-[5] block', `waitlist-beam-${tone}`)}
-            style={{
-                '--orbit-radius': radius,
-                '--orbit-duration': duration,
-                '--orbit-start': `${start}deg`,
-            }}
-        />
-    );
-}
+function WaitlistFaqs() {
+    const faqs = [
+        ['What is ScaleCampusLab?', 'ScaleCampusLab is a coordination platform for university outreach teams and school partners. It keeps visit requests, approvals, itineraries, student attendance, and follow-up in one place.'],
+        ['Who is it built for?', 'It is built for university recruitment and outreach teams, school administrators, guidance counselors, and education partners who coordinate student-facing visits.'],
+        ['Does joining create an account?', 'No. The waitlist only records your email so we can notify you when early access opens. It does not create a dashboard account, password, payment, or application.'],
+        ['What happens after I join?', 'You will receive launch updates and setup instructions when early access is ready. University and school workspaces will be onboarded separately.'],
+    ];
 
-function WaitlistOrbit({ children, radius, duration, start = 0 }) {
     return (
-        <div
-            className="waitlist-orbit pointer-events-none absolute left-1/2 top-1/2 z-10 block"
-            style={{
-                '--orbit-radius': radius,
-                '--orbit-duration': duration,
-                '--orbit-start': `${start}deg`,
-            }}
-        >
-            <div className="waitlist-orbit-chip">{children}</div>
-        </div>
+        <section className="mx-auto w-full max-w-4xl px-5 py-16 text-left sm:py-20 lg:py-24">
+            <div className="mx-auto mb-8 max-w-2xl text-center">
+                <p className="text-[11px] font-medium uppercase tracking-[0.24em] text-slate-500">FAQ</p>
+                <h2 className="mt-3 font-serif text-3xl font-normal tracking-normal text-[#262323] sm:text-[2.75rem]">Before you join the waitlist</h2>
+                <p className="mt-3 text-[15px] font-normal leading-7 text-slate-600">
+                    Clear answers for teams evaluating ScaleCampusLab before launch.
+                </p>
+            </div>
+            <div className="mx-auto grid max-w-2xl gap-2.5">
+                {faqs.map(([question, answer]) => (
+                    <details key={question} className="group rounded-2xl border border-slate-200/80 bg-white/80 px-5 py-4 shadow-[0_10px_28px_rgba(15,23,42,.045)] backdrop-blur">
+                        <summary className="flex cursor-pointer list-none items-center justify-between gap-5 text-[15px] font-medium text-slate-900 marker:hidden sm:text-base">
+                            <span>{question}</span>
+                            <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-slate-100 text-base font-normal leading-none text-slate-600 transition group-open:rotate-45">+</span>
+                        </summary>
+                        <p className="mt-3 max-w-[38rem] text-sm font-normal leading-7 text-slate-600">{answer}</p>
+                    </details>
+                ))}
+            </div>
+        </section>
     );
-}
-
-function WaitlistChip({ icon, label, tone }) {
-    const tones = {
-        blue: 'text-blue-500 before:border-blue-500',
-        amber: 'text-amber-500 before:border-amber-500',
-        orange: 'text-orange-500 before:border-orange-500',
-        violet: 'text-violet-500 before:border-violet-500',
-    };
-    return (
-        <div className="flex items-center gap-4 rounded-[0.85rem] border border-slate-200/70 bg-white/88 py-2 pl-2 pr-5 text-[12px] font-black text-slate-700 shadow-[0_7px_18px_rgba(15,23,42,.12)] backdrop-blur-md">
-            <span className={cx('relative grid h-9 w-9 place-items-center rounded-[0.65rem] border border-slate-100 bg-white shadow-[0_4px_12px_rgba(15,23,42,.10)] before:absolute before:-right-2 before:-top-2 before:h-4 before:w-4 before:rounded-full before:border-t-2 before:border-r-2 before:border-l-0 before:border-b-0', tones[tone])}>{icon}</span>
-            {label}
-        </div>
-    );
-}
-
-function SocialDot({ label }) {
-    return <span className="grid h-9 w-9 place-items-center rounded-full bg-white text-xs font-black text-slate-700 shadow-sm ring-1 ring-slate-200">{label}</span>;
 }
 
 function WaitlistForm({ csrf, errors, old }) {
     return (
-        <section id="waitlist" className="mt-8 w-full max-w-[430px]">
+        <section id="waitlist" className="mt-8 w-full max-w-[31rem]">
             <form action="/waitlist" method="POST">
                 <input type="hidden" name="_token" value={csrf} />
                 <input type="hidden" name="consent" value="1" />
-                <div className="flex flex-col gap-3 rounded-3xl bg-white p-4 shadow-[0_18px_45px_rgba(15,23,42,.08)] sm:h-[3.4rem] sm:flex-row sm:items-center sm:gap-2 sm:rounded-full sm:p-1.5">
-                    <label htmlFor="email" className="sr-only">Your email</label>
-                    <div className="min-w-0 flex-1 rounded-2xl border border-slate-200 bg-white px-5 py-4 text-left sm:h-10 sm:rounded-full sm:px-6 sm:py-1.5">
-                        <p className="text-[9px] font-black leading-none text-slate-800">Your email</p>
+                <div className="flex flex-col gap-2.5 rounded-[1.8rem] border border-[#dedcda] bg-[#efefee] p-1.5 shadow-[0_14px_32px_rgba(15,23,42,.06)] sm:h-[4.25rem] sm:flex-row sm:items-center sm:gap-2 sm:rounded-full">
+                    <label htmlFor="email" className="sr-only">Your email address</label>
+                    <div className="min-w-0 flex-1 px-4 py-3 text-left sm:px-6 sm:py-0">
                         <input
                             id="email"
                             name="email"
                             type="email"
-                            placeholder="designer@example.com"
+                            placeholder="Your email address"
                             defaultValue={old.email || ''}
                             autoComplete="email"
                             required
-                            className="mt-0.5 w-full min-w-0 bg-transparent text-[11px] font-bold text-slate-950 outline-none placeholder:text-slate-500"
+                            className="w-full min-w-0 bg-transparent text-base font-normal text-[#262323] outline-none placeholder:text-[#5a5757] sm:text-lg"
                         />
                     </div>
-                    <button className="h-12 shrink-0 rounded-2xl bg-black px-6 text-xs font-black text-white transition hover:bg-slate-800 sm:h-10 sm:min-w-[9.7rem] sm:rounded-full sm:text-[11px]">
+                    <button className="h-12 shrink-0 rounded-[1.45rem] bg-[#242222] px-6 text-base font-medium text-white transition hover:bg-black sm:h-14 sm:min-w-[10rem] sm:rounded-full">
                         Join waitlist
                     </button>
                 </div>
