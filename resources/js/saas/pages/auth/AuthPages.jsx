@@ -1,10 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, CheckCircle2, GraduationCap, MailCheck, ShieldCheck } from 'lucide-react';
-import { Button, Field, PageState } from '../../components/ui';
+import { Button, Field } from '../../components/ui';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
-import { useApi } from '../../hooks/useApi';
 import { api, apiError, dashboardPath } from '../../services/api';
 
 const MFA_CHALLENGE_KEY = 'scalecampuslab.login.mfa';
@@ -189,12 +188,10 @@ export function RegisterPage() {
     const toast = useToast();
     const navigate = useNavigate();
     const [search] = useSearchParams();
-    const requestedRole = ['university', 'school', 'student'].includes(search.get('role')) ? search.get('role') : 'university';
-    const [form, setForm] = useState({ role: requestedRole, name: '', email: '', phone: '', password: '', password_confirmation: '', school_name: '', school_location: '', school_id: '', student_identifier: '', grade_level: '', interest_major: '' });
+    const requestedRole = ['university', 'school'].includes(search.get('role')) ? search.get('role') : 'university';
+    const [form, setForm] = useState({ role: requestedRole, name: '', email: '', phone: '', password: '', password_confirmation: '', school_name: '', school_location: '' });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
-    const home = useApi('/public/registration-options');
-    const schools = home.data?.schools || home.data?.data?.schools || [];
     const update = (key) => (event) => setForm((current) => ({ ...current, [key]: event.target.value }));
 
     const submit = async (event) => {
@@ -217,23 +214,14 @@ export function RegisterPage() {
     };
 
     return (
-        <AuthShell eyebrow="Create an account" title="Start with the workspace built for your role" body="Every record you create will stay connected to the correct institution, event, and participant.">
+        <AuthShell eyebrow="Create an account" title="Start with your institution workspace" body="Universities and schools can request access here. Student accounts are created by schools and activated through email invitations.">
             <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
-                <Field label="Role" as="select" value={form.role} onChange={update('role')} options={[{ value: 'university', label: 'University' }, { value: 'school', label: 'School' }, { value: 'student', label: 'Student' }]} className="sm:col-span-2" />
-                <Field label={form.role === 'university' ? 'University representative name' : form.role === 'school' ? 'Coordinator name' : 'Full name'} value={form.name} onChange={update('name')} required />
+                <Field label="Role" as="select" value={form.role} onChange={update('role')} options={[{ value: 'university', label: 'University' }, { value: 'school', label: 'School' }]} className="sm:col-span-2" />
+                <Field label={form.role === 'university' ? 'University representative name' : 'Coordinator name'} value={form.name} onChange={update('name')} required />
                 <Field label="Email" type="email" autoComplete="email" value={form.email} onChange={update('email')} required />
                 <Field label="Phone (optional)" type="tel" value={form.phone} onChange={update('phone')} className="sm:col-span-2" />
                 {form.role === 'school' && <><Field label="School name" value={form.school_name} onChange={update('school_name')} required /><Field label="School location" value={form.school_location} onChange={update('school_location')} required /></>}
-                {form.role === 'student' && (
-                    <>
-                        <PageState loading={home.loading} error={home.error} onRetry={() => home.refresh()}>
-                            <Field label="School" as="select" value={form.school_id} onChange={update('school_id')} required options={[{ value: '', label: 'Select your school' }, ...schools.map((school) => ({ value: school.id, label: `${school.name}${school.location ? ` — ${school.location}` : ''}` }))]} />
-                        </PageState>
-                        <Field label="Student ID (optional)" value={form.student_identifier} onChange={update('student_identifier')} />
-                        <Field label="Grade level (optional)" value={form.grade_level} onChange={update('grade_level')} />
-                        <Field label="Area of interest (optional)" value={form.interest_major} onChange={update('interest_major')} />
-                    </>
-                )}
+                <p className="rounded-2xl bg-emerald-50 px-4 py-3 text-xs font-semibold leading-5 text-emerald-900 sm:col-span-2">Students do not self-register. Your school coordinator will add you to their student list and you will receive an email invitation to set your password and verify your account.</p>
                 <Field label="Password" type="password" autoComplete="new-password" minLength="8" value={form.password} onChange={update('password')} required />
                 <Field label="Confirm password" type="password" autoComplete="new-password" minLength="8" value={form.password_confirmation} onChange={update('password_confirmation')} required />
                 <p className="text-xs font-semibold leading-5 text-slate-500 sm:col-span-2">Use at least eight characters with letters and numbers. We will send an email verification link after registration.</p>

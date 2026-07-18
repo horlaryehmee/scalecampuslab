@@ -81,36 +81,25 @@ class ApiV1AuthTest extends TestCase
         ]);
     }
 
-    public function test_student_registration_requires_and_preserves_school_integrity(): void
+    public function test_student_self_registration_is_not_allowed(): void
     {
         Notification::fake();
 
-        $payload = [
+        $school = School::create(['name' => 'Linked School', 'location' => 'Abuja']);
+
+        $this->postJson('/api/v1/register', [
             'name' => 'Student One',
             'email' => 'student-one@example.com',
             'password' => 'Campus2026',
             'password_confirmation' => 'Campus2026',
             'role' => 'student',
-        ];
-
-        $this->postJson('/api/v1/register', $payload)
-            ->assertUnprocessable()
-            ->assertJsonValidationErrors('school_id');
-
-        $school = School::create(['name' => 'Linked School', 'location' => 'Abuja']);
-
-        $this->postJson('/api/v1/register', $payload + [
             'school_id' => $school->id,
             'student_identifier' => 'STU-001',
-        ])->assertCreated()
-            ->assertJsonPath('user.role', 'student')
-            ->assertJsonPath('user.school_id', $school->id)
-            ->assertJsonPath('user.dashboard_path', '/dashboard/student');
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors('role');
 
-        $this->assertDatabaseHas('users', [
+        $this->assertDatabaseMissing('users', [
             'email' => 'student-one@example.com',
-            'school_id' => $school->id,
-            'student_identifier' => 'STU-001',
         ]);
     }
 

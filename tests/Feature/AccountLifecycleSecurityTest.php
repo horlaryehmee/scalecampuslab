@@ -17,7 +17,7 @@ class AccountLifecycleSecurityTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_legacy_school_student_creation_uses_a_pending_invitation_account(): void
+    public function test_legacy_school_student_creation_uses_an_email_invitation_account(): void
     {
         Notification::fake();
         $school = School::create(['name' => 'Invitation School', 'location' => 'Lagos']);
@@ -36,26 +36,17 @@ class AccountLifecycleSecurityTest extends TestCase
         ])->assertCreated()
             ->assertJsonPath('email', 'invited.student@example.edu')
             ->assertJsonPath('school_id', $school->id)
-            ->assertJsonPath('access_status', 'pending')
+            ->assertJsonPath('access_status', 'active')
             ->assertJsonPath('email_verified', false)
             ->assertJsonPath('setup_email_sent', true);
 
         $student = User::query()->where('email', 'invited.student@example.edu')->firstOrFail();
 
         $this->assertNull($student->email_verified_at);
-        $this->assertSame('pending', $student->access_status);
+        $this->assertSame('active', $student->access_status);
         $this->assertFalse(Hash::check('password', $student->password));
         Notification::assertSentTo($student, VerifyEmail::class);
         Notification::assertSentTo($student, ResetPassword::class);
-
-        $student->update(['password' => 'KnownCampus2026']);
-        $this->postJson('/api/login', [
-            'email' => $student->email,
-            'password' => 'KnownCampus2026',
-        ])->assertForbidden()
-            ->assertJsonPath('message', 'This account is awaiting institution or platform approval.');
-
-        $this->assertDatabaseCount('personal_access_tokens', 0);
     }
 
     public function test_legacy_bulk_student_creation_sends_setup_messages_for_each_pending_account(): void
@@ -75,7 +66,7 @@ class AccountLifecycleSecurityTest extends TestCase
             ],
         ])->assertCreated()
             ->assertJsonCount(2, 'created')
-            ->assertJsonPath('created.0.access_status', 'pending')
+            ->assertJsonPath('created.0.access_status', 'active')
             ->assertJsonPath('created.1.email_verified', false)
             ->assertJsonPath('setup_emails_sent', 2);
 
@@ -85,7 +76,7 @@ class AccountLifecycleSecurityTest extends TestCase
 
         $this->assertCount(2, $students);
         $this->assertTrue($students->every(fn (User $student): bool => $student->school_id === $school->id));
-        $this->assertTrue($students->every(fn (User $student): bool => $student->access_status === 'pending'));
+        $this->assertTrue($students->every(fn (User $student): bool => $student->access_status === 'active'));
         $this->assertTrue($students->every(fn (User $student): bool => $student->email_verified_at === null));
 
         foreach ($students as $student) {

@@ -1918,14 +1918,14 @@ class DashboardController extends Controller
             'grade_level' => $validated['grade_level'],
             'interest_major' => $validated['interest_major'],
             'assigned_events' => [],
-            'access_status' => 'pending',
+            'access_status' => 'active',
             'email_verified_at' => null,
         ]);
 
         PasswordBroker::sendResetLink(['email' => $student->email]);
         $student->sendEmailVerificationNotification();
 
-        return back()->with('status', 'Student invited. They must set a password, verify their email, and be approved before access.');
+        return back()->with('status', 'Student invited. They must set a password and verify their email before access.');
     }
 
     public function updateSchoolStudent(Request $request, User $student): RedirectResponse
@@ -2013,7 +2013,7 @@ class DashboardController extends Controller
                 'grade_level' => $row['grade'] ?: '12th',
                 'interest_major' => $row['interest'] ?: 'Undecided',
                 'assigned_events' => [],
-                'access_status' => 'pending',
+                'access_status' => 'active',
                 'email_verified_at' => null,
             ]);
             PasswordBroker::sendResetLink(['email' => $student->email]);
@@ -2021,7 +2021,7 @@ class DashboardController extends Controller
             $created++;
         }
 
-        return back()->with('status', 'Bulk upload complete. Added '.$created.' student(s).');
+        return back()->with('status', 'Bulk upload complete. Added and invited '.$created.' student(s).');
     }
 
     private function dashboard(string $role, string $title, string $subtitle, array $metrics, array $actions, array $extra = []): View

@@ -41,13 +41,9 @@ class AuthController extends Controller
             'email' => ['required', 'email:rfc', 'max:180', 'unique:users,email'],
             'phone' => ['nullable', 'string', 'max:60'],
             'password' => ['required', 'confirmed', PasswordRule::min(8)->letters()->numbers()],
-            'role' => ['required', Rule::in(['university', 'school', 'student'])],
+            'role' => ['required', Rule::in(['university', 'school'])],
             'school_name' => ['required_if:role,school', 'nullable', 'string', 'max:180'],
             'school_location' => ['required_if:role,school', 'nullable', 'string', 'max:180'],
-            'school_id' => ['required_if:role,student', 'nullable', 'integer', 'exists:schools,id'],
-            'student_identifier' => ['nullable', 'string', 'max:120'],
-            'grade_level' => ['nullable', 'string', 'max:40'],
-            'interest_major' => ['nullable', 'string', 'max:120'],
         ]);
 
         /** @var User $user */
@@ -71,16 +67,7 @@ class AuthController extends Controller
                 'password' => $validated['password'],
                 'role' => $validated['role'],
                 'access_status' => 'pending',
-                'school_id' => $school?->id ?? ($validated['school_id'] ?? null),
-                'student_identifier' => $validated['role'] === 'student'
-                    ? ($validated['student_identifier'] ?? null)
-                    : null,
-                'grade_level' => $validated['role'] === 'student'
-                    ? ($validated['grade_level'] ?? null)
-                    : null,
-                'interest_major' => $validated['role'] === 'student'
-                    ? ($validated['interest_major'] ?? null)
-                    : null,
+                'school_id' => $school?->id,
             ]);
         });
 
