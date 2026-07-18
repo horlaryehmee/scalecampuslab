@@ -17,6 +17,7 @@ import {
     Circle,
     Clock,
     Command,
+    Database,
     Download,
     Filter,
     FolderKanban,
@@ -4953,6 +4954,31 @@ function AdminSettingsSection({ csrf, settings = {}, profile = {}, errors = {} }
                         <section className="rounded-2xl border border-blue-200 bg-blue-50 p-5 shadow-sm">
                             <h2 className="text-lg font-black text-slate-950">Configuration Rules</h2>
                             <p className="mt-2 text-sm leading-6 text-slate-700">Global settings are shared by all portals. Do not create separate portal records for the same configuration; permissions and labels decide how each portal sees shared data.</p>
+                        </section>
+
+                        <section className="rounded-2xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
+                            <div className="flex items-center gap-3">
+                                <span className="grid h-10 w-10 place-items-center rounded-xl bg-white text-amber-700"><Database size={18} /></span>
+                                <div>
+                                    <h2 className="text-lg font-black text-slate-950">Demo Data</h2>
+                                    <p className="mt-1 text-sm leading-6 text-slate-700">Populate or clear database demo records for admin, university, school, and student portals. Waitlist records are never changed.</p>
+                                </div>
+                            </div>
+                            <div className="mt-5 grid gap-3">
+                                <form action="/dashboard/admin/demo-data/populate" method="POST">
+                                    <input type="hidden" name="_token" value={csrf} />
+                                    <button className="w-full rounded-xl bg-slate-950 px-4 py-3 text-sm font-black text-white hover:bg-slate-800">Populate demo data</button>
+                                </form>
+                                <form action="/dashboard/admin/demo-data" method="POST" onSubmit={(event) => {
+                                    if (!window.confirm('Clear all demo data from admin, university, school, and student portals? Waitlist records will not be changed.')) {
+                                        event.preventDefault();
+                                    }
+                                }}>
+                                    <input type="hidden" name="_token" value={csrf} />
+                                    <input type="hidden" name="_method" value="DELETE" />
+                                    <button className="w-full rounded-xl border border-rose-200 bg-white px-4 py-3 text-sm font-black text-rose-700 hover:bg-rose-50">Clear demo data</button>
+                                </form>
+                            </div>
                         </section>
                     </aside>
                 </section>

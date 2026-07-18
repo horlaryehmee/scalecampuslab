@@ -26,10 +26,6 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        if (app()->isProduction()) {
-            throw new \LogicException('Demo seeding is disabled in production.');
-        }
-
         $demoSchool = School::updateOrCreate(
             ['coordinator_email' => 'demo-school@scalecampuslab.test'],
             [
@@ -198,6 +194,7 @@ class DatabaseSeeder extends Seeder
                         'description' => $description,
                         'capacity' => $capacity,
                         'status' => $status,
+                        'is_demo' => true,
                     ]
                 );
             }
@@ -229,6 +226,7 @@ class DatabaseSeeder extends Seeder
                     'notes' => $name === 'Lincoln High School'
                         ? 'Registered school account. Ready for canonical visit scheduling and coordinator approval.'
                         : 'Seeded target institution for recruitment planning.',
+                    'is_demo' => true,
                 ]
             );
         }
@@ -251,6 +249,7 @@ class DatabaseSeeder extends Seeder
                         'status' => $status,
                         'priority' => $priority,
                         'notes' => 'Counselor request generated from the school portal.',
+                        'is_demo' => true,
                     ]
                 );
             }
@@ -275,6 +274,7 @@ class DatabaseSeeder extends Seeder
                     'notes' => 'Approved demo visit connecting a real university event and school account.',
                     'responded_at' => now(),
                     'decision_note' => 'Approved for the senior student cohort.',
+                    'is_demo' => true,
                 ]
             );
 
@@ -382,6 +382,7 @@ class DatabaseSeeder extends Seeder
                         'sent_at' => now()->subMinutes(15),
                         'read_at' => null,
                         'metadata' => ['source' => 'database_seeder'],
+                        'is_demo' => true,
                     ]
                 ));
             }

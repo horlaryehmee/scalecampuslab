@@ -109,6 +109,8 @@ Route::middleware(['auth', 'active', 'verified'])->group(function (): void {
     Route::delete('/dashboard/admin/users/{managedUser}', [DashboardController::class, 'destroyAdminUser'])->middleware('role:admin')->name('dashboard.admin.users.destroy');
     Route::post('/dashboard/admin/users/{managedUser}/access', [DashboardController::class, 'updateAdminUserAccess'])->middleware('role:admin')->name('dashboard.admin.users.access');
     Route::post('/dashboard/admin/settings', [DashboardController::class, 'updateAdminPlatformSettings'])->middleware('role:admin')->name('dashboard.admin.settings.update');
+    Route::post('/dashboard/admin/demo-data/populate', [DashboardController::class, 'populatePlatformDemoData'])->middleware('role:admin')->name('dashboard.admin.demo-data.populate');
+    Route::delete('/dashboard/admin/demo-data', [DashboardController::class, 'clearPlatformDemoData'])->middleware('role:admin')->name('dashboard.admin.demo-data.clear');
     Route::post('/dashboard/admin/waitlist-pin', [DashboardController::class, 'unlockAdminWaitlist'])->middleware('role:admin')->name('dashboard.admin.waitlist.pin');
     Route::post('/dashboard/security/password', [DashboardController::class, 'updateSecurityPassword'])->name('dashboard.security.password');
     Route::post('/dashboard/security/preferences', [DashboardController::class, 'updateSecurityPreferences'])->name('dashboard.security.preferences');

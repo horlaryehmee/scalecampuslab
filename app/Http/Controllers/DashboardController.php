@@ -12,6 +12,7 @@ use App\Models\ComplianceRequest;
 use App\Models\Conversation;
 use App\Models\ConversationMessage;
 use App\Models\EmailTemplate;
+use App\Models\EventItineraryItem;
 use App\Models\EventRegistration;
 use App\Models\EventRegistrationStudent;
 use App\Models\Faq;
@@ -40,6 +41,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password as PasswordBroker;
@@ -111,6 +113,111 @@ class DashboardController extends Controller
         $request->session()->put('admin_waitlist_unlocked', true);
 
         return redirect()->route('dashboard.admin')->with('status', 'Waitlist records unlocked.');
+    }
+
+    public function populatePlatformDemoData(Request $request): RedirectResponse
+    {
+        abort_unless($request->user()?->role === 'admin', 403);
+
+        Artisan::call('db:seed', [
+            '--class' => 'Database\\Seeders\\DatabaseSeeder',
+            '--force' => true,
+        ]);
+
+        SystemLog::create([
+            'user_id' => $request->user()->id,
+            'action' => 'demo_data.populated',
+            'metadata' => ['source' => 'admin_settings'],
+        ]);
+
+        return back()->with('status', 'Demo data populated across admin, university, school, and student portals. Waitlist records were not changed.');
+    }
+
+    public function clearPlatformDemoData(Request $request): RedirectResponse
+    {
+        abort_unless($request->user()?->role === 'admin', 403);
+
+        $deleted = DB::transaction(function () use ($request): array {
+            $demoUserIds = User::query()
+                ->where('is_demo', true)
+                ->whereKeyNot($request->user()->id)
+                ->pluck('id');
+
+            $demoEventIds = CampusEvent::query()
+                ->where('is_demo', true)
+                ->orWhereIn('university_user_id', $demoUserIds)
+                ->pluck('id');
+
+            $demoRegistrationIds = EventRegistration::query()
+                ->where('is_demo', true)
+                ->orWhereIn('campus_event_id', $demoEventIds)
+                ->orWhereIn('user_id', $demoUserIds)
+                ->pluck('id');
+
+            $counts = [
+                'registration_students' => EventRegistrationStudent::query()
+                    ->whereIn('event_registration_id', $demoRegistrationIds)
+                    ->delete(),
+                'itinerary_items' => EventItineraryItem::query()
+                    ->whereIn('campus_event_id', $demoEventIds)
+                    ->delete(),
+                'notifications' => PlatformNotification::query()
+                    ->where(function ($query) use ($demoUserIds, $demoEventIds): void {
+                        $query->where('is_demo', true)
+                            ->orWhere('notification_type', 'like', 'demo.%')
+                            ->orWhereIn('user_id', $demoUserIds)
+                            ->orWhereIn('campus_event_id', $demoEventIds);
+                    })
+                    ->delete(),
+                'registrations' => EventRegistration::query()
+                    ->whereIn('id', $demoRegistrationIds)
+                    ->delete(),
+                'visit_requests' => VisitRequest::query()
+                    ->where('is_demo', true)
+                    ->orWhereIn('campus_event_id', $demoEventIds)
+                    ->orWhereIn('requested_by_user_id', $demoUserIds)
+                    ->orWhereIn('responded_by_user_id', $demoUserIds)
+                    ->delete(),
+                'events' => CampusEvent::query()
+                    ->whereIn('id', $demoEventIds)
+                    ->delete(),
+                'university_team_members' => UniversityTeamMember::query()
+                    ->whereIn('university_user_id', $demoUserIds)
+                    ->orWhere('email', 'like', '%@scale-state.scalecampuslab.test')
+                    ->delete(),
+                'university_settings' => UniversitySetting::query()
+                    ->whereIn('university_user_id', $demoUserIds)
+                    ->delete(),
+                'visit_tasks' => VisitTask::query()
+                    ->whereIn('visit_archive_id', VisitArchive::query()
+                        ->whereIn('target_school_id', TargetSchool::query()->where('is_demo', true)->select('id'))
+                        ->select('id'))
+                    ->delete(),
+                'visit_archives' => VisitArchive::query()
+                    ->whereIn('target_school_id', TargetSchool::query()->where('is_demo', true)->select('id'))
+                    ->delete(),
+                'target_schools' => TargetSchool::query()
+                    ->where('is_demo', true)
+                    ->delete(),
+                'users' => User::query()
+                    ->whereIn('id', $demoUserIds)
+                    ->delete(),
+                'schools' => School::query()
+                    ->where('coordinator_email', 'demo-school@scalecampuslab.test')
+                    ->orWhere('coordinator_email', 'jane.doe@lincolnhigh.edu')
+                    ->delete(),
+            ];
+
+            SystemLog::create([
+                'user_id' => $request->user()->id,
+                'action' => 'demo_data.cleared',
+                'metadata' => ['source' => 'admin_settings', 'deleted' => $counts],
+            ]);
+
+            return $counts;
+        });
+
+        return back()->with('status', 'Demo data cleared. Removed '.array_sum($deleted).' demo record(s). Waitlist records were not changed.');
     }
 
     public function university(): View

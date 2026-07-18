@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Models\VisitArchive;
 use App\Models\VisitRequest;
 use App\Models\VisitTask;
+use App\Models\WaitlistSignup;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
@@ -17,6 +18,51 @@ use Tests\TestCase;
 class PlatformFeatureTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_admin_can_populate_and_clear_demo_data_without_touching_waitlist(): void
+    {
+        $admin = User::factory()->create([
+            'role' => 'admin',
+            'access_status' => 'active',
+            'email_verified_at' => now(),
+        ]);
+        WaitlistSignup::create([
+            'full_name' => 'Real Waitlist Lead',
+            'email' => 'lead@example.com',
+        ]);
+
+        $this->actingAs($admin)
+            ->post('/dashboard/admin/demo-data/populate')
+            ->assertRedirect()
+            ->assertSessionHas('status');
+
+        $this->assertDatabaseHas('users', [
+            'email' => 'university@scalecampuslab.test',
+            'is_demo' => true,
+        ]);
+        $this->assertDatabaseHas('campus_events', [
+            'title' => 'Campus Preview Day',
+            'is_demo' => true,
+        ]);
+        $this->assertDatabaseHas('waitlist_signups', [
+            'email' => 'lead@example.com',
+        ]);
+
+        $this->actingAs($admin)
+            ->delete('/dashboard/admin/demo-data')
+            ->assertRedirect()
+            ->assertSessionHas('status');
+
+        $this->assertDatabaseMissing('users', [
+            'email' => 'university@scalecampuslab.test',
+        ]);
+        $this->assertDatabaseMissing('campus_events', [
+            'title' => 'Campus Preview Day',
+        ]);
+        $this->assertDatabaseHas('waitlist_signups', [
+            'email' => 'lead@example.com',
+        ]);
+    }
 
     public function test_university_can_create_a_published_campus_event(): void
     {

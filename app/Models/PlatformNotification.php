@@ -24,6 +24,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'metadata',
     'sent_at',
     'read_at',
+    'is_demo',
 ])]
 class PlatformNotification extends Model
 {
@@ -63,6 +64,7 @@ class PlatformNotification extends Model
             'scheduled_for' => 'datetime',
             'last_attempt_at' => 'datetime',
             'metadata' => 'array',
+            'is_demo' => 'boolean',
         ];
     }
 
