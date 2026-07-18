@@ -4965,19 +4965,8 @@ function AdminSettingsSection({ csrf, settings = {}, profile = {}, errors = {} }
                                 </div>
                             </div>
                             <div className="mt-5 grid gap-3">
-                                <form action="/dashboard/admin/demo-data/populate" method="POST">
-                                    <input type="hidden" name="_token" value={csrf} />
-                                    <button className="w-full rounded-xl bg-slate-950 px-4 py-3 text-sm font-black text-white hover:bg-slate-800">Populate demo data</button>
-                                </form>
-                                <form action="/dashboard/admin/demo-data" method="POST" onSubmit={(event) => {
-                                    if (!window.confirm('Clear all demo data from admin, university, school, and student portals? Waitlist records will not be changed.')) {
-                                        event.preventDefault();
-                                    }
-                                }}>
-                                    <input type="hidden" name="_token" value={csrf} />
-                                    <input type="hidden" name="_method" value="DELETE" />
-                                    <button className="w-full rounded-xl border border-rose-200 bg-white px-4 py-3 text-sm font-black text-rose-700 hover:bg-rose-50">Clear demo data</button>
-                                </form>
+                                <button type="submit" form="admin-demo-data-populate" className="w-full rounded-xl bg-slate-950 px-4 py-3 text-sm font-black text-white hover:bg-slate-800">Populate demo data</button>
+                                <button type="submit" form="admin-demo-data-clear" className="w-full rounded-xl border border-rose-200 bg-white px-4 py-3 text-sm font-black text-rose-700 hover:bg-rose-50">Clear demo data</button>
                             </div>
                         </section>
                     </aside>
@@ -4987,6 +4976,18 @@ function AdminSettingsSection({ csrf, settings = {}, profile = {}, errors = {} }
                     <p className="text-sm font-semibold text-slate-600">Saving updates enforced settings and preserves the displayed stored-only values.</p>
                     <div className="flex gap-2"><button type="reset" className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-black text-slate-700">Discard Changes</button><button className="rounded-xl bg-blue-700 px-4 py-2.5 text-sm font-black text-white hover:bg-blue-800">Save Global Configuration</button></div>
                 </div>
+            </form>
+
+            <form id="admin-demo-data-populate" action="/dashboard/admin/demo-data/populate" method="POST" className="hidden">
+                <input type="hidden" name="_token" value={csrf} />
+            </form>
+            <form id="admin-demo-data-clear" action="/dashboard/admin/demo-data" method="POST" className="hidden" onSubmit={(event) => {
+                if (!window.confirm('Clear all demo data from admin, university, school, and student portals? Waitlist records will not be changed.')) {
+                    event.preventDefault();
+                }
+            }}>
+                <input type="hidden" name="_token" value={csrf} />
+                <input type="hidden" name="_method" value="DELETE" />
             </form>
 
             <SecurityAccessSection csrf={csrf} profile={profile || {}} errors={errors || {}} role="admin" />
