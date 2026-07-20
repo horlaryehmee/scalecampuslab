@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, NavLink, Outlet } from 'react-router-dom';
-import { ArrowRight, GraduationCap, Menu, X } from 'lucide-react';
+import { ArrowRight, Menu, X } from 'lucide-react';
 import { ButtonLink, cx } from '../components/ui';
 
 const links = [
@@ -11,11 +11,14 @@ const links = [
     ['/contact', 'Contact'],
 ];
 
-export function Logo({ dark = false, name = 'ScaleCampusLab', logoUrl = null, primaryColor = '#075f56' }) {
+export function Logo({ dark = false }) {
     return (
-        <Link to="/" className="inline-flex items-center gap-3" aria-label={`${name} home`}>
-            <span className="grid h-10 w-10 place-items-center overflow-hidden rounded-xl text-white shadow-sm" style={{ backgroundColor: primaryColor }}>{logoUrl ? <img src={logoUrl} alt="" className="h-full w-full object-cover" /> : <GraduationCap size={21} />}</span>
-            <span className={cx('text-lg font-black tracking-tight', dark ? 'text-white' : 'text-slate-950')}>{name}</span>
+        <Link to="/" className="inline-flex items-center" aria-label="Scale Campus Labs home">
+            <img
+                src={dark ? '/images/brand/scalecampus-logo-dark-bg.png' : '/images/brand/scalecampus-logo-light-bg.png'}
+                alt="Scale Campus Labs"
+                className="h-14 w-auto sm:h-16"
+            />
         </Link>
     );
 }

@@ -104,7 +104,7 @@
     "isDynamicEntry": true
   },
   "resources/css/app.css": {
-    "file": "assets/app-Dgwxx3LU.css",
+    "file": "assets/app-BOfwZMTz.css",
     "name": "app",
     "names": [
       "app.css"
@@ -113,7 +113,7 @@
     "isEntry": true
   },
   "resources/js/app.jsx": {
-    "file": "assets/app-N23g5zbQ.js",
+    "file": "assets/app-05DUphUv.js",
     "name": "app",
     "src": "resources/js/app.jsx",
     "isEntry": true,
@@ -128,7 +128,7 @@
     ],
     "css": [
       "assets/app-1DTFk8zz.css",
-      "assets/app-Dgwxx3LU.css"
+      "assets/app-BOfwZMTz.css"
     ],
     "assets": [
       "assets/layers-BWBAp2CZ.png",
@@ -137,7 +137,7 @@
     ]
   },
   "resources/js/marketing.jsx": {
-    "file": "assets/marketing-BGHEm5B0.js",
+    "file": "assets/marketing-CLSqyJAL.js",
     "name": "marketing",
     "src": "resources/js/marketing.jsx",
     "isEntry": true,
@@ -147,11 +147,11 @@
       "_axios-B8wDCyPr.js"
     ],
     "css": [
-      "assets/app-Dgwxx3LU.css"
+      "assets/app-BOfwZMTz.css"
     ]
   },
   "resources/js/platform.jsx": {
-    "file": "assets/platform-DZpoZ1L3.js",
+    "file": "assets/platform-Ct9DIxB6.js",
     "name": "platform",
     "src": "resources/js/platform.jsx",
     "isEntry": true,
@@ -161,7 +161,7 @@
       "_axios-B8wDCyPr.js"
     ],
     "css": [
-      "assets/app-Dgwxx3LU.css"
+      "assets/app-BOfwZMTz.css"
     ]
   }
 }
