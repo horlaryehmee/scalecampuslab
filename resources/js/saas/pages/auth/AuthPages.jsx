@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, CheckCircle2, GraduationCap, MailCheck, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Building2, CheckCircle2, GraduationCap, MailCheck, School, ShieldCheck } from 'lucide-react';
 import { Button, Field } from '../../components/ui';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
@@ -36,6 +36,7 @@ export function LoginPage() {
     const navigate = useNavigate();
     const [search] = useSearchParams();
     const [form, setForm] = useState({ email: '', password: '', remember: true });
+    const [workspace, setWorkspace] = useState('university');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
@@ -44,7 +45,6 @@ export function LoginPage() {
         ['Admin', 'admin', '/dashboard/admin'],
         ['University', 'university', '/dashboard/university'],
         ['School', 'school', '/dashboard/school'],
-        ['Student', 'student', '/dashboard/student'],
     ];
 
     useEffect(() => {
@@ -82,31 +82,79 @@ export function LoginPage() {
     };
 
     return (
-        <AuthShell eyebrow="Welcome back" title="Sign in to your workspace" body="Use the account connected to your university, school, student profile, or admin role.">
-            <div className="mb-5 rounded-2xl border border-emerald-100 bg-emerald-50 p-4">
-                <p className="text-sm font-black text-slate-950">Demo dashboards</p>
-                <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                    {demoAccounts.map(([label, role, path]) => (
+        <main className="flex min-h-screen flex-col items-center justify-center bg-[#f7f8fa] px-4 py-10 text-slate-950">
+            <Link to="/" className="mb-7 inline-flex" aria-label="ScaleCampusLab home">
+                <img src="/images/brand/scalecampus-logo-light-bg.png" alt="Scale Campus Labs" className="h-auto w-36 sm:w-40" />
+            </Link>
+
+            <section className="w-full max-w-md rounded-2xl border border-slate-200 bg-white px-6 py-7 shadow-xl shadow-slate-900/10 sm:px-8">
+                <div className="text-center">
+                    <h1 className="text-2xl font-black tracking-[-0.035em]">Welcome back</h1>
+                    <p className="mt-2 text-sm font-medium text-slate-500">Choose your workspace to continue</p>
+                </div>
+
+                <div className="mt-6 grid grid-cols-2 rounded-xl bg-slate-100 p-1">
+                    {[
+                        ['university', 'University', Building2],
+                        ['school', 'High School', School],
+                    ].map(([value, label, Icon]) => (
+                        <button
+                            key={value}
+                            type="button"
+                            onClick={() => setWorkspace(value)}
+                            className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-black transition ${workspace === value ? 'bg-white text-slate-950 shadow-sm ring-1 ring-slate-200' : 'text-slate-600 hover:text-slate-950'}`}
+                        >
+                            <Icon size={16} />
+                            {label}
+                        </button>
+                    ))}
+                </div>
+
+                <form onSubmit={submit} className="mt-7 grid gap-4">
+                    <Field label="Email" type="email" placeholder="name@institution.edu" autoComplete="email" value={form.email} onChange={update('email')} required autoFocus />
+                    <div>
+                        <div className="mb-2 flex items-center justify-between">
+                            <span className="text-sm font-black text-slate-700">Password</span>
+                            <Link to="/forgot-password" className="text-xs font-bold text-slate-600 hover:text-slate-950">Forgot password?</Link>
+                        </div>
+                        <input
+                            type="password"
+                            autoComplete="current-password"
+                            value={form.password}
+                            onChange={update('password')}
+                            required
+                            className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-900 outline-none transition focus:border-slate-500 focus:ring-4 focus:ring-slate-100"
+                        />
+                    </div>
+                    <label className="inline-flex items-center gap-2 text-xs font-bold text-slate-500">
+                        <input type="checkbox" checked={form.remember} onChange={update('remember')} className="h-4 w-4 rounded border-slate-300 text-slate-950" />
+                        Keep me signed in
+                    </label>
+                    {error && <p className="rounded-xl bg-rose-50 p-3 text-sm font-bold text-rose-700">{error}</p>}
+                    <Button type="submit" loading={loading} className="w-full bg-[#171717] py-3 hover:bg-black">Sign in</Button>
+                </form>
+
+                <div className="my-6 flex items-center gap-3">
+                    <span className="h-px flex-1 bg-slate-200" />
+                    <span className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-400">Demo login</span>
+                    <span className="h-px flex-1 bg-slate-200" />
+                </div>
+
+                <div className="grid gap-2 sm:grid-cols-3">
+                    {demoAccounts.map(([label, role]) => (
                         <form key={role} action="/demo-login" method="POST">
                             <input type="hidden" name="_token" value={csrfToken} />
                             <input type="hidden" name="role" value={role} />
-                            <button type="submit" disabled={loading} className="flex w-full items-center justify-between rounded-xl border border-emerald-100 bg-white px-3 py-2.5 text-left text-sm font-black text-slate-700 shadow-sm transition hover:border-emerald-300 hover:text-emerald-800 disabled:cursor-not-allowed disabled:opacity-60">
-                                <span>{label}</span>
-                                <span className="text-[11px] font-bold text-slate-400">{path.replace('/dashboard/', '')}</span>
+                            <button type="submit" disabled={loading} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-black text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60">
+                                {label}
                             </button>
                         </form>
                     ))}
                 </div>
-            </div>
-            <form onSubmit={submit} className="grid gap-4">
-                <Field label="Email address" type="email" autoComplete="email" value={form.email} onChange={update('email')} required autoFocus />
-                <Field label="Password" type="password" autoComplete="current-password" value={form.password} onChange={update('password')} required />
-                <div className="flex items-center justify-between gap-3"><label className="inline-flex items-center gap-2 text-sm font-bold text-slate-600"><input type="checkbox" checked={form.remember} onChange={update('remember')} className="h-4 w-4 rounded border-slate-300 text-emerald-700" /> Keep me signed in</label><Link to="/forgot-password" className="text-sm font-black text-emerald-700 hover:text-emerald-900">Forgot password?</Link></div>
-                {error && <p className="rounded-xl bg-rose-50 p-3 text-sm font-bold text-rose-700">{error}</p>}
-                <Button type="submit" loading={loading} className="mt-1 w-full py-3">Sign in <ArrowRight size={16} /></Button>
-            </form>
-            <p className="mt-5 text-center text-sm font-semibold text-slate-500">New to ScaleCampusLab? <Link to="/register" className="font-black text-emerald-700">Create an account</Link></p>
-        </AuthShell>
+
+                <p className="mt-6 text-center text-sm font-semibold text-slate-500">Don&apos;t have an account? <Link to="/register" className="font-black text-slate-950 hover:underline">Sign up</Link></p>
+            </section>
+        </main>
     );
 }
 

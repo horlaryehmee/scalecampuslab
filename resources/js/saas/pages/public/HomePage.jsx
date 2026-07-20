@@ -68,62 +68,55 @@ const launchPlan = [
 export default function HomePage() {
     return (
         <main>
-            <section className="relative overflow-hidden border-b border-slate-200 bg-gradient-to-b from-emerald-50/80 via-white to-white">
-                <div className="pointer-events-none absolute inset-x-0 top-0 h-[34rem] bg-[radial-gradient(circle_at_70%_10%,rgba(16,185,129,.16),transparent_38%),radial-gradient(circle_at_15%_25%,rgba(59,130,246,.10),transparent_32%)]" />
-                <div className="relative mx-auto grid min-h-[720px] max-w-7xl items-center gap-12 px-4 py-20 sm:px-6 lg:grid-cols-[1.05fr_.95fr] lg:px-8">
-                    <div>
-                        <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white px-3 py-1.5 text-xs font-black text-emerald-800 shadow-sm">
-                            <Sparkles size={14} /> Campus outreach, finally connected
+            <section className="overflow-hidden border-b border-slate-100 bg-white">
+                <div className="mx-auto grid min-h-[720px] max-w-7xl items-center gap-14 px-4 py-16 sm:px-6 lg:grid-cols-[1fr_1.08fr] lg:px-8 lg:py-20">
+                    <div className="relative z-10">
+                        <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3.5 py-2 text-xs font-black text-slate-700">
+                            <Sparkles size={14} /> Simplifying campus outreach logistics
                         </div>
-                        <h1 className="mt-6 max-w-3xl text-4xl font-black leading-[1.08] tracking-[-0.045em] text-slate-950 sm:text-6xl lg:text-7xl">
-                            Plan better campus visits. Build stronger school partnerships.
+                        <h1 className="mt-7 max-w-2xl text-4xl font-black leading-[1.08] tracking-[-0.05em] text-slate-950 sm:text-5xl lg:text-[3.65rem]">
+                            Connect universities with high schools effortlessly.
                         </h1>
-                        <p className="mt-6 max-w-2xl text-lg font-semibold leading-8 text-slate-600">
-                            ScaleCampusLab gives universities and schools one organised way to plan outreach, approve visits, coordinate students, and improve every engagement.
+                        <p className="mt-6 max-w-xl text-base font-semibold leading-8 text-slate-600 sm:text-lg">
+                            One central platform for university outreach teams to coordinate campus visits, manage itineraries, and build lasting relationships with high schools.
                         </p>
                         <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-                            <ButtonLink to="/register?role=university" className="w-full px-6 py-3.5 sm:w-auto">
-                                Get started as a university <ArrowRight size={17} />
+                            <ButtonLink to="/register?role=university" className="w-full bg-[#171717] px-6 py-3.5 hover:bg-black sm:w-auto">
+                                Start planning visits <ArrowRight size={17} />
                             </ButtonLink>
-                            <ButtonLink to="/register?role=school" variant="secondary" className="w-full px-6 py-3.5 sm:w-auto">
-                                Join as a school <School size={17} />
+                            <ButtonLink to="/how-it-works" variant="secondary" className="w-full px-6 py-3.5 sm:w-auto">
+                                View how it works
                             </ButtonLink>
                         </div>
-                        <div className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-sm font-bold text-slate-500">
-                            {['One shared workflow', 'Clear institutional roles', 'Designed for real outreach'].map((item) => (
-                                <span key={item} className="inline-flex items-center gap-2">
-                                    <CheckCircle2 size={16} className="text-emerald-600" /> {item}
-                                </span>
-                            ))}
+                        <div className="mt-9 flex items-center gap-4">
+                            <div className="flex -space-x-2">
+                                {[
+                                    ['U', 'bg-emerald-100 text-emerald-800'],
+                                    ['S', 'bg-blue-100 text-blue-800'],
+                                    ['C', 'bg-amber-100 text-amber-800'],
+                                    ['+', 'bg-slate-100 text-slate-700'],
+                                ].map(([initial, tone], index) => (
+                                    <span key={`${initial}-${index}`} className={`grid h-9 w-9 place-items-center rounded-full border-2 border-white text-xs font-black ${tone}`}>{initial}</span>
+                                ))}
+                            </div>
+                            <p className="text-sm font-bold text-slate-500">Built for universities and school partners</p>
                         </div>
                     </div>
 
-                    <div className="relative mx-auto w-full max-w-xl">
-                        <div className="absolute -inset-6 rounded-[2.5rem] bg-gradient-to-tr from-emerald-200/60 to-blue-100/50 blur-2xl" />
-                        <Card className="relative overflow-hidden rounded-[2rem] border-white p-0 shadow-2xl shadow-emerald-950/10">
-                            <div className="border-b border-slate-100 px-6 py-5">
-                                <p className="text-xs font-black uppercase tracking-[0.12em] text-emerald-700">A practical way to begin</p>
-                                <h2 className="mt-2 text-xl font-black text-slate-950">Your path to a connected visit programme</h2>
+                    <div className="relative mx-auto w-full max-w-2xl pb-8">
+                        <div className="absolute -right-24 -top-20 h-72 w-72 rounded-full bg-emerald-100/70 blur-3xl" />
+                        <img
+                            src="/images/campus-visit-hero.png"
+                            alt="University outreach coordinator speaking with visiting high-school students"
+                            className="relative aspect-[1.04/1] w-full rounded-[1.75rem] object-cover shadow-2xl shadow-slate-900/15"
+                        />
+                        <div className="absolute -bottom-1 left-5 flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3.5 shadow-xl shadow-slate-900/15 sm:-left-6 sm:px-5">
+                            <span className="grid h-11 w-11 place-items-center rounded-xl bg-emerald-100 text-emerald-700"><CalendarCheck2 size={22} /></span>
+                            <div>
+                                <p className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">Scheduled today</p>
+                                <p className="mt-0.5 text-lg font-black text-slate-950">12 visits</p>
                             </div>
-                            <div className="grid gap-0 bg-slate-50/70 px-6 py-2">
-                                {launchPlan.map(([title, body], index) => (
-                                    <div key={title} className="grid grid-cols-[2.75rem_1fr] gap-3 border-b border-slate-200 py-5 last:border-0">
-                                        <span className="grid h-9 w-9 place-items-center rounded-xl bg-emerald-100 text-xs font-black text-emerald-800">
-                                            {index + 1}
-                                        </span>
-                                        <div>
-                                            <h3 className="font-black text-slate-950">{title}</h3>
-                                            <p className="mt-1 text-sm font-semibold leading-6 text-slate-600">{body}</p>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                            <div className="border-t border-slate-100 bg-white px-6 py-5">
-                                <ButtonLink to="/how-it-works" variant="secondary" className="w-full justify-center">
-                                    See how the platform works <ArrowRight size={16} />
-                                </ButtonLink>
-                            </div>
-                        </Card>
+                        </div>
                     </div>
                 </div>
             </section>
