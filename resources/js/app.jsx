@@ -15,6 +15,7 @@ import {
     ChevronDown,
     ChevronRight,
     Circle,
+    ClipboardCheck,
     Clock,
     Command,
     Database,
@@ -37,6 +38,7 @@ import {
     PanelLeftClose,
     PanelLeftOpen,
     Paperclip,
+    Plug,
     Plus,
     RefreshCcw,
     Route as RouteIcon,
@@ -54,6 +56,7 @@ import {
     UserPlus,
     UsersRound,
     X,
+    Zap,
 } from 'lucide-react';
 import '../css/app.css';
 
@@ -269,84 +272,973 @@ function BrandMark() {
 }
 
 function LandingPage({ csrf, errors, old, signupCount }) {
-    const moveGridSpotlight = (event) => {
-        const rect = event.currentTarget.getBoundingClientRect();
-        event.currentTarget.style.setProperty('--grid-x', `${event.clientX - rect.left}px`);
-        event.currentTarget.style.setProperty('--grid-y', `${event.clientY - rect.top}px`);
-    };
-
     return (
-        <main className="min-h-screen bg-[#f8f4f2] p-2 text-slate-950 sm:p-3">
-            <section
-                className="infinite-grid-bg relative mx-auto min-h-[min(760px,calc(100vh-1rem))] max-w-[430px] overflow-hidden rounded-[2rem] bg-[#fbf8f7] sm:min-h-[calc(100vh-1.5rem)] sm:max-w-none sm:rounded-[1.6rem]"
-                onMouseMove={moveGridSpotlight}
-            >
-                <div className="infinite-grid-wash" aria-hidden="true" />
-                <div className="infinite-grid-layer infinite-grid-layer-soft" aria-hidden="true" />
-                <div className="infinite-grid-layer infinite-grid-layer-focus" aria-hidden="true" />
-
-                <section className="relative z-10 mx-auto flex min-h-[min(760px,calc(100vh-1rem))] max-w-3xl flex-col items-center justify-center px-5 py-10 text-center sm:min-h-[calc(100vh-1.5rem)] sm:py-12">
-                    <img
-                        src="/images/scalecampus-labs-logo.png"
-                        alt="ScaleCampus Labs"
-                        className="h-auto w-28 rounded-lg object-contain sm:w-36"
-                    />
-
-                    <h1 className="mt-7 max-w-[39rem] text-[2.35rem] font-normal leading-[1.04] tracking-normal text-[#262323] [font-family:Georgia,Cambria,'Times_New_Roman',Times,serif] sm:text-[3.45rem]">
-                        Campus visit planning, finally coordinated
-                    </h1>
-                    <p className="mt-3 max-w-[42rem] text-sm font-normal leading-6 text-[#555151] sm:text-[17px] sm:leading-7">
-                        ScaleCampusLab gives universities and schools one organized workspace for outreach visits, approvals, schedules, student participation, and follow-up. Join the waitlist to be notified when early access opens.
-                    </p>
-
-                    <WaitlistForm csrf={csrf} errors={errors} old={old} />
-
-                </section>
+        <main className="min-h-screen overflow-x-hidden bg-[#fbfdff] text-slate-950 [font-family:Inter,Arial,sans-serif]">
+            <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[200] focus:rounded-full focus:bg-white focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-slate-950 focus:shadow-lg">Skip to content</a>
+            <section className="relative overflow-hidden border-b border-slate-200 bg-[radial-gradient(circle_at_1px_1px,rgba(37,99,235,.10)_1px,transparent_0)] [background-size:24px_24px]">
+                <WaitlistNav />
+                <div id="main-content" className="mx-auto grid min-h-0 w-full max-w-[1340px] items-center gap-7 overflow-hidden px-4 py-7 sm:px-10 sm:py-9 lg:min-h-[660px] lg:grid-cols-[0.98fr_1.02fr] lg:gap-10 lg:px-14 lg:py-6 xl:px-16">
+                    <div className="min-w-0 max-w-full sm:max-w-[560px]">
+                        <h1 className="max-w-full break-words text-[clamp(1.65rem,7.8vw,2.05rem)] font-bold leading-[1.07] tracking-[-0.015em] text-[#0b1428] bricolage-grotesque sm:text-[3rem] lg:text-[3.15rem] xl:text-[3.35rem]">
+                            Connect with counselors and principals at <span className="text-[#3b82f6]">high schools across Nigeria.</span>
+                        </h1>
+                        <p className="mt-4 max-w-full break-words text-[14px] font-normal leading-[1.6] tracking-normal text-[#53647e] sm:mt-5 sm:max-w-[560px] sm:text-base">
+                            ScaleCampusLab gives university and school teams one shared flow for visit programs, school requests, partner records, student rosters, schedules, messages, and reporting.
+                        </p>
+                        <div className="mt-6 grid max-w-full gap-3 min-[420px]:grid-cols-2 sm:mt-7">
+                            <a href="#waitlist" className="inline-flex h-12 min-h-12 items-center justify-center gap-2 rounded-full bg-[#0f172a] px-6 py-3 text-[15px] font-medium text-white shadow-lg shadow-slate-950/15 hover:bg-black sm:h-13 sm:min-h-13 sm:px-7 sm:py-3.5">
+                                Join waitlist <ArrowRight size={18} />
+                            </a>
+                            <a href="#waitlist" className="inline-flex h-12 min-h-12 items-center justify-center rounded-full border border-slate-200 bg-white px-6 py-3 text-[15px] font-medium text-slate-950 hover:border-blue-200 hover:text-blue-600 sm:h-13 sm:min-h-13 sm:px-7 sm:py-3.5">
+                                Request access
+                            </a>
+                        </div>
+                        <div className="mt-6 max-w-full overflow-hidden [mask-image:linear-gradient(90deg,transparent,#000_12%,#000_88%,transparent)] sm:mt-7 sm:max-w-[560px]">
+                            <div className="hero-benefit-marquee flex w-max items-center gap-6 text-[0.9rem] font-normal text-[#64748b] sm:gap-8 sm:text-[0.95rem]">
+                                {[...Array(2)].flatMap((_, repeatIndex) => ['Nigeria-first, state by state', 'Counselors & principals, not students', 'One shared team workspace'].map((item) => (
+                                    <p key={`${repeatIndex}-${item}`} className="flex shrink-0 items-center gap-3">
+                                        <CheckCircle2 size={18} className="text-[#3b82f6]" /> {item}
+                                    </p>
+                                )))}
+                            </div>
+                        </div>
+                    </div>
+                    <div className="min-w-0 max-w-full overflow-hidden lg:pt-3">
+                        <WaitlistProductPreview />
+                    </div>
+                </div>
             </section>
-            <WaitlistFaqs />
+            <PlatformOverview />
+            <CounselorDirectorySection />
+            <VisitPlanningSection />
+            <RelationshipPipelineSection />
+            <MetricsSection />
+            <AboutScaleCampusSection />
+            <ScaleCampusFaqSection />
+            <WaitlistClosingSection csrf={csrf} errors={errors} old={old} />
+            <CampusFooter />
         </main>
     );
 }
 
-function WaitlistFaqs() {
-    const faqs = [
-        ['What is ScaleCampusLab?', 'ScaleCampusLab is a coordination platform for university outreach teams and school partners. It keeps visit requests, approvals, itineraries, student attendance, and follow-up in one place.'],
-        ['Who is it built for?', 'It is built for university recruitment and outreach teams, school administrators, guidance counselors, and education partners who coordinate student-facing visits.'],
-        ['Does joining create an account?', 'No. The waitlist only records your email so we can notify you when early access opens. It does not create a dashboard account, password, payment, or application.'],
-        ['What happens after I join?', 'You will receive launch updates and setup instructions when early access is ready. University and school workspaces will be onboarded separately.'],
-    ];
-
+function WaitlistNav() {
     return (
-        <section className="mx-auto w-full max-w-4xl px-5 py-16 text-left sm:py-20 lg:py-24">
-            <div className="mx-auto mb-8 max-w-2xl text-center">
-                <p className="text-[11px] font-medium uppercase tracking-[0.24em] text-slate-500">FAQ</p>
-                <h2 className="mt-3 text-3xl font-normal tracking-normal text-[#262323] [font-family:Georgia,Cambria,'Times_New_Roman',Times,serif] sm:text-[2.75rem]">Before you join the waitlist</h2>
-                <p className="mt-3 text-[15px] font-normal leading-7 text-slate-600">
-                    Clear answers for teams evaluating ScaleCampusLab before launch.
-                </p>
+        <header className="relative z-20 border-b border-slate-200/80 bg-white/90 backdrop-blur">
+            <div className="mx-auto flex h-16 max-w-[1340px] items-center justify-between gap-3 px-4 sm:px-10 lg:px-14 xl:px-16">
+                <a href="/" className="flex items-center gap-3" aria-label="ScaleCampusLab home">
+                    <img src="/images/scalecampus-labs-logo.png" alt="ScaleCampusLab" className="h-9 w-auto object-contain min-[390px]:h-10 sm:h-11" />
+                </a>
+                <nav className="hidden items-center gap-7 text-[15px] font-bold text-slate-700 lg:flex">
+                    <a href="/home" className="hover:text-blue-600">Platform</a>
+                    <a href="/home" className="hover:text-blue-600">Directory</a>
+                    <a href="/home" className="hover:text-blue-600">Visits</a>
+                    <a href="#metrics" className="hover:text-blue-600">Metrics</a>
+                    <a href="#pricing" className="hover:text-blue-600">Pricing</a>
+                    <a href="#faq" className="hover:text-blue-600">FAQ</a>
+                </nav>
+                <div className="flex items-center gap-3">
+                    <a href="#waitlist" className="hidden text-sm font-bold text-slate-800 hover:text-blue-600 sm:inline-flex">Join waitlist</a>
+                    <a href="#waitlist" className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-full bg-slate-950 px-3 text-sm font-bold text-white shadow-md shadow-slate-950/12 hover:bg-black sm:px-5">
+                        <span className="hidden min-[390px]:inline">Join waitlist</span><span className="min-[390px]:hidden">Join</span> <ArrowRight size={16} />
+                    </a>
+                </div>
             </div>
-            <div className="mx-auto grid max-w-2xl gap-2.5">
-                {faqs.map(([question, answer]) => (
-                    <details key={question} className="group rounded-2xl border border-slate-200/80 bg-white/80 px-5 py-4 shadow-[0_10px_28px_rgba(15,23,42,.045)] backdrop-blur">
-                        <summary className="flex cursor-pointer list-none items-center justify-between gap-5 text-[15px] font-medium text-slate-900 marker:hidden sm:text-base">
-                            <span>{question}</span>
-                            <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-slate-100 text-base font-normal leading-none text-slate-600 transition group-open:rotate-45">+</span>
-                        </summary>
-                        <p className="mt-3 max-w-[38rem] text-sm font-normal leading-7 text-slate-600">{answer}</p>
-                    </details>
+        </header>
+    );
+}
+
+function WaitlistSignupCard({ csrf, errors, old }) {
+    return (
+        <section id="waitlist" className="rounded-[1.7rem] border border-slate-200 bg-white p-5 shadow-[0_24px_70px_rgba(15,23,42,.12)] sm:p-7">
+            <div className="flex items-start justify-between gap-4">
+                <div>
+                    <p className="text-xs font-medium uppercase tracking-[0.16em] text-blue-600">Get early access</p>
+                    <h2 className="mt-2 text-2xl font-normal tracking-normal text-slate-950 bricolage-grotesque">Join the waitlist</h2>
+                    <p className="mt-2 text-sm font-normal leading-6 text-slate-500">No spam. Early access for pilot institutions. Unsubscribe anytime.</p>
+                </div>
+                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-slate-950 text-white"><MailCheck size={21} /></span>
+            </div>
+            <WaitlistForm csrf={csrf} errors={errors} old={old} card />
+            <div className="mt-6 grid gap-3 border-t border-slate-100 pt-5">
+                {[
+                    ['Directory', 'Counselor and principal contacts in one searchable place.'],
+                    ['Visit planner', 'Coordinate school visits with clear objectives and notes.'],
+                    ['Follow-ups', 'Keep next steps visible across your recruitment team.'],
+                ].map(([title, body]) => (
+                    <div key={title} className="flex gap-3">
+                        <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-blue-500" />
+                        <p className="text-sm font-normal leading-6 text-slate-500"><span className="font-medium text-slate-900">{title}:</span> {body}</p>
+                    </div>
                 ))}
             </div>
         </section>
     );
 }
 
-function WaitlistForm({ csrf, errors, old }) {
+function WaitlistProductPreview() {
+    const pipeline = [
+        ['Published', 12, 'w-[82%] bg-[#60a5fa]'],
+        ['Requested', 31, 'w-[68%] bg-[#3b82f6]'],
+        ['Approved', 18, 'w-[52%] bg-[#0f172a]'],
+        ['Checked in', 344, 'w-[76%] bg-[#94a3b8]'],
+    ];
+    const requests = [
+        ['GF', 'Greenfield College', '38 students', 'Pending'],
+        ['IB', 'Ibadan Intl. School', '52 students', 'Approved'],
+        ['FG', 'Federal Govt. College', '27 students', 'Scheduled'],
+    ];
+    const stats = [
+        ['Programs', '12', '+3 live'],
+        ['Requests', '31', '9 pending'],
+        ['Rosters', '486', '72 waitlist'],
+    ];
+    const activity = [
+        ['VP', 'Visit program published'],
+        ['RQ', 'School request approved'],
+        ['RS', 'Roster synced for visit'],
+    ];
+
     return (
-        <section id="waitlist" className="mt-8 w-full max-w-[31rem]">
+        <div className="relative mx-auto w-full max-w-[calc(100vw-2rem)] sm:max-w-[620px] lg:max-w-[650px]">
+            <div className="overflow-hidden rounded-[1rem] border border-slate-200 bg-white shadow-[0_18px_42px_rgba(15,23,42,.10)] sm:rounded-[1.35rem] sm:shadow-[0_22px_60px_rgba(15,23,42,.12)]">
+                <div className="flex h-11 items-center gap-2 border-b border-slate-100 bg-slate-50/80 px-3 sm:h-[52px] sm:gap-2.5 sm:px-4">
+                    <span className="h-3 w-3 rounded-full bg-red-400" />
+                    <span className="h-3 w-3 rounded-full bg-amber-400" />
+                    <span className="h-3 w-3 rounded-full bg-emerald-400" />
+                    <div className="ml-2 flex h-7 min-w-0 flex-1 items-center overflow-hidden rounded-full border border-slate-200 bg-white px-3 text-[11px] font-medium text-[#8a9ab3] sm:ml-3 sm:h-8 sm:px-4 sm:text-xs"><span className="truncate">app.scalecampuslab.com / visits</span></div>
+                </div>
+
+                <div className="grid gap-3 p-3 sm:p-4 lg:grid-cols-[1fr_0.72fr] lg:p-5">
+                    <section>
+                        <div className="flex items-center justify-between gap-4">
+                            <h2 className="text-sm font-medium tracking-normal text-slate-950 sm:text-base">Visit operations</h2>
+                            <span className="rounded-full bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-600">Live</span>
+                        </div>
+                        <div className="mt-4 grid gap-3">
+                            {pipeline.map(([label, value, tone]) => (
+                                <div key={label} className="grid min-w-0 grid-cols-[4.4rem_minmax(0,1fr)] items-center gap-2 sm:grid-cols-[5.8rem_minmax(0,1fr)] sm:gap-3">
+                                    <p className="truncate text-xs font-normal text-[#61728c]">{label}</p>
+                                    <div className="h-7 overflow-hidden rounded-xl bg-slate-100 sm:h-8">
+                                        <div className={`flex h-full items-center justify-end rounded-xl pr-3 text-xs font-medium text-white ${tone}`}>{value}</div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        <div className="mt-4 grid min-w-0 grid-cols-3 gap-1.5 sm:gap-2">
+                            {[
+                                ...stats,
+                            ].map(([label, value, trend]) => (
+                                <article key={label} className="min-w-0 rounded-lg border border-slate-200 bg-slate-50/70 p-2 sm:rounded-xl sm:p-3">
+                                    <p className="truncate text-[9px] font-medium uppercase text-[#94a3b8] sm:text-[10px]">{label}</p>
+                                    <p className="mt-1.5 text-lg font-medium tracking-normal text-slate-950 sm:text-xl">{value}</p>
+                                    <p className="mt-1.5 text-[11px] font-medium text-emerald-600">{trend}</p>
+                                </article>
+                            ))}
+                        </div>
+                    </section>
+
+                    <aside className="hidden gap-4 sm:grid">
+                        <section className="rounded-[1rem] border border-slate-200 bg-white p-3 sm:rounded-[1.15rem] sm:p-4">
+                            <h3 className="text-sm font-medium tracking-normal text-slate-950">School requests</h3>
+                            <div className="mt-3 grid gap-2.5">
+                                {requests.map(([abbr, name, value, status]) => (
+                                    <div key={abbr}>
+                                        <div className="flex items-center justify-between gap-3">
+                                            <p className="flex min-w-0 items-center gap-2 text-xs font-normal text-[#52627a]"><span className="rounded bg-[#0f172a] px-1.5 py-0.5 text-[9px] font-medium text-white">{abbr}</span><span className="truncate">{name}</span></p>
+                                            <p className="shrink-0 text-xs font-medium text-slate-950">{value}</p>
+                                        </div>
+                                        <p className="mt-1 text-[10px] font-medium uppercase tracking-[0.1em] text-[#8da0bb]">{status}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        </section>
+                        <section className="rounded-[1rem] border border-slate-200 bg-white p-3 sm:rounded-[1.15rem] sm:p-4">
+                            <p className="flex items-center gap-2 text-xs font-medium text-[#52627a]"><span className="h-2.5 w-2.5 rounded-full bg-emerald-500 shadow-[0_0_0_4px_rgba(16,185,129,.12)]" />Recent updates</p>
+                            <div className="mt-3 grid gap-2.5">
+                                {activity.map(([initials, action]) => (
+                                    <div key={`${initials}-${action}`} className="flex items-center gap-3">
+                                        <span className="grid h-7 w-7 place-items-center rounded-full bg-blue-50 text-[10px] font-medium text-blue-600">{initials}</span>
+                                        <p className="text-xs font-normal leading-5 text-[#64748b]">{action}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        </section>
+                    </aside>
+                </div>
+            </div>
+            <div className="absolute -bottom-5 -left-4 hidden rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-[0_18px_40px_rgba(15,23,42,.16)] md:block">
+                <p className="text-[10px] font-medium uppercase text-[#94a3b8]">Confirmed seats</p>
+                <p className="mt-1.5 text-2xl font-medium tracking-normal text-slate-950">344 <span className="text-sm text-emerald-600">checked in</span></p>
+            </div>
+        </div>
+    );
+}
+
+function LandingSectionIntro({ eyebrow, title, body, center = false }) {
+    return (
+        <div className={cx('max-w-3xl', center && 'mx-auto text-center')}>
+            {eyebrow && <p className="text-xs font-medium uppercase tracking-[0.18em] text-[#3f82f7]">{eyebrow}</p>}
+            <h2 className="mt-3 text-4xl font-normal leading-tight tracking-normal text-[#0b1428] bricolage-grotesque sm:text-5xl">{title}</h2>
+            <p className="mt-4 text-base font-normal leading-8 text-[#53647e] sm:text-lg">{body}</p>
+        </div>
+    );
+}
+
+function PlatformOverview() {
+    const problems = [
+        ['Visit programs', 'Universities create, publish, invite schools, set capacity rules, and track registrations.'],
+        ['Partner schools', 'Teams manage school records, relationship tier, match score, contacts, notes, and tasks.'],
+        ['School requests', 'Schools discover visits, request seats, review approvals, and keep a live itinerary.'],
+        ['Attendee records', 'Rosters, check-in status, consent details, waitlists, and exports stay attached to each visit.'],
+    ];
+
+    return (
+        <section id="platform" className="border-b border-[#dbe5f2] bg-[#f6f9fd]">
+            <div className="mx-auto grid max-w-[1340px] gap-10 px-6 py-14 sm:px-10 lg:grid-cols-[0.95fr_1.05fr] lg:items-center lg:px-14 xl:px-16">
+                <div className="max-w-[650px]">
+                    <p className="text-[13px] font-medium uppercase tracking-[0.22em] text-[#3f82f7]">Dashboard workflow</p>
+                    <h2 className="mt-4 max-w-[600px] text-[2rem] font-bold leading-[1.08] tracking-[-0.03em] text-[#0b1428] bricolage-grotesque sm:text-[2.35rem]">
+                        The waitlist introduces the same work users handle after login
+                    </h2>
+                    <p className="mt-5 max-w-[600px] text-base font-normal leading-[1.65] text-[#53647e]">
+                        ScaleCampusLab connects university recruitment teams and school coordinators through shared visit programs, school requests, rosters, schedules, messages, and reporting.
+                    </p>
+                </div>
+
+                <div className="grid gap-3.5 sm:grid-cols-2">
+                    {problems.map(([title, body]) => (
+                        <article key={title} className="rounded-2xl border border-[#dbe5f2] bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-[0_14px_30px_rgba(15,23,42,.06)]">
+                            <div className="flex items-center gap-3">
+                                <span className="grid h-7 w-7 place-items-center rounded-lg bg-[#eaf2ff] text-[#3f82f7]" aria-hidden="true">
+                                    <CheckCircle2 size={15} strokeWidth={2.2} />
+                                </span>
+                                <h3 className="text-base font-bold tracking-[-0.01em] text-[#0b1428]">{title}</h3>
+                            </div>
+                            <p className="mt-3 text-sm font-normal leading-6 text-[#53647e]">{body}</p>
+                        </article>
+                    ))}
+                </div>
+            </div>
+        </section>
+    );
+}
+
+function CounselorDirectorySection() {
+    const features = [
+        [CalendarDays, 'Visit programs', 'Create recruitment visits with status, visibility, registration windows, per-school capacity, and invite controls.'],
+        [School, 'Partner schools', 'Maintain school profiles with region, type, relationship tier, match score, notes, archives, and follow-up tasks.'],
+        [Send, 'Visit requests', 'Let schools request published programs while universities review inbound requests and send their own outreach.'],
+        [UsersRound, 'Rosters and attendees', 'Track student rosters, registration counts, attendance status, consent details, waitlists, and exports.'],
+        [RouteIcon, 'Itinerary planning', 'Give school coordinators a route-style view of approved destinations, students covered, and confirmed stops.'],
+        [MailCheck, 'Messages and reminders', 'Keep notification history, reminders, previews, failed retries, and school-facing updates in one place.'],
+        [BarChart3, 'Insights and reports', 'Show funnels, visit activity, partner performance, saved insights, and downloadable recruitment reports.'],
+        [ShieldCheck, 'Settings and access', 'Manage institution profile, branding, recruiter records, security, audit logs, and compliance notices.'],
+    ];
+
+    return (
+        <section id="directory" className="border-y border-[#e3eaf3] bg-white">
+            <div className="mx-auto max-w-[1180px] px-6 py-14 sm:px-10 lg:px-12">
+                <div className="mx-auto max-w-[660px] text-center">
+                    <p className="text-[13px] font-medium uppercase tracking-[0.22em] text-[#3f82f7]">Product modules</p>
+                    <h2 className="mt-3 text-[2.15rem] font-bold leading-[1.05] tracking-[-0.035em] text-[#0b1428] bricolage-grotesque sm:text-[2.7rem]">
+                        A compact workspace for both sides of the visit cycle
+                    </h2>
+                    <p className="mt-5 text-base font-normal leading-7 text-[#53647e]">
+                        The waitlist page now previews the same modules available in the university and school dashboards, from published programs to rosters, approvals, schedules, and reporting.
+                    </p>
+                </div>
+
+                <div className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    {features.map(([Icon, title, body], index) => (
+                        <article
+                            key={title}
+                            tabIndex={0}
+                            className="solution-card group relative overflow-hidden rounded-xl border border-[#dbe5f2] bg-white px-4 py-4 shadow-[0_8px_22px_rgba(15,23,42,.035)] outline-none transition hover:-translate-y-0.5 hover:border-[#9fc0f2] hover:bg-[#f8fbff] hover:shadow-[0_12px_28px_rgba(15,23,42,.065)] focus-visible:-translate-y-0.5 focus-visible:border-[#3f82f7] focus-visible:ring-4 focus-visible:ring-[#eaf2ff]"
+                            style={{ '--card-index': index }}
+                        >
+                            <span className="solution-card-glow pointer-events-none absolute -right-8 -top-8 h-20 w-20 rounded-full bg-[#eaf2ff] opacity-0 transition group-hover:opacity-100 group-focus-visible:opacity-100" />
+                            <div className="relative flex items-center gap-3">
+                                <span className="solution-icon grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-[#dbe8fb] bg-[#f4f8ff] text-[#3f82f7]" aria-hidden="true">
+                                    <Icon size={17} strokeWidth={2} />
+                                </span>
+                                <h3 className="min-w-0 text-[15px] font-bold leading-5 tracking-[-0.01em] text-[#0b1428]">{title}</h3>
+                            </div>
+                            <p className="relative mt-3 line-clamp-4 text-[13px] font-normal leading-[1.55] text-[#53647e]">{body}</p>
+                        </article>
+                    ))}
+                </div>
+            </div>
+        </section>
+    );
+}
+
+function VisitPlanningSection() {
+    const universityRows = [
+        ['Visit Programs', 'Published', '12 open', CalendarDays],
+        ['Partner Schools', 'Prioritized', '86 records', School],
+        ['Visit Requests', 'Needs review', '9 pending', Send],
+        ['Insights', 'Export ready', '4 reports', BarChart3],
+    ];
+    const schoolRows = [
+        ['Discover Visits', 'Open capacity', '28 programs', Search],
+        ['My Requests', 'Approved', '6 visits', ClipboardCheck],
+        ['Itinerary', 'Route planned', '3 stops', RouteIcon],
+        ['Students', 'Roster synced', '214 records', UsersRound],
+    ];
+    return (
+        <section id="visits" className="border-y border-[#dbe5f2] bg-[#f3f7fc]">
+            <div className="mx-auto max-w-[1120px] px-6 py-14 sm:px-10 lg:px-12">
+                <div className="mx-auto max-w-[690px] text-center">
+                    <h2 className="text-[2.1rem] font-bold leading-[1.08] tracking-[-0.035em] text-[#0b1428] bricolage-grotesque sm:text-[2.55rem]">
+                        One flow from visit publishing to school attendance
+                    </h2>
+                    <p className="mt-4 text-base font-normal leading-7 text-[#53647e]">
+                        Join early access for a shared workspace where universities publish visit programs, schools request attendance, and every roster, schedule, message, and report stays connected.
+                    </p>
+                </div>
+
+                <div className="mt-9 grid gap-4 lg:grid-cols-[1fr_1fr]">
+                    <DashboardPreviewPanel eyebrow="University workspace" title="Recruitment operations" rows={universityRows} activeIndex={1} />
+                    <DashboardPreviewPanel eyebrow="School workspace" title="Coordinator operations" rows={schoolRows} activeIndex={2} />
+                </div>
+            </div>
+        </section>
+    );
+}
+
+function DashboardPreviewPanel({ eyebrow, title, rows, activeIndex = 0 }) {
+    return (
+        <article className="group overflow-hidden rounded-2xl border border-[#dbe5f2] bg-white shadow-[0_14px_34px_rgba(15,23,42,.055)] transition hover:-translate-y-0.5 hover:border-[#9fc0f2]">
+            <div className="flex items-center justify-between border-b border-[#edf2f8] bg-[#fbfdff] px-5 py-4">
+                <div>
+                    <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[#8da0bb]">{eyebrow}</p>
+                    <h3 className="mt-1 text-lg font-bold tracking-[-0.02em] text-[#0b1428] bricolage-grotesque">{title}</h3>
+                </div>
+                <span className="grid h-9 w-9 place-items-center rounded-full border border-[#dbe8fb] bg-white text-[#3f82f7]">
+                    <LayoutDashboard size={17} />
+                </span>
+            </div>
+            <div className="grid gap-2 p-4">
+                {rows.map(([name, state, value, Icon], index) => (
+                    <button
+                        key={name}
+                        type="button"
+                        className={cx(
+                            'grid grid-cols-[2.35rem_1fr_auto] items-center gap-3 rounded-xl border px-3 py-3 text-left transition',
+                            index === activeIndex
+                                ? 'border-[#9fc0f2] bg-[#f4f8ff] shadow-[0_8px_20px_rgba(63,130,247,.09)]'
+                                : 'border-transparent bg-white hover:border-[#dbe5f2] hover:bg-[#fbfdff]'
+                        )}
+                    >
+                        <span className="grid h-9 w-9 place-items-center rounded-lg bg-[#eef5ff] text-[#3f82f7]" aria-hidden="true">
+                            <Icon size={16} strokeWidth={2.1} />
+                        </span>
+                        <span className="min-w-0">
+                            <span className="block truncate text-sm font-bold text-[#0b1428]">{name}</span>
+                            <span className="mt-0.5 block truncate text-xs font-normal text-[#53647e]">{state}</span>
+                        </span>
+                        <span className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-[#3f82f7] shadow-sm">{value}</span>
+                    </button>
+                ))}
+            </div>
+        </article>
+    );
+}
+
+function RelationshipPipelineSection() {
+    const visits = [
+        {
+            title: 'Lagos STEM Open Day',
+            meta: 'Published program',
+            status: '12 schools invited',
+            icon: CalendarDays,
+            rows: [['Capacity', '180 seats'], ['Registration', 'Open'], ['Per-school cap', '25 students']],
+            note: 'University teams publish the program, set the visit rules, and invite matched partner schools from the dashboard.',
+        },
+        {
+            title: 'Greenfield College',
+            meta: 'School request',
+            status: 'Pending review',
+            icon: Send,
+            rows: [['Requested date', 'Oct 12'], ['Group size', '38 students'], ['Coordinator', 'Guidance office']],
+            note: 'School coordinators request attendance, add student counts, and keep the request visible until the university approves it.',
+        },
+        {
+            title: 'Campus route',
+            meta: 'Confirmed itinerary',
+            status: '3 stops ready',
+            icon: RouteIcon,
+            rows: [['Students covered', '112'], ['Confirmed stops', '3'], ['Check-in', 'Live roster']],
+            note: 'Approved visits move into the school itinerary with destinations, student coverage, attendance records, and schedule details.',
+        },
+    ];
+    const [active, setActive] = useState(0);
+    const selected = visits[active];
+    const SelectedIcon = selected.icon;
+
+    return (
+        <section className="bg-white">
+            <div className="mx-auto max-w-[1120px] px-6 py-14 sm:px-10 lg:px-12">
+            <div className="mx-auto max-w-[680px] text-center">
+                <p className="text-[13px] font-medium uppercase tracking-[0.22em] text-[#3f82f7]">Visit planning</p>
+                <h2 className="mt-3 text-[2.1rem] font-bold leading-[1.08] tracking-[-0.035em] text-[#0b1428] bricolage-grotesque sm:text-[2.55rem]">
+                    Plan each visit with both dashboards in sync
+                </h2>
+                <p className="mt-4 text-base font-normal leading-7 text-[#53647e]">
+                    Bring the full visit cycle together: university programs, school requests, itinerary planning, student rosters, and attendance records.
+                </p>
+            </div>
+
+            <div className="mt-9 grid gap-4 lg:grid-cols-[0.95fr_1.05fr] lg:items-stretch">
+                <div className="grid gap-3">
+                    {visits.map(({ title, meta, status, icon: Icon }, index) => (
+                        <button
+                            key={title}
+                            type="button"
+                            onClick={() => setActive(index)}
+                            aria-pressed={active === index}
+                            className={cx(
+                                'group grid grid-cols-[2.75rem_1fr_auto] items-center gap-3 rounded-2xl border bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-[#9fc0f2] hover:shadow-[0_14px_30px_rgba(15,23,42,.06)]',
+                                active === index ? 'border-[#9fc0f2] bg-[#f8fbff]' : 'border-[#dbe5f2]'
+                            )}
+                        >
+                            <span className="grid h-11 w-11 place-items-center rounded-xl bg-[#eef5ff] text-[#3f82f7] transition group-hover:scale-105" aria-hidden="true">
+                                <Icon size={18} strokeWidth={2.1} />
+                            </span>
+                            <span className="min-w-0">
+                                <span className="block truncate text-base font-bold tracking-[-0.01em] text-[#0b1428]">{title}</span>
+                                <span className="mt-1 block truncate text-xs font-normal uppercase tracking-[0.12em] text-[#8da0bb]">{meta}</span>
+                            </span>
+                            <span className="hidden rounded-full border border-[#dbe8fb] bg-white px-3 py-1.5 text-xs font-medium text-[#3f82f7] sm:inline-flex">{status}</span>
+                        </button>
+                    ))}
+                </div>
+
+                <article className="rounded-[1.35rem] border border-[#dbe5f2] bg-white p-5 shadow-[0_16px_38px_rgba(15,23,42,.065)]">
+                    <div className="flex items-start justify-between gap-4">
+                        <div>
+                            <p className="text-[12px] font-medium uppercase tracking-[0.16em] text-[#8da0bb]">{selected.meta}</p>
+                            <h3 className="mt-2 text-2xl font-bold tracking-[-0.025em] text-[#0b1428] bricolage-grotesque">{selected.title}</h3>
+                        </div>
+                        <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-[#eef5ff] text-[#3f82f7]" aria-hidden="true">
+                            <SelectedIcon size={20} strokeWidth={2.1} />
+                        </span>
+                    </div>
+
+                    <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                        {selected.rows.map(([label, value]) => (
+                            <div key={label} className="rounded-xl border border-[#edf2f8] bg-[#fbfdff] p-3">
+                                <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-[#8da0bb]">{label}</p>
+                                <p className="mt-2 text-sm font-bold text-[#0b1428]">{value}</p>
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="mt-5 rounded-2xl bg-[#f4f8ff] p-4">
+                        <p className="text-sm font-normal leading-6 text-[#53647e]">{selected.note}</p>
+                    </div>
+
+                    <div className="mt-5 flex flex-wrap gap-2">
+                        {['Program rules', 'Request status', 'Roster count', 'Schedule updates'].map((item) => (
+                            <span key={item} className="rounded-full border border-[#dbe8fb] bg-white px-3 py-1.5 text-xs font-medium text-[#53647e]">{item}</span>
+                        ))}
+                    </div>
+                </article>
+            </div>
+            </div>
+        </section>
+    );
+}
+
+function MetricsSection() {
+    const [active, setActive] = useState('university');
+    const datasets = {
+        university: {
+            label: 'University view',
+            title: 'Visit program performance',
+            body: 'Track the same signals your recruitment dashboard manages: published programs, school requests, registrations, waitlists, check-ins, and report exports.',
+            kpis: [['12', 'Published programs', '+3 live'], ['31', 'Visit requests', '9 pending'], ['486', 'Registrations', '72 waitlisted'], ['344', 'Checked in', '71%']],
+            trend: [118, 156, 188, 210, 286, 331, 402, 486],
+            bars: [42, 58, 64, 72, 86, 92, 108, 124],
+            funnel: [['Published', 100], ['Requested', 74], ['Approved', 58], ['Rostered', 46], ['Checked in', 39]],
+        },
+        school: {
+            label: 'School view',
+            title: 'Coordinator readiness',
+            body: 'See how school teams move from finding open visits to requesting seats, syncing rosters, planning itinerary stops, and confirming attendance.',
+            kpis: [['28', 'Open visits', 'capacity live'], ['11', 'My requests', '6 approved'], ['214', 'Students', 'roster synced'], ['3', 'Itinerary stops', 'route ready']],
+            trend: [42, 58, 74, 92, 118, 146, 178, 214],
+            bars: [18, 28, 34, 46, 52, 63, 72, 84],
+            funnel: [['Discovered', 100], ['Requested', 62], ['Approved', 54], ['Rostered', 43], ['Scheduled', 36]],
+        },
+    };
+    const selected = datasets[active];
+    const maxTrend = Math.max(...selected.trend);
+    const chartWidth = 640;
+    const chartHeight = 230;
+    const pad = { top: 22, right: 22, bottom: 34, left: 46 };
+    const labels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Now'];
+    const points = selected.trend.map((value, index) => {
+        const x = pad.left + index * ((chartWidth - pad.left - pad.right) / (selected.trend.length - 1));
+        const y = pad.top + ((maxTrend - value) / maxTrend) * (chartHeight - pad.top - pad.bottom);
+        return { x, y, value, label: labels[index] };
+    });
+    const path = points.map((point, index) => `${index ? 'L' : 'M'}${point.x} ${point.y}`).join(' ');
+    const area = `${path} L${points[points.length - 1].x} ${chartHeight - pad.bottom} L${points[0].x} ${chartHeight - pad.bottom} Z`;
+
+    return (
+        <section id="metrics" className="overflow-hidden border-y border-[#111d33] bg-[#07101d]">
+            <div className="relative mx-auto max-w-[1120px] px-6 py-12 text-white sm:px-10 lg:px-12">
+                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,rgba(96,165,250,.12)_1px,transparent_0)] [background-size:22px_22px]" aria-hidden="true" />
+                <div className="relative grid gap-6 lg:grid-cols-[0.74fr_1.26fr] lg:items-start">
+                    <div>
+                        <p className="text-[13px] font-medium uppercase tracking-[0.22em] text-[#60a5fa]">Analytics workspace</p>
+                        <h2 className="mt-3 text-[2.1rem] font-bold leading-[1.08] tracking-[-0.035em] bricolage-grotesque sm:text-[2.55rem]">
+                            Real visit data, ready for action
+                        </h2>
+                        <p className="mt-4 text-base font-normal leading-7 text-slate-300">{selected.body}</p>
+                        <div className="mt-6 inline-flex rounded-full border border-white/10 bg-white/[0.06] p-1">
+                            {Object.entries(datasets).map(([key, view]) => (
+                                <button key={key} type="button" onClick={() => setActive(key)} className={cx('rounded-full px-4 py-2 text-sm font-medium transition', active === key ? 'bg-white text-[#07101d]' : 'text-slate-300 hover:text-white')}>
+                                    {view.label.replace(' view', '')}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="rounded-[1.35rem] border border-white/10 bg-[#0d192b] shadow-[0_26px_70px_rgba(0,0,0,.32)]">
+                        <div className="grid grid-cols-2 border-b border-white/10 md:grid-cols-4">
+                            {selected.kpis.map(([value, label, helper]) => (
+                                <div key={label} className="border-b border-r border-white/10 p-4 last:border-r-0 md:border-b-0">
+                                    <p className="text-2xl font-bold tracking-[-0.04em]">{value}</p>
+                                    <p className="mt-1 text-xs font-medium text-slate-300">{label}</p>
+                                    <p className="mt-1 text-[11px] font-normal text-[#60a5fa]">{helper}</p>
+                                </div>
+                            ))}
+                        </div>
+                        <div className="grid gap-0 lg:grid-cols-[1fr_16rem]">
+                            <div className="p-4">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-sm font-bold">{selected.title}</p>
+                                        <p className="text-xs text-slate-500">Monthly activity from dashboard records</p>
+                                    </div>
+                                    <BarChart3 size={18} className="text-[#60a5fa]" />
+                                </div>
+                                <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="mt-3 h-[13rem] w-full" role="img" aria-label={`${selected.label} analytics chart`}>
+                                    <defs>
+                                        <linearGradient id={`analyticsArea-${active}`} x1="0" x2="0" y1="0" y2="1">
+                                            <stop offset="0%" stopColor="#60a5fa" stopOpacity="0.35" />
+                                            <stop offset="100%" stopColor="#60a5fa" stopOpacity="0" />
+                                        </linearGradient>
+                                    </defs>
+                                    {[0, 0.33, 0.66, 1].map((step) => {
+                                        const y = pad.top + step * (chartHeight - pad.top - pad.bottom);
+                                        return <line key={step} x1={pad.left} x2={chartWidth - pad.right} y1={y} y2={y} stroke="rgba(148,163,184,.16)" strokeDasharray="5 8" />;
+                                    })}
+                                    {points.map((point, index) => {
+                                        const barHeight = (selected.bars[index] || 0) * 1.15;
+                                        return (
+                                            <g key={point.label}>
+                                                <rect x={point.x - 10} y={chartHeight - pad.bottom - barHeight} width="20" height={barHeight} rx="7" className="fill-white/10" />
+                                                <text x={point.x} y={chartHeight - 9} textAnchor="middle" className="fill-slate-500 text-[10px]">{point.label}</text>
+                                            </g>
+                                        );
+                                    })}
+                                    <path d={area} fill={`url(#analyticsArea-${active})`} />
+                                    <path key={active} d={path} className="analytics-line" fill="none" stroke="#60a5fa" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+                                    {points.map((point) => <circle key={`${point.label}-dot`} cx={point.x} cy={point.y} r="5" fill="#07101d" stroke="#60a5fa" strokeWidth="3" />)}
+                                </svg>
+                            </div>
+                            <aside className="border-t border-white/10 p-4 lg:border-l lg:border-t-0">
+                                <p className="text-sm font-bold">Visit funnel</p>
+                                <div className="mt-4 grid gap-3">
+                                    {selected.funnel.map(([label, value], index) => (
+                                        <div key={label}>
+                                            <div className="flex items-center justify-between text-xs">
+                                                <span className="font-medium text-slate-300">{label}</span>
+                                                <span className="font-bold">{value}%</span>
+                                            </div>
+                                            <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/10">
+                                                <div className="analytics-bar h-full rounded-full bg-[#60a5fa]" style={{ '--bar-width': `${value}%`, '--bar-delay': `${index * 70}ms` }} />
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                                <button type="button" className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-[#60a5fa]/25 bg-[#60a5fa]/10 px-4 py-2.5 text-sm font-medium text-[#bfdbfe] hover:bg-[#60a5fa]/15">
+                                    <Download size={16} /> Export report
+                                </button>
+                            </aside>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    );
+}
+
+function AboutScaleCampusSection() {
+    const strengths = [
+        [CalendarDays, 'Visit-first system', 'Built around programs, requests, approvals, rosters, itinerary stops, attendance, and reports.'],
+        [School, 'University + school workflow', 'Both sides work from connected dashboards instead of sending updates across scattered channels.'],
+        [UsersRound, 'Roster-aware coordination', 'Student lists, capacity rules, consent details, waitlists, and check-ins stay tied to each visit.'],
+        [BarChart3, 'Operational analytics', 'Measure demand, registrations, attendance, school activity, and follow-up from live dashboard records.'],
+    ];
+    const comparisons = [
+        ['Generic CRM', 'Tracks contacts, but does not understand visit requests, school rosters, or itinerary planning.', 'ScaleCampusLab connects relationships to real visit operations.'],
+        ['Spreadsheets', 'School lists, approvals, capacity, and attendance split across files with no reliable history.', 'ScaleCampusLab keeps every program, request, roster, and report in one workspace.'],
+        ['Email threads', 'Approvals, changes, and follow-ups disappear inside inboxes as teams hand work across people.', 'ScaleCampusLab gives every update a status, record, and next step.'],
+    ];
+
+    return (
+        <section className="relative overflow-hidden border-b border-[#dbe5f2] bg-[#f6f9fd]">
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,rgba(37,99,235,.08)_1px,transparent_0)] [background-size:22px_22px]" aria-hidden="true" />
+            <div className="relative mx-auto max-w-[1120px] px-6 py-14 sm:px-10 lg:px-12">
+                <div className="mx-auto max-w-[690px] text-center">
+                    <p className="text-[13px] font-medium uppercase tracking-[0.22em] text-[#3f82f7]">Why ScaleCampusLab</p>
+                    <h2 className="mt-3 text-[2.15rem] font-bold leading-[1.08] tracking-[-0.035em] text-[#0b1428] bricolage-grotesque sm:text-[2.75rem]">
+                        Built for the campus visit work most tools treat as an afterthought.
+                    </h2>
+                    <p className="mt-4 text-base font-normal leading-7 text-[#53647e]">
+                        ScaleCampusLab is not a generic CRM. It is a shared operating system for university visit programs, school requests, rosters, schedules, attendance, and reporting.
+                    </p>
+                </div>
+
+                <div className="mt-9 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                    {strengths.map(([Icon, title, body], index) => (
+                        <article
+                            key={title}
+                            className="apart-card group relative overflow-hidden rounded-2xl border border-[#dbe5f2] bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:border-[#9fc0f2] hover:shadow-[0_18px_42px_rgba(15,23,42,.08)]"
+                            style={{ '--apart-index': index }}
+                        >
+                            <span className="apart-shine pointer-events-none absolute inset-0" aria-hidden="true" />
+                            <span className="grid h-10 w-10 place-items-center rounded-xl bg-[#eef5ff] text-[#3f82f7] transition group-hover:scale-110 group-hover:rotate-3" aria-hidden="true">
+                                <Icon size={18} strokeWidth={2.1} />
+                            </span>
+                            <h3 className="mt-4 text-base font-bold tracking-[-0.01em] text-[#0b1428]">{title}</h3>
+                            <p className="mt-2 text-sm font-normal leading-6 text-[#53647e]">{body}</p>
+                        </article>
+                    ))}
+                </div>
+
+                <div className="mt-6 grid gap-4 lg:grid-cols-3">
+                    {comparisons.map(([label, gap, answer], index) => (
+                        <article
+                            key={label}
+                            className="compare-card group rounded-2xl border border-[#dbe5f2] bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:border-[#9fc0f2] hover:shadow-[0_18px_42px_rgba(15,23,42,.08)]"
+                            style={{ '--apart-index': index + 4 }}
+                        >
+                            <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-[#8da0bb]">{label}</p>
+                            <div className="mt-4 grid gap-3">
+                                <p className="flex gap-3 rounded-xl bg-rose-50 p-3 text-sm font-normal leading-6 text-[#53647e]">
+                                    <X size={16} className="mt-1 shrink-0 text-rose-500" /> {gap}
+                                </p>
+                                <p className="flex gap-3 rounded-xl bg-[#eef5ff] p-3 text-sm font-normal leading-6 text-[#0b1428]">
+                                    <CheckCircle2 size={16} className="mt-1 shrink-0 text-[#3f82f7]" /> {answer}
+                                </p>
+                            </div>
+                        </article>
+                    ))}
+                </div>
+
+                <div className="mx-auto mt-8 flex max-w-[820px] overflow-hidden rounded-full border border-[#dbe5f2] bg-white shadow-sm [mask-image:linear-gradient(90deg,transparent,#000_10%,#000_90%,transparent)]">
+                    <div className="apart-marquee flex w-max items-center gap-8 px-5 py-3 text-sm font-medium text-[#53647e]">
+                        {[...Array(2)].flatMap((_, repeatIndex) => ['Visit programs', 'School requests', 'Rosters', 'Itinerary', 'Attendance', 'Reports', 'Messages'].map((item) => (
+                            <span key={`${repeatIndex}-${item}`} className="flex shrink-0 items-center gap-2">
+                                <span className="h-2 w-2 rounded-full bg-[#3f82f7]" /> {item}
+                            </span>
+                        )))}
+                    </div>
+                </div>
+            </div>
+        </section>
+    );
+}
+
+function ScaleCampusFaqSection() {
+    const faqs = [
+        ['What is ScaleCampusLab?', 'ScaleCampusLab is a visit operations workspace for universities and schools. It helps teams manage visit programs, school requests, rosters, schedules, attendance, messages, and reports.'],
+        ['Who uses it?', 'University recruitment teams use it to publish and manage visits. School coordinators use it to request attendance, prepare student rosters, and track approved visits.'],
+        ['Is it a CRM?', 'No. It can support relationship work, but the core product is built around campus visit coordination, not generic contact management.'],
+        ['What does a university dashboard include?', 'Visit programs, partner schools, visit requests, attendees, calendar, communications, analytics, settings, and reporting tools.'],
+        ['What does a school dashboard include?', 'Discoverable visits, visit requests, student rosters, itinerary planning, schedule views, messages, profile settings, and attendance context.'],
+        ['Does it handle student data?', 'Yes, where it supports visit operations: rosters, registration records, attendance status, consent details, and itinerary coverage.'],
+    ];
+    const [open, setOpen] = useState(0);
+
+    return (
+        <section id="faq" className="border-b border-[#dbe5f2] bg-white">
+            <div className="mx-auto grid max-w-[1040px] gap-8 px-6 py-14 sm:px-10 lg:grid-cols-[0.72fr_1.28fr] lg:px-12">
+                <div>
+                    <p className="text-[13px] font-medium uppercase tracking-[0.22em] text-[#3f82f7]">FAQ</p>
+                    <h2 className="mt-3 text-[2.05rem] font-bold leading-[1.08] tracking-[-0.035em] text-[#0b1428] bricolage-grotesque sm:text-[2.45rem]">
+                        Questions about ScaleCampusLab
+                    </h2>
+                    <p className="mt-4 text-sm font-normal leading-7 text-[#53647e]">
+                        Quick answers about how the product supports university recruitment teams and school coordinators.
+                    </p>
+                </div>
+
+                <div className="grid gap-3">
+                    {faqs.map(([question, answer], index) => (
+                        <article key={question} className="rounded-2xl border border-[#dbe5f2] bg-white shadow-sm">
+                            <button
+                                type="button"
+                                onClick={() => setOpen(open === index ? -1 : index)}
+                                aria-expanded={open === index}
+                                className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left"
+                            >
+                                <span className="text-sm font-bold tracking-[-0.01em] text-[#0b1428]">{question}</span>
+                                <span className={cx('grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#eef5ff] text-[#3f82f7] transition', open === index && 'rotate-45')}>
+                                    <Plus size={17} />
+                                </span>
+                            </button>
+                            {open === index && (
+                                <p className="px-5 pb-5 text-sm font-normal leading-7 text-[#53647e]">{answer}</p>
+                            )}
+                        </article>
+                    ))}
+                </div>
+            </div>
+        </section>
+    );
+}
+
+function WaitlistClosingSection({ csrf, errors, old }) {
+    return (
+        <section id="waitlist" className="bg-[#f3f7fc] px-4 py-10 sm:px-10 lg:px-12">
+            <div className="relative mx-auto max-w-[1040px] overflow-hidden rounded-[1.15rem] bg-[#07101d] p-3 text-white shadow-[0_24px_70px_rgba(15,23,42,.18)] sm:rounded-[1.45rem] sm:p-5">
+                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,rgba(96,165,250,.15)_1px,transparent_0)] [background-size:22px_22px]" aria-hidden="true" />
+                <div className="pointer-events-none absolute -left-24 bottom-0 h-72 w-72 rounded-full bg-[#3f82f7]/20 blur-3xl" aria-hidden="true" />
+                <div className="relative grid gap-3 lg:grid-cols-[0.85fr_1.15fr] lg:items-stretch">
+                    <div className="flex flex-col justify-between rounded-[1rem] border border-white/10 bg-white/[0.055] p-5 sm:rounded-[1.2rem] sm:p-8">
+                        <div>
+                            <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[#60a5fa] sm:text-[12px] sm:tracking-[0.22em]">Join the waitlist</p>
+                            <h2 className="mt-3 text-[1.75rem] font-bold leading-[1.05] tracking-[-0.03em] bricolage-grotesque sm:text-[2.6rem]">
+                                Get invited when ScaleCampusLab opens.
+                            </h2>
+                            <p className="mt-4 text-sm font-normal leading-6 text-slate-300 sm:text-base sm:leading-7">
+                                For university and school teams coordinating campus visits from request to attendance.
+                            </p>
+                        </div>
+                        <p className="mt-6 text-xs font-normal leading-5 text-slate-500 sm:mt-8">
+                            We will only use your details to contact you about ScaleCampusLab access.
+                        </p>
+                    </div>
+
+                    <form action="/waitlist" method="POST" className="rounded-[1rem] bg-white p-4 text-left shadow-[0_18px_45px_rgba(0,0,0,.2)] sm:rounded-[1.2rem] sm:p-6">
+                        <input type="hidden" name="_token" value={csrf} />
+                        <input type="hidden" name="consent" value="1" />
+                        <div className="grid gap-4">
+                            <label className="grid gap-2 text-sm font-bold text-[#0b1428]" htmlFor="closing-email">
+                                Work email
+                                <input
+                                    id="closing-email"
+                                    name="email"
+                                    type="email"
+                                    placeholder="you@university.edu"
+                                    defaultValue={old.email || ''}
+                                    autoComplete="email"
+                                    required
+                                    className="h-12 min-w-0 rounded-xl border border-[#dbe5f2] bg-[#fbfdff] px-4 text-sm font-normal text-[#0b1428] outline-none placeholder:text-[#8da0bb] focus:border-[#3f82f7] focus:ring-4 focus:ring-[#eaf2ff]"
+                                />
+                            </label>
+                            <label className="grid gap-2 text-sm font-bold text-[#0b1428]" htmlFor="closing-name">
+                                Institution
+                                <input
+                                    id="closing-name"
+                                    name="full_name"
+                                    type="text"
+                                    placeholder="University or school name"
+                                    defaultValue={old.full_name || ''}
+                                    autoComplete="organization"
+                                    className="h-12 min-w-0 rounded-xl border border-[#dbe5f2] bg-[#fbfdff] px-4 text-sm font-normal text-[#0b1428] outline-none placeholder:text-[#8da0bb] focus:border-[#3f82f7] focus:ring-4 focus:ring-[#eaf2ff]"
+                                />
+                            </label>
+                        </div>
+                        <button className="mt-5 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#0b1428] px-5 text-sm font-bold text-white hover:bg-black">
+                            Join the waitlist <ArrowRight size={16} />
+                        </button>
+                        <p className="mt-3 text-center text-xs font-normal text-[#8da0bb]">No spam. Product access updates only.</p>
+                        {errors.email?.[0] && <p className="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700">{errors.email[0]}</p>}
+                    </form>
+                </div>
+            </div>
+        </section>
+    );
+}
+
+function PricingSection() {
+    const plans = [
+        ['Pilot', 'Talk to us', 'For universities testing ScaleCampusLab with a small recruitment team.', ['Counselor directory', 'Relationship pipeline', 'Visit planner', 'Onboarding support']],
+        ['Institution', 'Custom pricing', 'For established recruitment teams managing larger school networks.', ['Everything in Pilot', 'Multi-team workspaces', 'Advanced reporting', 'API integration planning']],
+    ];
+    return (
+        <section id="pricing" className="mx-auto max-w-6xl px-5 py-20 sm:px-8">
+            <LandingSectionIntro center eyebrow="Pricing" title="Flexible plans for recruitment offices" body="Start with a focused pilot, then expand into a broader institution workspace as your school network grows." />
+            <div className="mt-12 grid gap-5 md:grid-cols-2">
+                {plans.map(([name, price, body, features]) => (
+                    <article key={name} className="rounded-[1.35rem] border border-[#e3eaf3] bg-white p-7 shadow-sm">
+                        <h3 className="text-2xl font-normal text-[#0b1428] bricolage-grotesque">{name}</h3>
+                        <p className="mt-3 text-4xl font-extrabold tracking-[-0.04em] text-[#0b1428]">{price}</p>
+                        <p className="mt-4 text-[#53647e]">{body}</p>
+                        <div className="mt-6 grid gap-3">
+                            {features.map((feature) => <p key={feature} className="flex items-center gap-2 text-sm text-[#53647e]"><CheckCircle2 size={16} className="text-[#3f82f7]" /> {feature}</p>)}
+                        </div>
+                        <a href="#waitlist" className="mt-7 inline-flex h-12 items-center justify-center rounded-full bg-[#0b1428] px-6 text-sm font-medium text-white">Join a pilot</a>
+                    </article>
+                ))}
+            </div>
+        </section>
+    );
+}
+
+function WaitlistFaqs() {
+    const faqs = [
+        ['Who is ScaleCampusLab built for?', 'University recruitment, admissions and enrollment teams whose success depends on strong relationships with school counselors and principals.'],
+        ['Does ScaleCampusLab contain student records?', 'ScaleCampusLab is relationship-first. It focuses on schools, counselors, principals, visits and follow-ups, not storing student application records.'],
+        ['Can we organise contacts by Nigerian state?', 'Yes. The directory is Nigeria-first and supports state-by-state organisation for school outreach coverage.'],
+        ['Can multiple recruitment officers use the same workspace?', 'Yes. ScaleCampusLab is designed as a shared team workspace so relationships do not live inside one officer’s inbox.'],
+        ['Can we track school visits and follow-up tasks?', 'Yes. Visits, objectives, owners, notes and next tasks are tracked together so follow-ups do not slip.'],
+        ['How does the pilot programme work?', 'Join the waitlist and we will contact suitable recruitment teams for early access, onboarding and product feedback.'],
+    ];
+    const [open, setOpen] = useState(0);
+
+    return (
+        <section id="faq" className="mx-auto w-full max-w-4xl px-5 py-16 text-left sm:py-20 lg:py-24">
+            <div className="mx-auto mb-8 max-w-2xl text-center">
+                <p className="text-[11px] font-medium uppercase tracking-[0.24em] text-[#3f82f7]">FAQ</p>
+                    <h2 className="mt-3 text-4xl font-normal tracking-normal text-[#0b1428] bricolage-grotesque sm:text-5xl">Questions, answered</h2>
+                <p className="mt-3 text-[15px] font-normal leading-7 text-[#53647e]">Clear answers for teams evaluating ScaleCampusLab before launch.</p>
+            </div>
+            <div className="mx-auto grid max-w-2xl gap-2.5">
+                {faqs.map(([question, answer], index) => (
+                    <section key={question} className="rounded-2xl border border-[#e3eaf3] bg-white px-5 py-4 shadow-[0_10px_28px_rgba(15,23,42,.045)]">
+                        <button type="button" className="flex w-full items-center justify-between gap-5 text-left text-[15px] font-normal text-[#0b1428] sm:text-base" aria-expanded={open === index} onClick={() => setOpen(open === index ? -1 : index)}>
+                            <span>{question}</span>
+                            <span className={cx('grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[#f7f9fc] text-base font-normal leading-none text-[#53647e] transition', open === index && 'rotate-45')}>+</span>
+                        </button>
+                        {open === index && <p className="mt-3 max-w-[38rem] text-sm font-normal leading-7 text-[#53647e]">{answer}</p>}
+                    </section>
+                ))}
+            </div>
+        </section>
+    );
+}
+
+function FinalCta() {
+    return (
+        <section className="mx-auto max-w-7xl px-5 py-16 sm:px-8">
+            <div className="rounded-[1.5rem] bg-[#0b1428] p-8 text-white sm:p-12 lg:flex lg:items-center lg:justify-between lg:gap-10">
+                <div>
+                    <h2 className="max-w-2xl text-4xl font-normal leading-tight tracking-normal bricolage-grotesque">Turn scattered school contacts into a recruitment system</h2>
+                    <p className="mt-4 max-w-2xl text-base leading-8 text-white/70">Bring visit programs, school requests, rosters, schedules, messages, and reporting into one shared workspace.</p>
+                </div>
+                <div className="mt-8 flex flex-col gap-3 sm:flex-row lg:mt-0">
+                    <a href="#waitlist" className="inline-flex h-12 items-center justify-center rounded-full bg-white px-6 text-sm font-medium text-[#0b1428]">Join a pilot</a>
+                    <a href="/home" className="inline-flex h-12 items-center justify-center rounded-full border border-white/20 px-6 text-sm font-medium text-white">See the directory</a>
+                </div>
+            </div>
+        </section>
+    );
+}
+
+function CampusFooter() {
+    const columns = [
+        ['Product', [['Platform', '#platform'], ['Modules', '#directory'], ['Visit planning', '#visits'], ['Analytics', '#metrics']]],
+        ['Workflows', [['University teams', '#platform'], ['School coordinators', '#visits'], ['Rosters', '#visits'], ['Reports', '#metrics']]],
+        ['Company', [['Why ScaleCampusLab', '#faq'], ['FAQ', '#faq'], ['Join waitlist', '#waitlist'], ['Contact', 'mailto:hello@scalecampuslabs.com']]],
+    ];
+
+    return (
+        <footer className="border-t border-[#14213a] bg-[#07101d] text-white">
+            <div className="mx-auto max-w-[1120px] px-6 py-10 sm:px-10 lg:px-12">
+                <div className="grid gap-8 lg:grid-cols-[1.25fr_1.75fr]">
+                    <div>
+                        <a href="/" className="inline-flex items-center gap-3" aria-label="ScaleCampusLab home">
+                        <img src="/images/brand/scalecampus-logo-dark-bg.png" alt="ScaleCampusLab" className="h-12 w-auto object-contain" />
+                        </a>
+                        <p className="mt-4 max-w-md text-sm font-normal leading-6 text-slate-400">
+                            A shared visit operations workspace for university recruitment teams and school coordinators.
+                        </p>
+                    </div>
+
+                    <div className="grid gap-6 sm:grid-cols-3">
+                        {columns.map(([title, links]) => (
+                            <nav key={title}>
+                                <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">{title}</p>
+                                <div className="mt-4 grid gap-3">
+                                    {links.map(([label, href]) => (
+                                        <a key={label} href={href} className="text-sm font-normal text-slate-400 hover:text-[#60a5fa]">{label}</a>
+                                    ))}
+                                </div>
+                            </nav>
+                        ))}
+                    </div>
+                </div>
+
+                <div className="mt-9 flex flex-col gap-4 border-t border-white/10 pt-6 text-sm font-normal text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+                    <p>© 2026 ScaleCampus Labs. All rights reserved.</p>
+                    <div className="flex flex-wrap gap-4">
+                        <a href="#" className="hover:text-[#60a5fa]">Privacy</a>
+                        <a href="#" className="hover:text-[#60a5fa]">Terms</a>
+                        <a href="#waitlist" className="hover:text-[#60a5fa]">Waitlist</a>
+                    </div>
+                </div>
+            </div>
+        </footer>
+    );
+}
+function WaitlistForm({ csrf, errors, old, compact = false, card = false }) {
+    if (card) {
+        return (
+            <form action="/waitlist" method="POST" className="mt-6 grid gap-4">
+                <input type="hidden" name="_token" value={csrf} />
+                <input type="hidden" name="consent" value="1" />
+                <label className="grid gap-2 text-sm font-medium text-slate-700">
+                    Work email
+                    <input
+                        id="email"
+                        name="email"
+                        type="email"
+                        placeholder="you@university.edu"
+                        defaultValue={old.email || ''}
+                        autoComplete="email"
+                        required
+                        className="h-12 rounded-xl border border-slate-200 bg-white px-4 text-base font-normal text-slate-950 outline-none placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-50"
+                    />
+                </label>
+                <label className="grid gap-2 text-sm font-medium text-slate-700">
+                    Institution
+                    <input
+                        name="full_name"
+                        type="text"
+                        placeholder="Institution name (optional)"
+                        defaultValue={old.full_name || ''}
+                        autoComplete="organization"
+                        className="h-12 rounded-xl border border-slate-200 bg-white px-4 text-base font-normal text-slate-950 outline-none placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-50"
+                    />
+                </label>
+                <button className="mt-1 inline-flex h-12 items-center justify-center rounded-xl bg-slate-950 px-5 text-sm font-medium text-white shadow-sm transition hover:bg-black">
+                    Join the waitlist
+                </button>
+                {errors.email?.[0] && <p className="rounded-xl bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{errors.email[0]}</p>}
+                {(errors.full_name?.[0] || errors.consent?.[0]) && (
+                    <p className="rounded-xl bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">Please refresh and try again.</p>
+                )}
+            </form>
+        );
+    }
+
+    return (
+        <section id="waitlist" className={compact ? 'w-full' : 'mt-8 w-full max-w-[31rem]'}>
             <form action="/waitlist" method="POST">
                 <input type="hidden" name="_token" value={csrf} />
                 <input type="hidden" name="consent" value="1" />
-                <div className="flex flex-col gap-2.5 rounded-[1.8rem] border border-[#dedcda] bg-[#efefee] p-1.5 shadow-[0_14px_32px_rgba(15,23,42,.06)] sm:h-[4.25rem] sm:flex-row sm:items-center sm:gap-2 sm:rounded-full">
+                <div className={cx(
+                    'flex flex-col gap-2.5 border p-1.5 shadow-[0_14px_32px_rgba(15,23,42,.06)] sm:flex-row sm:items-center sm:gap-2',
+                    compact ? 'rounded-[1.35rem] border-slate-200 bg-white sm:h-14 sm:rounded-full' : 'rounded-[1.8rem] border-[#dedcda] bg-[#efefee] sm:h-[4.25rem] sm:rounded-full'
+                )}>
                     <label htmlFor="email" className="sr-only">Your email address</label>
                     <div className="min-w-0 flex-1 px-4 py-3 text-left sm:px-6 sm:py-0">
                         <input
@@ -357,10 +1249,16 @@ function WaitlistForm({ csrf, errors, old }) {
                             defaultValue={old.email || ''}
                             autoComplete="email"
                             required
-                            className="w-full min-w-0 bg-transparent text-base font-normal text-[#262323] outline-none placeholder:text-[#5a5757] sm:text-lg"
+                            className={cx(
+                                'w-full min-w-0 bg-transparent font-normal text-[#262323] outline-none placeholder:text-slate-400',
+                                compact ? 'text-base' : 'text-base sm:text-lg'
+                            )}
                         />
                     </div>
-                    <button className="h-12 shrink-0 rounded-[1.45rem] bg-[#242222] px-6 text-base font-medium text-white transition hover:bg-black sm:h-14 sm:min-w-[10rem] sm:rounded-full">
+                    <button className={cx(
+                        'shrink-0 rounded-full bg-slate-950 px-6 font-black text-white transition hover:bg-black',
+                        compact ? 'h-11 text-sm sm:min-w-[9.5rem]' : 'h-12 text-base font-medium sm:h-14 sm:min-w-[10rem]'
+                    )}>
                         Join waitlist
                     </button>
                 </div>
@@ -922,7 +1820,7 @@ function DashboardFrame({ csrf, children, role, title, subtitle, activeId, activ
     const [mobileNavOpen, setMobileNavOpen] = useState(false);
     const [searchOpen, setSearchOpen] = useState(false);
     const [toast, setToast] = useState(null);
-    const workspace = role === 'admin' ? 'ScaleCampusLab HQ' : (role === 'university' ? 'CampusConnect' : `${roleLabels[role]} Workspace`);
+    const workspace = role === 'admin' ? 'ScaleCampusLab HQ' : (role === 'university' ? 'ScaleCampusLab' : `${roleLabels[role]} Workspace`);
     const darkSidebar = true;
     const navItems = flatNavItems(navGroups);
     const compactMobilePage = ['school', 'high_school'].includes(role) && activeId === 'bookings';
@@ -11919,6 +12817,8 @@ function AnimatedBackground() {
 }
 
 createRoot(document.getElementById('app')).render(<AppErrorBoundary><App /></AppErrorBoundary>);
+
+
 
 
 

@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800;900&display=swap');
 @import 'tailwindcss';
 
 @source '../views/**/*.blade.php';
@@ -8,6 +10,69 @@
 @theme {
     --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
+}
+
+@font-face {
+    font-family: 'Bricolage Grotesque';
+    font-style: normal;
+    font-weight: 200;
+    font-display: swap;
+    src: url('/fonts/bricolage/bricolage-grotesque-200.ttf') format('truetype');
+}
+
+@font-face {
+    font-family: 'Bricolage Grotesque';
+    font-style: normal;
+    font-weight: 300;
+    font-display: swap;
+    src: url('/fonts/bricolage/bricolage-grotesque-300.ttf') format('truetype');
+}
+
+@font-face {
+    font-family: 'Bricolage Grotesque';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url('/fonts/bricolage/bricolage-grotesque-400.ttf') format('truetype');
+}
+
+@font-face {
+    font-family: 'Bricolage Grotesque';
+    font-style: normal;
+    font-weight: 500;
+    font-display: swap;
+    src: url('/fonts/bricolage/bricolage-grotesque-500.ttf') format('truetype');
+}
+
+@font-face {
+    font-family: 'Bricolage Grotesque';
+    font-style: normal;
+    font-weight: 600;
+    font-display: swap;
+    src: url('/fonts/bricolage/bricolage-grotesque-600.ttf') format('truetype');
+}
+
+@font-face {
+    font-family: 'Bricolage Grotesque';
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    src: url('/fonts/bricolage/bricolage-grotesque-700.ttf') format('truetype');
+}
+
+@font-face {
+    font-family: 'Bricolage Grotesque';
+    font-style: normal;
+    font-weight: 800;
+    font-display: swap;
+    src: url('/fonts/bricolage/bricolage-grotesque-800.ttf') format('truetype');
+}
+
+.bricolage-grotesque {
+    font-family: 'Bricolage Grotesque', sans-serif;
+    font-optical-sizing: auto;
+    font-style: normal;
+    font-variation-settings: 'wdth' 100;
 }
 
 html {
@@ -75,8 +140,197 @@ select {
     }
 }
 
+.hero-benefit-marquee {
+    animation: hero-benefit-marquee 18s linear infinite;
+}
+
+.solution-card {
+    animation: solution-card-in 520ms ease both;
+    animation-delay: calc(var(--card-index, 0) * 55ms);
+}
+
+.solution-icon {
+    transition: transform 220ms ease, background-color 220ms ease, border-color 220ms ease, box-shadow 220ms ease;
+}
+
+.solution-card:hover .solution-icon,
+.solution-card:focus-visible .solution-icon {
+    background-color: #ffffff;
+    border-color: #bcd1ee;
+    transform: translateY(-1px) scale(1.04);
+    box-shadow: 0 8px 16px rgba(63, 130, 247, 0.12);
+}
+
+.solution-card:hover svg,
+.solution-card:focus-visible svg {
+    animation: solution-icon-pop 520ms ease both;
+}
+
+.solution-card-glow {
+    filter: blur(16px);
+    transform: scale(0.72);
+    transition: opacity 220ms ease, transform 220ms ease;
+}
+
+.solution-card:hover .solution-card-glow,
+.solution-card:focus-visible .solution-card-glow {
+    transform: scale(1);
+}
+
+.analytics-line {
+    stroke-dasharray: 520;
+    stroke-dashoffset: 520;
+    animation: analytics-line-draw 900ms ease forwards;
+}
+
+.analytics-bar {
+    width: var(--bar-width, 0%);
+    transform-origin: left center;
+    animation: analytics-bar-fill 680ms ease both;
+    animation-delay: var(--bar-delay, 0ms);
+}
+
+.apart-card,
+.compare-card {
+    animation: apart-card-rise 560ms ease both;
+    animation-delay: calc(var(--apart-index, 0) * 70ms);
+}
+
+.apart-shine {
+    background: linear-gradient(115deg, transparent 0%, transparent 36%, rgba(63, 130, 247, 0.10) 48%, transparent 62%, transparent 100%);
+    transform: translateX(-120%);
+    transition: transform 650ms ease;
+}
+
+.apart-card:hover .apart-shine {
+    transform: translateX(120%);
+}
+
+.apart-marquee {
+    animation: apart-marquee 20s linear infinite;
+}
+
+.waitlist-signal {
+    animation: waitlist-signal-rise 520ms ease both;
+    animation-delay: calc(var(--signal-index, 0) * 80ms);
+    transition: transform 220ms ease, border-color 220ms ease, background-color 220ms ease;
+}
+
+.waitlist-signal:hover {
+    transform: translateY(-2px);
+    border-color: rgba(96, 165, 250, 0.42);
+    background-color: rgba(255, 255, 255, 0.085);
+}
+
+@keyframes hero-benefit-marquee {
+    from {
+        transform: translateX(0);
+    }
+
+    to {
+        transform: translateX(-50%);
+    }
+}
+
+@keyframes solution-card-in {
+    from {
+        opacity: 0;
+        transform: translateY(12px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes apart-card-rise {
+    from {
+        opacity: 0;
+        transform: translateY(14px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes apart-marquee {
+    from {
+        transform: translateX(0);
+    }
+
+    to {
+        transform: translateX(-50%);
+    }
+}
+
+@keyframes waitlist-signal-rise {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes analytics-line-draw {
+    to {
+        stroke-dashoffset: 0;
+    }
+}
+
+@keyframes analytics-bar-fill {
+    from {
+        transform: scaleX(0);
+    }
+
+    to {
+        transform: scaleX(1);
+    }
+}
+
+@keyframes solution-icon-pop {
+    0%,
+    100% {
+        transform: scale(1);
+    }
+
+    45% {
+        transform: scale(1.14) rotate(-4deg);
+    }
+}
+
 @media (prefers-reduced-motion: reduce) {
     .infinite-grid-layer {
         animation: none;
+    }
+
+    .hero-benefit-marquee {
+        animation: none;
+        flex-wrap: wrap;
+        white-space: normal;
+    }
+
+    .solution-card,
+    .solution-card:hover svg,
+    .solution-card:focus-visible svg,
+    .analytics-line,
+    .analytics-bar,
+    .apart-card,
+    .compare-card,
+    .apart-marquee,
+    .waitlist-signal {
+        animation: none;
+    }
+
+    .solution-card,
+    .solution-icon,
+    .solution-card-glow {
+        transition: none;
     }
 }
