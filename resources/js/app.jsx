@@ -277,23 +277,26 @@ function LandingPage({ csrf, errors, old, signupCount }) {
             <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[200] focus:rounded-full focus:bg-white focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-slate-950 focus:shadow-lg">Skip to content</a>
             <section className="relative overflow-hidden border-b border-slate-200 bg-[radial-gradient(circle_at_1px_1px,rgba(37,99,235,.10)_1px,transparent_0)] [background-size:24px_24px]">
                 <WaitlistNav />
-                <div id="main-content" className="mx-auto grid min-h-0 w-full max-w-[1340px] items-center gap-7 overflow-hidden px-4 py-7 sm:px-10 sm:py-9 lg:min-h-[660px] lg:grid-cols-[0.98fr_1.02fr] lg:gap-10 lg:px-14 lg:py-6 xl:px-16">
-                    <div className="min-w-0 max-w-full sm:max-w-[560px]">
-                        <h1 className="max-w-full break-words text-[clamp(1.65rem,7.8vw,2.05rem)] font-bold leading-[1.07] tracking-[-0.015em] text-[#0b1428] bricolage-grotesque sm:text-[3rem] lg:text-[3.15rem] xl:text-[3.35rem]">
-                            Connect with counselors and principals at <span className="text-[#3b82f6]">high schools across Nigeria.</span>
+                <div id="main-content" className="mx-auto grid min-h-0 w-full max-w-[1240px] items-center gap-8 overflow-hidden px-4 py-8 sm:px-8 sm:py-10 lg:min-h-[620px] lg:grid-cols-[0.9fr_1.1fr] lg:gap-10 lg:px-10 lg:py-8 xl:px-0">
+                    <div className="min-w-0 max-w-full text-left sm:max-w-[600px]">
+                        <p className="mb-3 inline-flex rounded-full border border-blue-100 bg-white/80 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.16em] text-[#3b82f6] shadow-sm">
+                            University and school visit coordination
+                        </p>
+                        <h1 className="max-w-full text-[clamp(2.15rem,9vw,3rem)] font-bold leading-[0.98] tracking-[-0.025em] text-[#0b1428] bricolage-grotesque sm:text-[3.35rem] lg:text-[3.75rem] xl:text-[4.15rem]">
+                            Campus visits, school requests, and rosters <span className="text-[#3b82f6]">aligned.</span>
                         </h1>
-                        <p className="mt-4 max-w-full break-words text-[14px] font-normal leading-[1.6] tracking-normal text-[#53647e] sm:mt-5 sm:max-w-[560px] sm:text-base">
+                        <p className="mt-5 max-w-[560px] text-[15px] font-normal leading-[1.65] tracking-normal text-[#53647e] sm:text-[17px]">
                             ScaleCampusLab helps universities publish campus visits and helps schools coordinate attendance without losing context between teams.
                         </p>
-                        <div className="mt-6 grid max-w-full gap-3 min-[420px]:grid-cols-2 sm:mt-7">
-                            <a href="#waitlist" className="inline-flex h-12 min-h-12 items-center justify-center gap-2 rounded-full bg-[#0f172a] px-6 py-3 text-[15px] font-medium text-white shadow-lg shadow-slate-950/15 hover:bg-black sm:h-13 sm:min-h-13 sm:px-7 sm:py-3.5">
+                        <div className="mt-6 grid max-w-[430px] gap-3 min-[420px]:grid-cols-2 sm:mt-7">
+                            <a href="#waitlist" className="inline-flex h-12 min-h-12 items-center justify-center gap-2 rounded-full bg-[#0f172a] px-6 py-3 text-[15px] font-bold text-white shadow-lg shadow-slate-950/15 hover:bg-black">
                                 Join waitlist <ArrowRight size={18} />
                             </a>
-                            <a href="#waitlist" className="inline-flex h-12 min-h-12 items-center justify-center rounded-full border border-slate-200 bg-white px-6 py-3 text-[15px] font-medium text-slate-950 hover:border-blue-200 hover:text-blue-600 sm:h-13 sm:min-h-13 sm:px-7 sm:py-3.5">
+                            <a href="#visits" className="inline-flex h-12 min-h-12 items-center justify-center rounded-full border border-slate-200 bg-white px-6 py-3 text-[15px] font-bold text-slate-950 hover:border-blue-200 hover:text-blue-600">
                                 Request access
                             </a>
                         </div>
-                        <div className="mt-6 max-w-full overflow-hidden [mask-image:linear-gradient(90deg,transparent,#000_12%,#000_88%,transparent)] sm:mt-7 sm:max-w-[560px]">
+                        <div className="mt-6 max-w-[560px] overflow-hidden [mask-image:linear-gradient(90deg,transparent,#000_12%,#000_88%,transparent)] sm:mt-7">
                             <div className="hero-benefit-marquee flex w-max items-center gap-6 text-[0.9rem] font-normal text-[#64748b] sm:gap-8 sm:text-[0.95rem]">
                                 {[...Array(2)].flatMap((_, repeatIndex) => ['Nigeria-first coverage', 'University-led visits', 'School-ready coordination'].map((item) => (
                                     <p key={`${repeatIndex}-${item}`} className="flex shrink-0 items-center gap-3">
@@ -303,7 +306,7 @@ function LandingPage({ csrf, errors, old, signupCount }) {
                             </div>
                         </div>
                     </div>
-                    <div className="min-w-0 max-w-full overflow-hidden lg:pt-3">
+                    <div className="min-w-0 max-w-full overflow-hidden lg:justify-self-end">
                         <WaitlistProductPreview />
                     </div>
                 </div>
