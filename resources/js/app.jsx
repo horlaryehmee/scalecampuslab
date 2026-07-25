@@ -295,7 +295,7 @@ function LandingPage({ csrf, errors, old, signupCount }) {
                         </div>
                         <div className="mt-6 max-w-[560px] overflow-hidden [mask-image:linear-gradient(90deg,transparent,#000_12%,#000_88%,transparent)] sm:mt-7">
                             <div className="hero-benefit-marquee flex w-max items-center gap-6 text-[0.9rem] font-normal text-[#64748b] sm:gap-8 sm:text-[0.95rem]">
-                                {[...Array(2)].flatMap((_, repeatIndex) => ['Nigeria-first coverage', 'University-led visits', 'School-ready coordination'].map((item) => (
+                                {[...Array(2)].flatMap((_, repeatIndex) => ['Published visit programs', 'School attendance requests', 'Roster-ready coordination'].map((item) => (
                                     <p key={`${repeatIndex}-${item}`} className="flex shrink-0 items-center gap-3">
                                         <CheckCircle2 size={18} className="text-[#3b82f6]" /> {item}
                                     </p>
