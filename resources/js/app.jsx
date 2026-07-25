@@ -328,16 +328,13 @@ function WaitlistNav() {
                 <a href="/" className="flex items-center gap-3" aria-label="ScaleCampusLab home">
                     <img src="/images/scalecampus-labs-logo.png" alt="ScaleCampusLab" className="h-9 w-auto object-contain min-[390px]:h-10 sm:h-11" />
                 </a>
-                <nav className="hidden items-center gap-7 text-[15px] font-bold text-slate-700 lg:flex">
-                    <a href="/home" className="hover:text-blue-600">Platform</a>
-                    <a href="/home" className="hover:text-blue-600">Directory</a>
-                    <a href="/home" className="hover:text-blue-600">Visits</a>
-                    <a href="#metrics" className="hover:text-blue-600">Metrics</a>
-                    <a href="#pricing" className="hover:text-blue-600">Pricing</a>
-                    <a href="#faq" className="hover:text-blue-600">FAQ</a>
+                <nav className="hidden items-center gap-6 text-[14px] font-bold text-slate-700 lg:flex">
+                    <a href="#platform" className="hover:text-blue-600">Workflow</a>
+                    <a href="#directory" className="hover:text-blue-600">Modules</a>
+                    <a href="#visits" className="hover:text-blue-600">Visits</a>
+                    <a href="#metrics" className="hover:text-blue-600">Analytics</a>
                 </nav>
                 <div className="flex items-center gap-3">
-                    <a href="#waitlist" className="hidden text-sm font-bold text-slate-800 hover:text-blue-600 sm:inline-flex">Join waitlist</a>
                     <a href="#waitlist" className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-full bg-slate-950 px-3 text-sm font-bold text-white shadow-md shadow-slate-950/12 hover:bg-black sm:px-5">
                         <span className="hidden min-[390px]:inline">Join waitlist</span><span className="min-[390px]:hidden">Join</span> <ArrowRight size={16} />
                     </a>
@@ -544,7 +541,7 @@ function CounselorDirectorySection() {
                         A compact workspace for both sides of the visit cycle
                     </h2>
                     <p className="mt-5 text-base font-normal leading-7 text-[#53647e]">
-                        The waitlist page now previews the same modules available in the university and school dashboards, from published programs to rosters, approvals, schedules, and reporting.
+                        ScaleCampusLab brings visit programs, school requests, student rosters, approvals, schedules, and reports into one shared workspace.
                     </p>
                 </div>
 
