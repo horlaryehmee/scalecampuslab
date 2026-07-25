@@ -541,7 +541,7 @@ function CounselorDirectorySection() {
                         Tools matched to dashboard actions
                     </h2>
                     <p className="mt-5 text-base font-normal leading-7 text-[#53647e]">
-                        Each module supports a specific action already present in the university, school, student, or admin portal.
+                        Each module supports a specific action already present in the university and school dashboards.
                     </p>
                 </div>
 
@@ -955,7 +955,7 @@ function AboutScaleCampusSection() {
 function ScaleCampusFaqSection() {
     const faqs = [
         ['What is ScaleCampusLab?', 'ScaleCampusLab is software for coordinating campus visit participation between universities and schools.'],
-        ['Who uses it?', 'University recruitment teams, school coordinators, students, and platform admins each get role-specific portal views.'],
+        ['Who uses it?', 'University recruitment teams and school coordinators use role-specific dashboards for their side of the visit process.'],
         ['Is it a CRM?', 'No. It can support relationship work, but the core product is built around campus visit coordination, not generic contact management.'],
         ['What does a university dashboard include?', 'Tools for publishing opportunities, reviewing requests, managing attendees, and reading performance signals.'],
         ['What does a school dashboard include?', 'Tools for finding visits, sending requests, preparing groups, and checking upcoming schedules.'],
