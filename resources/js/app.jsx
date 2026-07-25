@@ -283,7 +283,7 @@ function LandingPage({ csrf, errors, old, signupCount }) {
                             Connect with counselors and principals at <span className="text-[#3b82f6]">high schools across Nigeria.</span>
                         </h1>
                         <p className="mt-4 max-w-full break-words text-[14px] font-normal leading-[1.6] tracking-normal text-[#53647e] sm:mt-5 sm:max-w-[560px] sm:text-base">
-                            ScaleCampusLab gives university and school teams one shared flow for visit programs, school requests, partner records, student rosters, schedules, messages, and reporting.
+                            ScaleCampusLab helps universities publish campus visits and helps schools coordinate attendance without losing context between teams.
                         </p>
                         <div className="mt-6 grid max-w-full gap-3 min-[420px]:grid-cols-2 sm:mt-7">
                             <a href="#waitlist" className="inline-flex h-12 min-h-12 items-center justify-center gap-2 rounded-full bg-[#0f172a] px-6 py-3 text-[15px] font-medium text-white shadow-lg shadow-slate-950/15 hover:bg-black sm:h-13 sm:min-h-13 sm:px-7 sm:py-3.5">
@@ -295,7 +295,7 @@ function LandingPage({ csrf, errors, old, signupCount }) {
                         </div>
                         <div className="mt-6 max-w-full overflow-hidden [mask-image:linear-gradient(90deg,transparent,#000_12%,#000_88%,transparent)] sm:mt-7 sm:max-w-[560px]">
                             <div className="hero-benefit-marquee flex w-max items-center gap-6 text-[0.9rem] font-normal text-[#64748b] sm:gap-8 sm:text-[0.95rem]">
-                                {[...Array(2)].flatMap((_, repeatIndex) => ['Nigeria-first, state by state', 'Counselors & principals, not students', 'One shared team workspace'].map((item) => (
+                                {[...Array(2)].flatMap((_, repeatIndex) => ['Nigeria-first coverage', 'University-led visits', 'School-ready coordination'].map((item) => (
                                     <p key={`${repeatIndex}-${item}`} className="flex shrink-0 items-center gap-3">
                                         <CheckCircle2 size={18} className="text-[#3b82f6]" /> {item}
                                     </p>
@@ -351,16 +351,16 @@ function WaitlistSignupCard({ csrf, errors, old }) {
                 <div>
                     <p className="text-xs font-medium uppercase tracking-[0.16em] text-blue-600">Get early access</p>
                     <h2 className="mt-2 text-2xl font-normal tracking-normal text-slate-950 bricolage-grotesque">Join the waitlist</h2>
-                    <p className="mt-2 text-sm font-normal leading-6 text-slate-500">No spam. Early access for pilot institutions. Unsubscribe anytime.</p>
+                    <p className="mt-2 text-sm font-normal leading-6 text-slate-500">Share your institution details and we will follow up when access opens.</p>
                 </div>
                 <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-slate-950 text-white"><MailCheck size={21} /></span>
             </div>
             <WaitlistForm csrf={csrf} errors={errors} old={old} card />
             <div className="mt-6 grid gap-3 border-t border-slate-100 pt-5">
                 {[
-                    ['Directory', 'Counselor and principal contacts in one searchable place.'],
-                    ['Visit planner', 'Coordinate school visits with clear objectives and notes.'],
-                    ['Follow-ups', 'Keep next steps visible across your recruitment team.'],
+                    ['University role', 'Publish opportunities and review school demand.'],
+                    ['School role', 'Request visits and prepare the right student groups.'],
+                    ['Launch access', 'Priority invitations for institutions ready to pilot.'],
                 ].map(([title, body]) => (
                     <div key={title} className="flex gap-3">
                         <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-blue-500" />
@@ -483,22 +483,22 @@ function LandingSectionIntro({ eyebrow, title, body, center = false }) {
 
 function PlatformOverview() {
     const problems = [
-        ['Visit programs', 'Universities create, publish, invite schools, set capacity rules, and track registrations.'],
-        ['Partner schools', 'Teams manage school records, relationship tier, match score, contacts, notes, and tasks.'],
-        ['School requests', 'Schools discover visits, request seats, review approvals, and keep a live itinerary.'],
-        ['Attendee records', 'Rosters, check-in status, consent details, waitlists, and exports stay attached to each visit.'],
+        ['Create the opportunity', 'A university defines the visit purpose, capacity, timing, visibility, and school eligibility.'],
+        ['Invite or discover', 'Schools find available visits or receive targeted invitations from university teams.'],
+        ['Approve attendance', 'Requests move through review with the group size, coordinator, and visit context intact.'],
+        ['Close the loop', 'After the visit, attendance and outcomes are available for the next recruitment decision.'],
     ];
 
     return (
         <section id="platform" className="border-b border-[#dbe5f2] bg-[#f6f9fd]">
             <div className="mx-auto grid max-w-[1340px] gap-10 px-6 py-14 sm:px-10 lg:grid-cols-[0.95fr_1.05fr] lg:items-center lg:px-14 xl:px-16">
                 <div className="max-w-[650px]">
-                    <p className="text-[13px] font-medium uppercase tracking-[0.22em] text-[#3f82f7]">Dashboard workflow</p>
+                    <p className="text-[13px] font-medium uppercase tracking-[0.22em] text-[#3f82f7]">Operating flow</p>
                     <h2 className="mt-4 max-w-[600px] text-[2rem] font-bold leading-[1.08] tracking-[-0.03em] text-[#0b1428] bricolage-grotesque sm:text-[2.35rem]">
-                        The waitlist introduces the same work users handle after login
+                        From university plan to school turnout
                     </h2>
                     <p className="mt-5 max-w-[600px] text-base font-normal leading-[1.65] text-[#53647e]">
-                        ScaleCampusLab connects university recruitment teams and school coordinators through shared visit programs, school requests, rosters, schedules, messages, and reporting.
+                        The product is shaped around the real sequence behind a visit, so each handoff has an owner, a status, and a next step.
                     </p>
                 </div>
 
@@ -536,12 +536,12 @@ function CounselorDirectorySection() {
         <section id="directory" className="border-y border-[#e3eaf3] bg-white">
             <div className="mx-auto max-w-[1180px] px-6 py-14 sm:px-10 lg:px-12">
                 <div className="mx-auto max-w-[660px] text-center">
-                    <p className="text-[13px] font-medium uppercase tracking-[0.22em] text-[#3f82f7]">Product modules</p>
+                    <p className="text-[13px] font-medium uppercase tracking-[0.22em] text-[#3f82f7]">Capability map</p>
                     <h2 className="mt-3 text-[2.15rem] font-bold leading-[1.05] tracking-[-0.035em] text-[#0b1428] bricolage-grotesque sm:text-[2.7rem]">
-                        A compact workspace for both sides of the visit cycle
+                        Tools matched to dashboard actions
                     </h2>
                     <p className="mt-5 text-base font-normal leading-7 text-[#53647e]">
-                        ScaleCampusLab brings visit programs, school requests, student rosters, approvals, schedules, and reports into one shared workspace.
+                        Each module supports a specific action already present in the university, school, student, or admin portal.
                     </p>
                 </div>
 
@@ -590,7 +590,7 @@ function VisitPlanningSection() {
                         One flow from visit publishing to school attendance
                     </h2>
                     <p className="mt-4 text-base font-normal leading-7 text-[#53647e]">
-                        Join early access for a shared workspace where universities publish visit programs, schools request attendance, and every roster, schedule, message, and report stays connected.
+                        The waitlist is for institutions that need a cleaner path from published opportunities to confirmed school participation.
                     </p>
                 </div>
 
@@ -681,8 +681,8 @@ function RelationshipPipelineSection() {
                 <h2 className="mt-3 text-[2.1rem] font-bold leading-[1.08] tracking-[-0.035em] text-[#0b1428] bricolage-grotesque sm:text-[2.55rem]">
                     Plan each visit with both dashboards in sync
                 </h2>
-                <p className="mt-4 text-base font-normal leading-7 text-[#53647e]">
-                    Bring the full visit cycle together: university programs, school requests, itinerary planning, student rosters, and attendance records.
+                    <p className="mt-4 text-base font-normal leading-7 text-[#53647e]">
+                    Select a live object and see the details each team needs before the visit happens.
                 </p>
             </div>
 
@@ -736,7 +736,7 @@ function RelationshipPipelineSection() {
                     </div>
 
                     <div className="mt-5 flex flex-wrap gap-2">
-                        {['Program rules', 'Request status', 'Roster count', 'Schedule updates'].map((item) => (
+                        {['Owner', 'Deadline', 'Capacity', 'Next action'].map((item) => (
                             <span key={item} className="rounded-full border border-[#dbe8fb] bg-white px-3 py-1.5 text-xs font-medium text-[#53647e]">{item}</span>
                         ))}
                     </div>
@@ -876,15 +876,15 @@ function MetricsSection() {
 
 function AboutScaleCampusSection() {
     const strengths = [
-        [CalendarDays, 'Visit-first system', 'Built around programs, requests, approvals, rosters, itinerary stops, attendance, and reports.'],
-        [School, 'University + school workflow', 'Both sides work from connected dashboards instead of sending updates across scattered channels.'],
-        [UsersRound, 'Roster-aware coordination', 'Student lists, capacity rules, consent details, waitlists, and check-ins stay tied to each visit.'],
-        [BarChart3, 'Operational analytics', 'Measure demand, registrations, attendance, school activity, and follow-up from live dashboard records.'],
+        [CalendarDays, 'Visit-native design', 'Every record starts from a scheduled opportunity, not a generic contact card.'],
+        [School, 'Two-sided portals', 'Universities and schools see different controls while working against the same visit context.'],
+        [UsersRound, 'Attendance context', 'Student groups carry the operational details needed before and after arrival.'],
+        [BarChart3, 'Decision signals', 'Leaders can see where demand is coming from and where coordination is slowing down.'],
     ];
     const comparisons = [
-        ['Generic CRM', 'Tracks contacts, but does not understand visit requests, school rosters, or itinerary planning.', 'ScaleCampusLab connects relationships to real visit operations.'],
-        ['Spreadsheets', 'School lists, approvals, capacity, and attendance split across files with no reliable history.', 'ScaleCampusLab keeps every program, request, roster, and report in one workspace.'],
-        ['Email threads', 'Approvals, changes, and follow-ups disappear inside inboxes as teams hand work across people.', 'ScaleCampusLab gives every update a status, record, and next step.'],
+        ['Generic CRM', 'Contacts exist, but the visit itself still has to be coordinated somewhere else.', 'ScaleCampusLab treats the visit as the central object.'],
+        ['Spreadsheets', 'Lists can be updated, but capacity and approvals become hard to trust.', 'ScaleCampusLab keeps operational state visible as it changes.'],
+        ['Email threads', 'A decision can be buried as soon as the conversation moves to another inbox.', 'ScaleCampusLab turns decisions into trackable records.'],
     ];
 
     return (
@@ -894,10 +894,10 @@ function AboutScaleCampusSection() {
                 <div className="mx-auto max-w-[690px] text-center">
                     <p className="text-[13px] font-medium uppercase tracking-[0.22em] text-[#3f82f7]">Why ScaleCampusLab</p>
                     <h2 className="mt-3 text-[2.15rem] font-bold leading-[1.08] tracking-[-0.035em] text-[#0b1428] bricolage-grotesque sm:text-[2.75rem]">
-                        Built for the campus visit work most tools treat as an afterthought.
+                        Built for the coordination gap between institutions.
                     </h2>
                     <p className="mt-4 text-base font-normal leading-7 text-[#53647e]">
-                        ScaleCampusLab is not a generic CRM. It is a shared operating system for university visit programs, school requests, rosters, schedules, attendance, and reporting.
+                        The platform focuses on the high-friction handoffs that happen before a successful school visit.
                     </p>
                 </div>
 
@@ -940,7 +940,7 @@ function AboutScaleCampusSection() {
 
                 <div className="mx-auto mt-8 flex max-w-[820px] overflow-hidden rounded-full border border-[#dbe5f2] bg-white shadow-sm [mask-image:linear-gradient(90deg,transparent,#000_10%,#000_90%,transparent)]">
                     <div className="apart-marquee flex w-max items-center gap-8 px-5 py-3 text-sm font-medium text-[#53647e]">
-                        {[...Array(2)].flatMap((_, repeatIndex) => ['Visit programs', 'School requests', 'Rosters', 'Itinerary', 'Attendance', 'Reports', 'Messages'].map((item) => (
+                        {[...Array(2)].flatMap((_, repeatIndex) => ['Capacity', 'Approvals', 'Coordinators', 'Student groups', 'Arrival status', 'Export history'].map((item) => (
                             <span key={`${repeatIndex}-${item}`} className="flex shrink-0 items-center gap-2">
                                 <span className="h-2 w-2 rounded-full bg-[#3f82f7]" /> {item}
                             </span>
@@ -954,12 +954,12 @@ function AboutScaleCampusSection() {
 
 function ScaleCampusFaqSection() {
     const faqs = [
-        ['What is ScaleCampusLab?', 'ScaleCampusLab is a visit operations workspace for universities and schools. It helps teams manage visit programs, school requests, rosters, schedules, attendance, messages, and reports.'],
-        ['Who uses it?', 'University recruitment teams use it to publish and manage visits. School coordinators use it to request attendance, prepare student rosters, and track approved visits.'],
+        ['What is ScaleCampusLab?', 'ScaleCampusLab is software for coordinating campus visit participation between universities and schools.'],
+        ['Who uses it?', 'University recruitment teams, school coordinators, students, and platform admins each get role-specific portal views.'],
         ['Is it a CRM?', 'No. It can support relationship work, but the core product is built around campus visit coordination, not generic contact management.'],
-        ['What does a university dashboard include?', 'Visit programs, partner schools, visit requests, attendees, calendar, communications, analytics, settings, and reporting tools.'],
-        ['What does a school dashboard include?', 'Discoverable visits, visit requests, student rosters, itinerary planning, schedule views, messages, profile settings, and attendance context.'],
-        ['Does it handle student data?', 'Yes, where it supports visit operations: rosters, registration records, attendance status, consent details, and itinerary coverage.'],
+        ['What does a university dashboard include?', 'Tools for publishing opportunities, reviewing requests, managing attendees, and reading performance signals.'],
+        ['What does a school dashboard include?', 'Tools for finding visits, sending requests, preparing groups, and checking upcoming schedules.'],
+        ['Does it handle student data?', 'Yes, but only where it supports visit participation such as group lists, registration status, consent, and attendance.'],
     ];
     const [open, setOpen] = useState(0);
 
@@ -972,7 +972,7 @@ function ScaleCampusFaqSection() {
                         Questions about ScaleCampusLab
                     </h2>
                     <p className="mt-4 text-sm font-normal leading-7 text-[#53647e]">
-                        Quick answers about how the product supports university recruitment teams and school coordinators.
+                        Quick answers for institutions considering the private launch.
                     </p>
                 </div>
 
@@ -1015,7 +1015,7 @@ function WaitlistClosingSection({ csrf, errors, old }) {
                                 Get invited when ScaleCampusLab opens.
                             </h2>
                             <p className="mt-4 text-sm font-normal leading-6 text-slate-300 sm:text-base sm:leading-7">
-                                For university and school teams coordinating campus visits from request to attendance.
+                                For teams ready to replace manual visit coordination with a structured launch workflow.
                             </p>
                         </div>
                         <p className="mt-6 text-xs font-normal leading-5 text-slate-500 sm:mt-8">
@@ -1065,81 +1065,6 @@ function WaitlistClosingSection({ csrf, errors, old }) {
     );
 }
 
-function PricingSection() {
-    const plans = [
-        ['Pilot', 'Talk to us', 'For universities testing ScaleCampusLab with a small recruitment team.', ['Counselor directory', 'Relationship pipeline', 'Visit planner', 'Onboarding support']],
-        ['Institution', 'Custom pricing', 'For established recruitment teams managing larger school networks.', ['Everything in Pilot', 'Multi-team workspaces', 'Advanced reporting', 'API integration planning']],
-    ];
-    return (
-        <section id="pricing" className="mx-auto max-w-6xl px-5 py-20 sm:px-8">
-            <LandingSectionIntro center eyebrow="Pricing" title="Flexible plans for recruitment offices" body="Start with a focused pilot, then expand into a broader institution workspace as your school network grows." />
-            <div className="mt-12 grid gap-5 md:grid-cols-2">
-                {plans.map(([name, price, body, features]) => (
-                    <article key={name} className="rounded-[1.35rem] border border-[#e3eaf3] bg-white p-7 shadow-sm">
-                        <h3 className="text-2xl font-normal text-[#0b1428] bricolage-grotesque">{name}</h3>
-                        <p className="mt-3 text-4xl font-extrabold tracking-[-0.04em] text-[#0b1428]">{price}</p>
-                        <p className="mt-4 text-[#53647e]">{body}</p>
-                        <div className="mt-6 grid gap-3">
-                            {features.map((feature) => <p key={feature} className="flex items-center gap-2 text-sm text-[#53647e]"><CheckCircle2 size={16} className="text-[#3f82f7]" /> {feature}</p>)}
-                        </div>
-                        <a href="#waitlist" className="mt-7 inline-flex h-12 items-center justify-center rounded-full bg-[#0b1428] px-6 text-sm font-medium text-white">Join a pilot</a>
-                    </article>
-                ))}
-            </div>
-        </section>
-    );
-}
-
-function WaitlistFaqs() {
-    const faqs = [
-        ['Who is ScaleCampusLab built for?', 'University recruitment, admissions and enrollment teams whose success depends on strong relationships with school counselors and principals.'],
-        ['Does ScaleCampusLab contain student records?', 'ScaleCampusLab is relationship-first. It focuses on schools, counselors, principals, visits and follow-ups, not storing student application records.'],
-        ['Can we organise contacts by Nigerian state?', 'Yes. The directory is Nigeria-first and supports state-by-state organisation for school outreach coverage.'],
-        ['Can multiple recruitment officers use the same workspace?', 'Yes. ScaleCampusLab is designed as a shared team workspace so relationships do not live inside one officer’s inbox.'],
-        ['Can we track school visits and follow-up tasks?', 'Yes. Visits, objectives, owners, notes and next tasks are tracked together so follow-ups do not slip.'],
-        ['How does the pilot programme work?', 'Join the waitlist and we will contact suitable recruitment teams for early access, onboarding and product feedback.'],
-    ];
-    const [open, setOpen] = useState(0);
-
-    return (
-        <section id="faq" className="mx-auto w-full max-w-4xl px-5 py-16 text-left sm:py-20 lg:py-24">
-            <div className="mx-auto mb-8 max-w-2xl text-center">
-                <p className="text-[11px] font-medium uppercase tracking-[0.24em] text-[#3f82f7]">FAQ</p>
-                    <h2 className="mt-3 text-4xl font-normal tracking-normal text-[#0b1428] bricolage-grotesque sm:text-5xl">Questions, answered</h2>
-                <p className="mt-3 text-[15px] font-normal leading-7 text-[#53647e]">Clear answers for teams evaluating ScaleCampusLab before launch.</p>
-            </div>
-            <div className="mx-auto grid max-w-2xl gap-2.5">
-                {faqs.map(([question, answer], index) => (
-                    <section key={question} className="rounded-2xl border border-[#e3eaf3] bg-white px-5 py-4 shadow-[0_10px_28px_rgba(15,23,42,.045)]">
-                        <button type="button" className="flex w-full items-center justify-between gap-5 text-left text-[15px] font-normal text-[#0b1428] sm:text-base" aria-expanded={open === index} onClick={() => setOpen(open === index ? -1 : index)}>
-                            <span>{question}</span>
-                            <span className={cx('grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[#f7f9fc] text-base font-normal leading-none text-[#53647e] transition', open === index && 'rotate-45')}>+</span>
-                        </button>
-                        {open === index && <p className="mt-3 max-w-[38rem] text-sm font-normal leading-7 text-[#53647e]">{answer}</p>}
-                    </section>
-                ))}
-            </div>
-        </section>
-    );
-}
-
-function FinalCta() {
-    return (
-        <section className="mx-auto max-w-7xl px-5 py-16 sm:px-8">
-            <div className="rounded-[1.5rem] bg-[#0b1428] p-8 text-white sm:p-12 lg:flex lg:items-center lg:justify-between lg:gap-10">
-                <div>
-                    <h2 className="max-w-2xl text-4xl font-normal leading-tight tracking-normal bricolage-grotesque">Turn scattered school contacts into a recruitment system</h2>
-                    <p className="mt-4 max-w-2xl text-base leading-8 text-white/70">Bring visit programs, school requests, rosters, schedules, messages, and reporting into one shared workspace.</p>
-                </div>
-                <div className="mt-8 flex flex-col gap-3 sm:flex-row lg:mt-0">
-                    <a href="#waitlist" className="inline-flex h-12 items-center justify-center rounded-full bg-white px-6 text-sm font-medium text-[#0b1428]">Join a pilot</a>
-                    <a href="/home" className="inline-flex h-12 items-center justify-center rounded-full border border-white/20 px-6 text-sm font-medium text-white">See the directory</a>
-                </div>
-            </div>
-        </section>
-    );
-}
-
 function CampusFooter() {
     const columns = [
         ['Product', [['Platform', '#platform'], ['Modules', '#directory'], ['Visit planning', '#visits'], ['Analytics', '#metrics']]],
@@ -1156,7 +1081,7 @@ function CampusFooter() {
                         <img src="/images/brand/scalecampus-logo-dark-bg.png" alt="ScaleCampusLab" className="h-12 w-auto object-contain" />
                         </a>
                         <p className="mt-4 max-w-md text-sm font-normal leading-6 text-slate-400">
-                            A shared visit operations workspace for university recruitment teams and school coordinators.
+                            Building the operating layer for campus visit participation across schools and universities.
                         </p>
                     </div>
 
