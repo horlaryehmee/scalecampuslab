@@ -279,9 +279,6 @@ function LandingPage({ csrf, errors, old, signupCount }) {
                 <WaitlistNav />
                 <div id="main-content" className="mx-auto grid min-h-0 w-full max-w-[1240px] items-center gap-8 overflow-hidden px-4 py-8 sm:px-8 sm:py-10 lg:min-h-[620px] lg:grid-cols-[0.9fr_1.1fr] lg:gap-10 lg:px-10 lg:py-8 xl:px-0">
                     <div className="min-w-0 max-w-full text-left sm:max-w-[600px]">
-                        <p className="mb-3 inline-flex rounded-full border border-blue-100 bg-white/80 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.16em] text-[#3b82f6] shadow-sm">
-                            University and school visit coordination
-                        </p>
                         <h1 className="max-w-full text-[clamp(2.15rem,9vw,3rem)] font-bold leading-[0.98] tracking-[-0.025em] text-[#0b1428] bricolage-grotesque sm:text-[3.35rem] lg:text-[3.75rem] xl:text-[4.15rem]">
                             Campus visits, school requests, and rosters <span className="text-[#3b82f6]">aligned.</span>
                         </h1>
