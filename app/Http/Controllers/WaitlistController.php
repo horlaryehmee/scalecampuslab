@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\WaitlistSignup;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -26,6 +27,10 @@ class WaitlistController extends Controller
             'page' => 'landing',
             'props' => [
                 'signupCount' => WaitlistSignup::count(),
+                'waitlistConfirmation' => session('signup_email') ? [
+                    'email' => session('signup_email'),
+                    'status' => session('waitlist_status', 'created'),
+                ] : null,
             ],
         ]);
     }
@@ -34,28 +39,48 @@ class WaitlistController extends Controller
     {
         $validated = $request->validate([
             'full_name' => ['sometimes', 'nullable', 'string', 'max:120'],
-            'email' => ['required', 'email:rfc', 'max:255', 'unique:waitlist_signups,email'],
+            'email' => ['required', 'email:rfc', 'max:255'],
             'consent' => ['sometimes', 'accepted'],
         ], [
             'consent.accepted' => 'Please confirm that you want to receive the launch notification.',
         ]);
 
+        $validated['email'] = Str::of($validated['email'])->lower()->toString();
         $emailName = Str::of($validated['email'])->before('@')->toString();
         $validated['full_name'] = ($validated['full_name'] ?? '') ?: Str::of(str_replace(['.', '_', '-'], ' ', $emailName))->title()->toString();
         unset($validated['consent']);
 
-        WaitlistSignup::create($validated);
+        $existingSignup = WaitlistSignup::where('email', $validated['email'])->first();
 
-        return redirect()->route('waitlist.success')->with('signup_email', $validated['email']);
+        if ($existingSignup) {
+            return $this->confirmationRedirect($validated['email'], 'existing');
+        }
+
+        try {
+            WaitlistSignup::create($validated);
+        } catch (QueryException $exception) {
+            if ($exception->getCode() !== '23000') {
+                throw $exception;
+            }
+
+            return $this->confirmationRedirect($validated['email'], 'existing');
+        }
+
+        return $this->confirmationRedirect($validated['email'], 'created');
     }
 
-    public function success(): View
+    public function success(): RedirectResponse
     {
-        return view('app', [
-            'page' => 'success',
-            'props' => [
-                'email' => session('signup_email'),
-            ],
-        ]);
+        return redirect()->route('waitlist.join')
+            ->with('signup_email', session('signup_email'))
+            ->with('waitlist_status', session('waitlist_status', 'created'));
+    }
+
+    private function confirmationRedirect(string $email, string $status): RedirectResponse
+    {
+        return redirect()
+            ->route('waitlist.join')
+            ->with('signup_email', $email)
+            ->with('waitlist_status', $status);
     }
 }

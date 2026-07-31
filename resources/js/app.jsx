@@ -8,6 +8,7 @@ import {
     BarChart3,
     Bell,
     Blocks,
+    Bold,
     Brain,
     CalendarDays,
     CheckCircle2,
@@ -25,10 +26,14 @@ import {
     Grid2X2,
     GraduationCap,
     Hash,
+    Heading2,
     Edit3,
     Inbox,
+    Italic,
     List,
+    ListOrdered,
     LayoutDashboard,
+    Link as LinkIcon,
     LogOut,
     MailCheck,
     Map as MapIcon,
@@ -52,6 +57,7 @@ import {
     Target,
     Terminal,
     Trash2,
+    Underline,
     Upload,
     UserPlus,
     UsersRound,
@@ -209,12 +215,20 @@ function App() {
     const csrf = mount.dataset.csrf;
     const flash = JSON.parse(mount.dataset.flash || '{}');
 
-    if (page === 'success') {
-        return <SuccessPage email={props.email} />;
-    }
-
     if (page === 'admin-login') {
         return <AdminLogin csrf={csrf} errors={errors} />;
+    }
+
+    if (page === 'public-program') {
+        return <PublicProgramPage csrf={csrf} errors={errors} old={old} program={props.program} registrationStatus={props.registrationStatus} registrationMessage={props.registrationMessage} />;
+    }
+
+    if (page === 'school-program-signup') {
+        return <SchoolProgramSignupPage csrf={csrf} errors={errors} old={old} {...props} />;
+    }
+
+    if (page === 'school-onboarding') {
+        return <SchoolOnboardingPage csrf={csrf} errors={errors} old={old} {...props} />;
     }
 
     if (page === 'pin-gate') {
@@ -241,7 +255,7 @@ function App() {
         return <RoleDashboard csrf={csrf} errors={errors} old={old} flash={flash} {...props} />;
     }
 
-    return <LandingPage csrf={csrf} errors={errors} old={old} signupCount={props.signupCount} />;
+    return <LandingPage csrf={csrf} errors={errors} old={old} signupCount={props.signupCount} waitlistConfirmation={props.waitlistConfirmation} />;
 }
 
 function EmptyState({ message, title = 'No records yet', action }) {
@@ -271,7 +285,13 @@ function BrandMark() {
     );
 }
 
-function LandingPage({ csrf, errors, old, signupCount }) {
+function LandingPage({ csrf, errors, old, signupCount, waitlistConfirmation }) {
+    const [confirmation, setConfirmation] = useState(waitlistConfirmation);
+
+    useEffect(() => {
+        setConfirmation(waitlistConfirmation);
+    }, [waitlistConfirmation]);
+
     return (
         <main className="min-h-screen overflow-x-hidden bg-[#fbfdff] text-slate-950 [font-family:Inter,Arial,sans-serif]">
             <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[200] focus:rounded-full focus:bg-white focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-slate-950 focus:shadow-lg">Skip to content</a>
@@ -317,6 +337,13 @@ function LandingPage({ csrf, errors, old, signupCount }) {
             <ScaleCampusFaqSection />
             <WaitlistClosingSection csrf={csrf} errors={errors} old={old} />
             <CampusFooter />
+            {confirmation && (
+                <WaitlistConfirmationPopup
+                    email={confirmation.email}
+                    status={confirmation.status}
+                    onClose={() => setConfirmation(null)}
+                />
+            )}
         </main>
     );
 }
@@ -1310,23 +1337,488 @@ function useCountdown(targetDate) {
     return timeLeft;
 }
 
-function SuccessPage({ email }) {
+function WaitlistConfirmationPopup({ email, status = 'created', onClose }) {
+    const alreadyRegistered = status === 'existing';
+    const title = alreadyRegistered ? 'You are already on the waitlist' : 'You have joined the waitlist';
+    const message = alreadyRegistered
+        ? `${email || 'This email'} is already registered for ScaleCampusLab launch updates. We will keep you posted when access opens.`
+        : `${email || 'Your email'} has been added to the ScaleCampusLab waitlist. We will send a short launch update when access opens.`;
+
+    useEffect(() => {
+        const handleKeyDown = (event) => {
+            if (event.key === 'Escape') {
+                onClose();
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [onClose]);
+
     return (
-        <CenteredShell>
-            <div className="mx-auto max-w-xl rounded-[2rem] border border-white/15 bg-black/55 p-8 text-center shadow-2xl shadow-black/40 backdrop-blur-2xl">
-                <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl border border-emerald-300/30 bg-emerald-400/15 text-emerald-200">
-                    <MailCheck size={32} />
+        <div className="fixed inset-0 z-[250] grid min-h-screen place-items-center px-4 py-8">
+            <button type="button" className="absolute inset-0 cursor-default bg-black/45 backdrop-blur-sm" aria-label="Close waitlist confirmation" onClick={onClose} />
+            <section role="dialog" aria-modal="true" aria-labelledby="waitlist-confirmation-title" className="waitlist-popup relative mx-auto w-full max-w-[34rem] rounded-[1.5rem] border border-white/15 bg-white p-6 text-center shadow-2xl shadow-black/35 sm:p-8">
+                <button type="button" onClick={onClose} aria-label="Close" className="absolute right-4 top-4 grid h-9 w-9 place-items-center rounded-full border border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:text-slate-950">
+                    <X size={18} />
+                </button>
+                <div className={cx('waitlist-check-wrap mx-auto grid h-20 w-20 place-items-center rounded-full', alreadyRegistered ? 'bg-blue-50 text-blue-600' : 'bg-emerald-50 text-emerald-600')}>
+                    {alreadyRegistered ? (
+                        <MailCheck className="waitlist-pop-icon" size={36} strokeWidth={2.2} />
+                    ) : (
+                        <svg className="h-11 w-11" viewBox="0 0 52 52" aria-hidden="true">
+                            <circle className="waitlist-check-circle" cx="26" cy="26" r="23" fill="none" stroke="currentColor" strokeWidth="4" />
+                            <path className="waitlist-check-mark" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="5" d="M15 27.5l7.2 7.2L38 18.8" />
+                        </svg>
+                    )}
                 </div>
-                <h1 className="mt-6 text-4xl font-light tracking-normal text-white">You will hear from us at launch</h1>
-                <p className="mt-4 text-white/65">
-                    {email ? `We will notify ${email} when ScaleCampusLab officially launches.` : 'We will notify you when ScaleCampusLab officially launches.'} No account has been created, and you do not need to set a password.
+                <h1 id="waitlist-confirmation-title" className="mt-6 text-3xl font-bold leading-tight tracking-normal text-slate-950 bricolage-grotesque sm:text-4xl">{title}</h1>
+                <p className="mt-4 text-sm font-normal leading-7 text-slate-600 sm:text-base">
+                    {message}
                 </p>
-                <a href="/" className="mt-7 inline-flex items-center gap-2 rounded-full bg-red-600 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-red-500/25 hover:bg-red-700">
-                    Back to Home
-                    <ArrowRight size={18} />
-                </a>
+                <p className="mt-3 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">No account or password was created.</p>
+                <button type="button" onClick={onClose} className="mt-7 inline-flex h-12 items-center justify-center gap-2 rounded-full bg-slate-950 px-6 text-sm font-bold text-white shadow-lg shadow-slate-950/20 hover:bg-black">
+                    Continue
+                    <CheckCircle2 size={18} />
+                </button>
+            </section>
+        </div>
+    );
+}
+
+function SchoolProgramSignupPage({ csrf, errors = {}, old = {}, program = {}, action, loginUrl = '/login' }) {
+    return (
+        <main className="min-h-screen bg-[#eef2f6] text-slate-950 [font-family:Inter,Arial,sans-serif]">
+            <header className="border-b border-slate-200 bg-white">
+                <div className="mx-auto flex max-w-[1040px] items-center justify-between gap-3 px-4 py-3 sm:px-6">
+                    <a href="/" aria-label="ScaleCampusLab home"><img src="/images/scalecampus-labs-logo.png" alt="ScaleCampusLab" className="h-8 w-auto object-contain" /></a>
+                    <a href={loginUrl} className="text-sm font-bold text-[#006a61]">Sign in</a>
+                </div>
+            </header>
+            <section className="mx-auto grid max-w-[1040px] gap-5 px-4 py-6 sm:px-6 lg:grid-cols-[minmax(0,1fr)_420px] lg:items-start lg:py-10">
+                <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
+                    <span className="inline-flex items-center gap-2 rounded-md bg-emerald-50 px-3 py-1.5 text-xs font-bold text-[#006a61]"><School size={15} /> School registration</span>
+                    <h1 className="mt-5 max-w-2xl text-3xl font-bold leading-tight tracking-normal text-slate-950 bricolage-grotesque sm:text-5xl">Create your school account.</h1>
+                    <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-600 sm:text-base">Your selected programme is saved while you set up the school workspace. After profile setup, use the dashboard to add students and complete the visit registration.</p>
+                    <div className="mt-6 rounded-lg border border-slate-200 bg-slate-50 p-4">
+                        <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">Selected programme</p>
+                        <h2 className="mt-2 text-lg font-bold text-slate-950">{program.title}</h2>
+                        <div className="mt-3 grid gap-2 text-sm font-medium text-slate-600 sm:grid-cols-2">
+                            <span className="inline-flex min-w-0 items-center gap-2"><CalendarDays size={15} className="shrink-0 text-slate-400" /> <span className="truncate">{formatDateTime(program.startsAt)}</span></span>
+                            <span className="inline-flex min-w-0 items-center gap-2"><MapPin size={15} className="shrink-0 text-slate-400" /> <span className="truncate">{program.venue || program.location || 'Venue TBA'}</span></span>
+                        </div>
+                    </div>
+                </div>
+                <form action={action} method="POST" className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+                    <input type="hidden" name="_token" value={csrf} />
+                    <h2 className="text-xl font-bold text-slate-950">Account details</h2>
+                    <p className="mt-1 text-sm leading-6 text-slate-500">Use the school coordinator email that should manage students and visit registrations.</p>
+                    <div className="mt-5 grid gap-4">
+                        <LightField label="Email address" name="email" type="email" defaultValue={old.email || ''} error={errors.email?.[0]} autoComplete="email" required />
+                        <LightField label="Password" name="password" type="password" error={errors.password?.[0]} autoComplete="new-password" required />
+                        <LightField label="Confirm password" name="password_confirmation" type="password" error={errors.password_confirmation?.[0]} autoComplete="new-password" required />
+                    </div>
+                    <button className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-md bg-slate-950 px-5 py-3 text-sm font-bold text-white hover:bg-[#006a61]">Continue <ArrowRight size={16} /></button>
+                    <p className="mt-4 text-center text-xs font-semibold text-slate-400">Already registered? <a href={loginUrl} className="text-[#006a61]">Sign in</a></p>
+                </form>
+            </section>
+        </main>
+    );
+}
+
+function SchoolOnboardingPage({ csrf, errors = {}, old = {}, program = {}, account = {}, action }) {
+    const [step, setStep] = useState(0);
+    const steps = [
+        ['School profile', 'Identity and location'],
+        ['Contacts', 'Coordinator and leadership'],
+        ['Academics', 'Students and visit readiness'],
+    ];
+    const value = (key, fallback = '') => old[key] ?? fallback;
+
+    return (
+        <main className="min-h-screen bg-[#eef2f6] text-slate-950 [font-family:Inter,Arial,sans-serif]">
+            <header className="border-b border-slate-200 bg-white">
+                <div className="mx-auto flex max-w-[1080px] items-center justify-between gap-3 px-4 py-3 sm:px-6">
+                    <a href="/" aria-label="ScaleCampusLab home"><img src="/images/scalecampus-labs-logo.png" alt="ScaleCampusLab" className="h-8 w-auto object-contain" /></a>
+                    <span className="rounded-md bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-500">{account.email}</span>
+                </div>
+            </header>
+            <section className="mx-auto max-w-[1080px] px-4 py-6 sm:px-6 lg:py-8">
+                {program?.title && (
+                    <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-[#006a61]">
+                        Saved programme: {program.title}
+                    </div>
+                )}
+                <div className="grid gap-5 lg:grid-cols-[300px_minmax(0,1fr)] lg:items-start">
+                    <aside className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                        <h1 className="text-2xl font-bold tracking-normal text-slate-950 bricolage-grotesque">Set up your school</h1>
+                        <p className="mt-2 text-sm leading-6 text-slate-500">Complete the profile once, then manage students and programme registrations from the school dashboard.</p>
+                        <div className="mt-5 grid gap-2">
+                            {steps.map(([title, subtitle], index) => (
+                                <button key={title} type="button" onClick={() => setStep(index)} className={cx('flex items-center gap-3 rounded-lg border px-3 py-3 text-left', step === index ? 'border-[#006a61] bg-emerald-50' : 'border-slate-200 bg-white hover:bg-slate-50')}>
+                                    <span className={cx('grid h-8 w-8 shrink-0 place-items-center rounded-md text-sm font-bold', step === index ? 'bg-[#006a61] text-white' : 'bg-slate-100 text-slate-500')}>{index + 1}</span>
+                                    <span className="min-w-0">
+                                        <span className="block text-sm font-bold text-slate-950">{title}</span>
+                                        <span className="block text-xs font-medium text-slate-500">{subtitle}</span>
+                                    </span>
+                                </button>
+                            ))}
+                        </div>
+                    </aside>
+                    <form action={action} method="POST" className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+                        <input type="hidden" name="_token" value={csrf} />
+                        <FormErrorSummary errors={errors} />
+                        <div className={cx('grid gap-4 md:grid-cols-2', step !== 0 && 'hidden')}>
+                            <div className="md:col-span-2"><LightField label="School name" name="name" defaultValue={value('name')} error={errors.name?.[0]} /></div>
+                            <LightField label="School code" name="school_code" defaultValue={value('school_code')} error={errors.school_code?.[0]} placeholder="Auto-generated if blank" />
+                            <label className="text-sm font-semibold text-gray-700">School type<select name="school_type" defaultValue={value('school_type', 'public')} className="mt-2 w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-950 outline-none focus:border-gray-400 focus:ring-4 focus:ring-gray-100"><option value="public">Public</option><option value="private">Private</option><option value="charter">Charter</option><option value="international">International</option><option value="faith_based">Faith-based</option><option value="other">Other</option></select></label>
+                            <label className="text-sm font-semibold text-gray-700">Institution level<select name="institution_level" defaultValue={value('institution_level', 'high_school')} className="mt-2 w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-950 outline-none focus:border-gray-400 focus:ring-4 focus:ring-gray-100"><option value="high_school">High school</option><option value="middle_high_school">Middle and high school</option><option value="k12">K-12</option><option value="sixth_form">Sixth form / college</option><option value="other">Other</option></select></label>
+                            <LightField label="Ownership / operator" name="ownership" defaultValue={value('ownership')} error={errors.ownership?.[0]} placeholder="District, private group, board, ministry" />
+                            <LightField label="Website" name="website" type="url" defaultValue={value('website')} error={errors.website?.[0]} placeholder="https://school.edu" />
+                            <LightField label="Main phone" name="main_phone" defaultValue={value('main_phone')} error={errors.main_phone?.[0]} />
+                            <LightField label="Street address" name="address" defaultValue={value('address')} error={errors.address?.[0]} />
+                            <LightField label="City" name="city" defaultValue={value('city')} error={errors.city?.[0]} />
+                            <LightField label="State / region" name="state" defaultValue={value('state')} error={errors.state?.[0]} />
+                            <LightField label="Country" name="country" defaultValue={value('country', 'United States')} error={errors.country?.[0]} />
+                            <LightField label="District" name="district" defaultValue={value('district')} error={errors.district?.[0]} />
+                            <LightField label="Region" name="region" defaultValue={value('region')} error={errors.region?.[0]} />
+                            <LightField label="Timezone" name="timezone" defaultValue={value('timezone', 'America/Chicago')} error={errors.timezone?.[0]} />
+                        </div>
+                        <div className={cx('grid gap-4 md:grid-cols-2', step !== 1 && 'hidden')}>
+                            <LightField label="Coordinator name" name="coordinator_name" defaultValue={value('coordinator_name', account.name || '')} error={errors.coordinator_name?.[0]} />
+                            <LightField label="Coordinator email" name="coordinator_email" type="email" defaultValue={value('coordinator_email', account.email || '')} error={errors.coordinator_email?.[0]} />
+                            <LightField label="Coordinator phone" name="coordinator_phone" defaultValue={value('coordinator_phone')} error={errors.coordinator_phone?.[0]} />
+                            <LightField label="Admissions email" name="admissions_email" type="email" defaultValue={value('admissions_email')} error={errors.admissions_email?.[0]} />
+                            <LightField label="Registrar email" name="registrar_email" type="email" defaultValue={value('registrar_email')} error={errors.registrar_email?.[0]} />
+                            <LightField label="Principal name" name="principal_name" defaultValue={value('principal_name')} error={errors.principal_name?.[0]} />
+                            <LightField label="Principal email" name="principal_email" type="email" defaultValue={value('principal_email')} error={errors.principal_email?.[0]} />
+                            <LightField label="Counselor name" name="counselor_name" defaultValue={value('counselor_name')} error={errors.counselor_name?.[0]} />
+                            <LightField label="Counselor email" name="counselor_email" type="email" defaultValue={value('counselor_email')} error={errors.counselor_email?.[0]} />
+                            <LightField label="Counselor phone" name="counselor_phone" defaultValue={value('counselor_phone')} error={errors.counselor_phone?.[0]} />
+                            <LightField label="Emergency contact name" name="emergency_contact_name" defaultValue={value('emergency_contact_name')} error={errors.emergency_contact_name?.[0]} />
+                            <LightField label="Emergency contact phone" name="emergency_contact_phone" defaultValue={value('emergency_contact_phone')} error={errors.emergency_contact_phone?.[0]} />
+                            <LightField label="Emergency contact email" name="emergency_contact_email" type="email" defaultValue={value('emergency_contact_email')} error={errors.emergency_contact_email?.[0]} />
+                        </div>
+                        <div className={cx('grid gap-4 md:grid-cols-2', step !== 2 && 'hidden')}>
+                            <LightField label="Grade range" name="grade_range" defaultValue={value('grade_range')} error={errors.grade_range?.[0]} placeholder="Grades 9-12" />
+                            <LightField label="Student count" name="student_count" type="number" min="0" defaultValue={value('student_count')} error={errors.student_count?.[0]} />
+                            <LightField label="Accreditation" name="accreditation" defaultValue={value('accreditation')} error={errors.accreditation?.[0]} placeholder="State, regional, IB, Cambridge, etc." />
+                            <LightField label="Curriculum" name="curriculum" defaultValue={value('curriculum')} error={errors.curriculum?.[0]} placeholder="AP, IB, Cambridge, national curriculum" />
+                            <LightField label="Academic calendar" name="academic_calendar" defaultValue={value('academic_calendar')} error={errors.academic_calendar?.[0]} placeholder="Semester, trimester, term-based" />
+                            <LightField label="Graduation rate (%)" name="graduation_rate" type="number" min="0" max="100" step="0.01" defaultValue={value('graduation_rate')} error={errors.graduation_rate?.[0]} />
+                            <LightField label="Average class size" name="average_class_size" type="number" min="0" defaultValue={value('average_class_size')} error={errors.average_class_size?.[0]} />
+                            <LightField label="Safety policy URL" name="safety_policy_url" type="url" defaultValue={value('safety_policy_url')} error={errors.safety_policy_url?.[0]} />
+                            <div className="md:col-span-2 grid gap-3 md:grid-cols-2">
+                                <label className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-semibold text-slate-700"><input type="hidden" name="boarding_available" value="0" /><input type="checkbox" name="boarding_available" value="1" defaultChecked={value('boarding_available', '0') === '1'} className="h-4 w-4 rounded border-slate-300 text-[#006a61]" /> Boarding available</label>
+                                <label className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-semibold text-slate-700"><input type="hidden" name="international_students" value="0" /><input type="checkbox" name="international_students" value="1" defaultChecked={value('international_students', '0') === '1'} className="h-4 w-4 rounded border-slate-300 text-[#006a61]" /> Serves international students</label>
+                            </div>
+                            <div className="md:col-span-2"><LightTextarea label="Student support services" name="student_support_services" defaultValue={value('student_support_services')} error={errors.student_support_services?.[0]} placeholder="Counseling, accessibility, learning support, college advising" /></div>
+                            <div className="md:col-span-2"><LightTextarea label="Transportation notes" name="transportation_notes" defaultValue={value('transportation_notes')} error={errors.transportation_notes?.[0]} placeholder="Bus access, pickup points, travel approval requirements" /></div>
+                            <div className="md:col-span-2"><LightTextarea label="Visit policy" name="visit_policy" defaultValue={value('visit_policy')} error={errors.visit_policy?.[0]} placeholder="Student consent, chaperone ratio, minimum notice, required documents" /></div>
+                            <div className="md:col-span-2"><LightTextarea label="Visit notes" name="visit_notes" defaultValue={value('visit_notes')} error={errors.visit_notes?.[0]} placeholder="Transport, accessibility, consent, or scheduling notes" /></div>
+                            <label className="md:col-span-2 flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-semibold text-slate-700">
+                                <input type="hidden" name="email_notifications" value="0" />
+                                <input type="checkbox" name="email_notifications" value="1" defaultChecked={value('email_notifications', '1') !== '0'} className="h-4 w-4 rounded border-slate-300 text-[#006a61]" />
+                                Send email notifications for programme updates and student registration activity
+                            </label>
+                        </div>
+                        <div className="mt-6 flex items-center justify-between gap-3 border-t border-slate-100 pt-4">
+                            <button type="button" onClick={() => setStep((current) => Math.max(0, current - 1))} className={cx('rounded-md border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-600', step === 0 && 'invisible')}>Back</button>
+                            {step < steps.length - 1 ? (
+                                <button type="button" onClick={() => setStep((current) => Math.min(steps.length - 1, current + 1))} className="inline-flex items-center gap-2 rounded-md bg-slate-950 px-5 py-2.5 text-sm font-bold text-white hover:bg-[#006a61]">Next <ArrowRight size={16} /></button>
+                            ) : (
+                                <button className="inline-flex items-center gap-2 rounded-md bg-[#006a61] px-5 py-2.5 text-sm font-bold text-white hover:bg-slate-950">Open dashboard <ArrowRight size={16} /></button>
+                            )}
+                        </div>
+                    </form>
+                </div>
+            </section>
+        </main>
+    );
+}
+
+function PublicProgramPage({ errors = {}, program = {}, registrationStatus, registrationMessage }) {
+    const seatsLabel = Number(program.remainingSeats || 0) > 0 ? `${program.remainingSeats} seat(s) open` : 'Waitlist active';
+    const registrationDisabled = !program.guestRegistrationEnabled;
+    const capacityPercent = Math.min(100, Math.round((Number(program.confirmedSeats || 0) / Math.max(1, Number(program.capacity || 1))) * 100));
+    const details = [
+        ['Date and time', formatDateTime(program.startsAt), CalendarDays],
+        ['Venue', program.venue || 'Venue TBA', MapPin],
+        ['Location', program.location || 'Campus location TBA', MapIcon],
+        ['Availability', seatsLabel, UsersRound],
+        ['Group limit', program.perGroupCapacity ? `${program.perGroupCapacity} per group` : 'No group cap', CheckCircle2],
+    ];
+
+    return (
+        <main className="min-h-screen bg-[#eef2f6] pb-20 text-slate-950 [font-family:Inter,Arial,sans-serif] lg:pb-8">
+            <header className="border-b border-slate-200 bg-white">
+                <div className="mx-auto flex max-w-[1160px] items-center justify-between gap-3 px-4 py-3 sm:px-6">
+                    <a href="/" aria-label="ScaleCampusLab home">
+                        <img src="/images/scalecampus-labs-logo.png" alt="ScaleCampusLab" className="h-8 w-auto object-contain" />
+                    </a>
+                    <div className="flex items-center gap-2">
+                        <span className={cx('hidden rounded-md px-2.5 py-1 text-xs font-bold sm:inline-flex', program.registrationOpen ? 'bg-emerald-50 text-[#006a61]' : 'bg-slate-100 text-slate-500')}>{program.registrationOpen ? 'Open' : 'Closed'}</span>
+                        <a href={`/programs/${encodeURIComponent(program.shareSlug || '')}/join`} className="inline-flex h-9 items-center justify-center rounded-md bg-slate-950 px-4 text-sm font-bold text-white hover:bg-[#006a61]">Register</a>
+                    </div>
+                </div>
+            </header>
+
+            <section className="mx-auto max-w-[1160px] px-4 py-4 sm:px-6 sm:py-6">
+                <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                    <div className="grid lg:grid-cols-[360px_minmax(0,1fr)]">
+                        <div className="relative min-h-[220px] bg-slate-900 lg:min-h-full">
+                            {program.heroImageUrl ? (
+                                <img src={program.heroImageUrl} alt={program.heroImageAlt || program.title || 'Programme image'} className="absolute inset-0 h-full w-full object-cover" />
+                            ) : (
+                                <div className="absolute inset-0 bg-slate-900" />
+                            )}
+                            <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 to-transparent" />
+                        </div>
+                        <div className="p-4 sm:p-6">
+                            <h1 className="max-w-3xl text-2xl font-bold leading-tight tracking-normal text-slate-950 bricolage-grotesque sm:text-4xl">{program.title}</h1>
+                            <p className="mt-3 max-w-3xl text-sm font-medium leading-6 text-slate-600 sm:text-[15px]">{program.about || 'Programme details are available below.'}</p>
+                            <div className="mt-5 overflow-hidden rounded-lg border border-slate-200 bg-white">
+                                {details.map(([label, value, Icon]) => (
+                                    <div key={label} className="grid min-w-0 grid-cols-[20px_minmax(0,1fr)] items-center gap-2 border-b border-slate-100 px-3 py-2 last:border-b-0 sm:grid-cols-[20px_96px_minmax(0,1fr)]">
+                                        <Icon className="shrink-0 text-slate-400" size={15} />
+                                        <p className="hidden text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400 sm:block">{label}</p>
+                                        <p className="min-w-0 overflow-x-auto whitespace-nowrap text-sm font-medium leading-5 text-slate-800 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">{value}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <div className="mx-auto grid max-w-[1160px] gap-4 px-4 pb-8 sm:px-6 lg:grid-cols-[minmax(0,1fr)_330px] lg:items-start">
+                <div className="grid gap-4">
+                    <PublicProgramSection id="overview" title="About the programme" body={program.detailedDescription || program.description || program.about} />
+                    <PublicProgramSection title="Who should attend" body={program.audience} fallback="Schools can register student groups that fit the programme focus." />
+                    <PublicProgramSection id="agenda" title="Agenda" body={program.agenda} fallback="The host university will share the final agenda with registered schools." />
+                    <PublicProgramSection id="requirements" title="Requirements" body={program.requirements} fallback="Bring any student details, consent records, and coordinator information required by your school." />
+                    <PublicProgramContactSection program={program} />
+                </div>
+
+                <aside id="register" className="h-fit overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm lg:sticky lg:top-16">
+                    <div className="border-b border-slate-200 bg-slate-950 p-4 text-white">
+                        <div className="flex items-end justify-between gap-3">
+                            <div>
+                                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/45">Available seats</p>
+                                <p className="mt-1 text-3xl font-bold">{Number(program.remainingSeats || 0).toLocaleString()}</p>
+                            </div>
+                            <span className="rounded-md bg-white/10 px-2.5 py-1 text-xs font-semibold text-white">{capacityPercent}% filled</span>
+                        </div>
+                        <div className="mt-3 h-1.5 rounded-full bg-white/10"><div className="h-full rounded-full bg-emerald-300" style={{ width: `${capacityPercent}%` }} /></div>
+                    </div>
+                    <div className="p-4">
+                    <h2 className="text-lg font-bold text-slate-950">Register your school</h2>
+                    <p className="mt-1 text-sm leading-6 text-slate-500">Create a school account first. This programme will be saved while you complete your school profile, then you can add students and finish the registration from the dashboard.</p>
+                    {registrationMessage && <p className={cx('mt-4 rounded-xl px-3 py-2 text-sm font-bold', registrationStatus === 'waitlisted' ? 'bg-amber-50 text-amber-800' : 'bg-emerald-50 text-emerald-800')}>{registrationMessage}</p>}
+                    {errors.registration?.[0] && <p className="mt-4 rounded-xl bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700">{errors.registration[0]}</p>}
+                    <div className="mt-4 grid gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm font-medium text-slate-600">
+                        {[
+                            'Create your coordinator login with email and password.',
+                            'Complete the school profile in guided steps.',
+                            'Open the dashboard to add students and complete visit registration.',
+                        ].map((item) => (
+                            <p key={item} className="flex gap-2"><CheckCircle2 className="mt-0.5 shrink-0 text-[#006a61]" size={16} /> {item}</p>
+                        ))}
+                    </div>
+                    <a
+                        aria-disabled={registrationDisabled}
+                        href={registrationDisabled ? '#register' : `/programs/${encodeURIComponent(program.shareSlug || '')}/join`}
+                        className={cx('mt-4 inline-flex w-full items-center justify-center gap-2 rounded-md px-5 py-3 text-sm font-bold text-white', registrationDisabled ? 'pointer-events-none bg-slate-300' : 'bg-slate-950 hover:bg-[#006a61]')}
+                    >
+                        {registrationDisabled ? 'Registration unavailable' : 'Create school account'} <ArrowRight size={16} />
+                    </a>
+                    <p className="mt-3 text-center text-xs font-semibold text-slate-400">Already have an account? Sign in and register from the school dashboard.</p>
+                    </div>
+                </aside>
             </div>
-        </CenteredShell>
+            <div className="mx-auto max-w-[1160px] px-4 pb-8 sm:px-6">
+                <PublicProgramMediaPanel program={program} wide />
+            </div>
+            <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-4 py-3 shadow-[0_-12px_30px_rgba(15,23,42,.12)] backdrop-blur lg:hidden">
+                <div className="mx-auto flex max-w-[520px] items-center gap-3">
+                    <div className="min-w-0 flex-1">
+                        <p className="truncate text-xs font-semibold text-slate-500">{seatsLabel}</p>
+                        <p className="truncate text-sm font-semibold text-slate-950">{program.title}</p>
+                    </div>
+                    <a href={`/programs/${encodeURIComponent(program.shareSlug || '')}/join`} className="inline-flex h-11 shrink-0 items-center justify-center rounded-md bg-[#006a61] px-4 text-sm font-semibold text-white">Register now</a>
+                </div>
+            </div>
+        </main>
+    );
+}
+
+function PublicProgramMediaPanel({ program = {}, wide = false }) {
+    const embedUrl = getVideoEmbedUrl(program.videoUrl);
+    const youtubeId = getYoutubeVideoId(program.videoUrl);
+    const [playing, setPlaying] = useState(!youtubeId);
+    const hasMedia = program.videoUrl;
+    if (!hasMedia) return null;
+
+    return (
+        <section id="media" className={cx('overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm', wide && 'lg:col-span-full')}>
+            {program.videoUrl && (
+                <div className="grid gap-3 p-4">
+                    <div>
+                        <div className="mb-3 flex items-center justify-between gap-3">
+                            <div>
+                                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">Video</p>
+                                <h2 className="mt-1 text-base font-bold text-slate-950">{program.videoTitle || 'Programme video'}</h2>
+                            </div>
+                            <a href={normalizeExternalUrl(program.videoUrl)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-md border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50"><LinkIcon size={14} /> Open</a>
+                        </div>
+                        {embedUrl && playing ? (
+                            <div className="mx-auto w-full max-w-[980px] overflow-hidden rounded-lg border border-slate-200 bg-slate-950" style={{ aspectRatio: '16 / 9' }}>
+                                <iframe
+                                    title={program.videoTitle || `${program.title || 'Programme'} video`}
+                                    src={`${embedUrl}?rel=0&modestbranding=1&playsinline=1&autoplay=${youtubeId ? '1' : '0'}`}
+                                    className="h-full w-full"
+                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                    referrerPolicy="strict-origin-when-cross-origin"
+                                    allowFullScreen
+                                />
+                            </div>
+                        ) : youtubeId ? (
+                            <button
+                                type="button"
+                                onClick={() => setPlaying(true)}
+                                className="group relative mx-auto grid w-full max-w-[980px] place-items-center overflow-hidden rounded-lg border border-slate-200 bg-slate-950 text-white"
+                                style={{ aspectRatio: '16 / 9' }}
+                                aria-label="Play programme video"
+                            >
+                                <img src={`https://i.ytimg.com/vi/${youtubeId}/hqdefault.jpg`} alt="" className="absolute inset-0 h-full w-full object-cover opacity-80 transition group-hover:scale-[1.02] group-hover:opacity-90" />
+                                <span className="relative grid h-14 w-14 place-items-center rounded-full bg-white text-slate-950 shadow-lg">
+                                    <span className="ml-1 h-0 w-0 border-y-[10px] border-l-[16px] border-y-transparent border-l-current" />
+                                </span>
+                                <span className="absolute bottom-3 left-3 rounded-md bg-black/65 px-2.5 py-1 text-xs font-bold">Play video</span>
+                            </button>
+                        ) : (
+                            <a href={normalizeExternalUrl(program.videoUrl)} target="_blank" rel="noreferrer" className="flex w-full items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-14 text-sm font-bold text-[#006a61]">
+                                Watch programme video
+                            </a>
+                        )}
+                    </div>
+                </div>
+            )}
+        </section>
+    );
+}
+
+function getVideoEmbedUrl(value) {
+    if (!value) return null;
+
+    try {
+        const url = new URL(normalizeExternalUrl(value));
+        const host = url.hostname.replace(/^www\./, '');
+        const youtubeId = getYoutubeVideoId(value);
+        if (youtubeId) return `https://www.youtube.com/embed/${youtubeId}`;
+        if (host === 'vimeo.com' || host === 'player.vimeo.com') {
+            const id = url.pathname.split('/').filter(Boolean).pop();
+            return id ? `https://player.vimeo.com/video/${id}` : null;
+        }
+    } catch {
+        return null;
+    }
+
+    return null;
+}
+
+function getYoutubeVideoId(value) {
+    if (!value) return null;
+
+    try {
+        const url = new URL(normalizeExternalUrl(value));
+        const host = url.hostname.replace(/^www\./, '');
+        if (host === 'youtu.be') return url.pathname.split('/').filter(Boolean)[0] || null;
+        if (!['youtube.com', 'm.youtube.com', 'music.youtube.com', 'youtube-nocookie.com'].includes(host)) return null;
+
+        const parts = url.pathname.split('/').filter(Boolean);
+        return url.searchParams.get('v')
+            || (parts[0] === 'embed' ? parts[1] : null)
+            || (parts[0] === 'shorts' ? parts[1] : null)
+            || (parts[0] === 'live' ? parts[1] : null);
+    } catch {
+        return null;
+    }
+}
+
+function normalizeExternalUrl(value) {
+    const url = String(value || '').trim();
+    if (!url) return '';
+
+    return /^https?:\/\//i.test(url) ? url : `https://${url}`;
+}
+
+function PublicProgramSection({ id, title, body, fallback }) {
+    return (
+        <section id={id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="grid gap-3 sm:grid-cols-[180px_minmax(0,1fr)]">
+                <h2 className="text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">{title}</h2>
+                <RichTextDisplay html={body} fallback={fallback || 'Details will be shared soon.'} />
+            </div>
+        </section>
+    );
+}
+
+function PublicProgramContactSection({ program = {} }) {
+    const contactRows = [
+        ['Contact person', program.contactName],
+        ['Role / department', program.contactTitle],
+        ['Email', program.contactEmail],
+        ['Phone', program.contactPhone],
+        ['Office', program.contactOffice],
+        ['Website', program.contactWebsite],
+    ].filter(([, value]) => value);
+
+    return (
+        <section id="contact" className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="grid gap-3 sm:grid-cols-[180px_minmax(0,1fr)]">
+            <h2 className="text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">Contact details</h2>
+            <div>
+            {contactRows.length > 0 ? (
+                <div className="grid gap-2 sm:grid-cols-2">
+                    {contactRows.map(([label, value]) => (
+                        <div key={label} className="rounded-lg border border-slate-100 bg-slate-50 p-3">
+                            <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-400">{label}</p>
+                            {label === 'Email' ? (
+                                <a href={`mailto:${value}`} className="mt-1 block break-words text-sm font-semibold text-[#006a61]">{value}</a>
+                            ) : label === 'Website' ? (
+                                <a href={value} target="_blank" rel="noreferrer" className="mt-1 block break-words text-sm font-semibold text-[#006a61]">{value}</a>
+                            ) : (
+                                <p className="mt-1 break-words text-sm font-medium text-slate-700">{value}</p>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            ) : (
+                <p className="mt-3 text-sm leading-7 text-slate-600">{program.university ? `Contact ${program.university} for programme questions.` : 'The university will contact registered schools with next steps.'}</p>
+            )}
+            {program.contactDetails && (
+                <div className="mt-3 border-t border-slate-100 pt-3">
+                    <p className="text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">Additional notes</p>
+                    <RichTextDisplay html={program.contactDetails} fallback="" className="mt-2" />
+                </div>
+            )}
+            </div>
+            </div>
+        </section>
+    );
+}
+
+function RichTextDisplay({ html, fallback, className = '' }) {
+    if (!html) {
+        return <p className={cx('text-sm leading-7 text-slate-600', className)}>{fallback}</p>;
+    }
+
+    return (
+        <div
+            className={cx('rich-text-display text-sm leading-7 text-slate-600', className)}
+            dangerouslySetInnerHTML={{ __html: html }}
+        />
     );
 }
 
@@ -1747,9 +2239,9 @@ function DashboardFrame({ csrf, children, role, title, subtitle, activeId, activ
     const navItems = flatNavItems(navGroups);
     const compactMobilePage = ['school', 'high_school'].includes(role) && activeId === 'bookings';
     const customHeaderPages = {
-        university: ['overview', 'events', 'visit-requests', 'schools', 'attendees', 'calendar', 'insights', 'messages', 'settings'],
-        school: ['overview', 'events', 'bookings', 'itinerary', 'students', 'calendar', 'messages', 'reports', 'settings'],
-        high_school: ['overview', 'events', 'bookings', 'itinerary', 'students', 'calendar', 'messages', 'reports', 'settings'],
+        university: ['overview', 'events', 'visit-requests', 'schools', 'attendees', 'calendar', 'insights', 'messages', 'profile', 'settings'],
+        school: ['overview', 'events', 'bookings', 'itinerary', 'students', 'calendar', 'messages', 'reports', 'profile', 'settings'],
+        high_school: ['overview', 'events', 'bookings', 'itinerary', 'students', 'calendar', 'messages', 'reports', 'profile', 'settings'],
         admin: ['overview', 'universities', 'schools', 'messages', 'content', 'waitlist', 'events', 'users-access', 'analytics', 'system-health', 'settings'],
         student: ['my-visits', 'messages', 'itinerary', 'notifications', 'profile', 'settings'],
     };
@@ -1992,7 +2484,7 @@ function mobileDockLabel(title) {
         'Visit Programs': 'Programs',
         'Visit Requests': 'Requests',
         'Partner Schools': 'Schools',
-        'Discover Visits': 'Discover',
+        'Discover Programmes': 'Discover',
         'My Requests': 'Requests',
         'My Students': 'Students',
         'My Schedule': 'Schedule',
@@ -2673,6 +3165,10 @@ function UniversityVisitsSection({ csrf, events, registrations, schools = [], se
         ['all', `All (${events.length})`],
     ];
 
+    if (editor) {
+        return <UniversityEventEditor csrf={csrf} event={editor.id ? editor : null} events={events} settings={settings} errors={errors} old={old} onClose={() => setEditor(null)} />;
+    }
+
     return (
         <div className="grid gap-4">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
@@ -2683,7 +3179,6 @@ function UniversityVisitsSection({ csrf, events, registrations, schools = [], se
                 <button type="button" onClick={() => setEditor({})} className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#006a61] px-4 py-2.5 text-sm font-black text-white shadow-sm hover:opacity-90"><Plus size={16} /> Create Program</button>
             </div>
 
-            {editor && <UniversityEventEditor csrf={csrf} event={editor.id ? editor : null} events={events} settings={settings} errors={errors} old={old} onClose={() => setEditor(null)} />}
             {detail && <UniversityProgramDetailModal event={detail} registrations={registrations} schools={schools} onClose={() => setDetail(null)} onEdit={() => { setEditor(detail); setDetail(null); }} onInvite={() => { setInviteProgram(detail); setDetail(null); }} />}
             {inviteProgram && <InviteSchoolsModal csrf={csrf} event={inviteProgram} schools={schools} onClose={() => setInviteProgram(null)} />}
 
@@ -2838,53 +3333,143 @@ function UniversityEventStatusForm({ csrf, event, status, label, tone = 'primary
 function UniversityEventEditor({ csrf, event, events = [], settings = {}, errors, old, onClose }) {
     const isEdit = Boolean(event);
     const defaults = settings.defaults || {};
+    const contactDefaults = settings.programContactDefaults || {};
     const value = (key, fallback = '') => old[key] || event?.[key] || fallback;
+    const contactValue = (camelKey, snakeKey, fallback = '') => old[snakeKey] || old[camelKey] || event?.[camelKey] || event?.[snakeKey] || contactDefaults[camelKey] || fallback;
     const selectedVenue = value('venue');
     const selectedStart = value('startsAt') || value('starts_at');
     const conflict = selectedVenue && selectedStart
         ? events.find((item) => item.id !== event?.id && item.status !== 'cancelled' && String(item.venue || '').toLowerCase() === String(selectedVenue).toLowerCase() && toInputDateTime(item.startsAt) === toInputDateTime(selectedStart))
         : null;
     return (
-        <section className="fixed inset-0 z-[90] grid place-items-center bg-slate-950/55 px-3 py-5 backdrop-blur-sm">
-            <div className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-3xl border border-white/70 bg-white shadow-2xl">
-                <div className="flex items-start justify-between gap-4 border-b border-slate-100 p-4 md:p-5">
+        <section className="grid gap-5">
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-5">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                     <div>
                         <p className="text-xs font-black uppercase tracking-[0.14em] text-[#006a61]">{isEdit ? 'Edit program' : 'New program'}</p>
-                        <h2 className="mt-1 text-xl font-black text-slate-950 md:text-2xl">{isEdit ? event.title : 'Create Visit Program'}</h2>
-                        <p className="mt-1 text-sm font-semibold text-slate-500">{isEdit ? 'Update schedule, capacity, venue, and status.' : 'Add a school-facing visit program to the database.'}</p>
+                        <h1 className="mt-1 text-2xl font-black text-slate-950 md:text-3xl">{isEdit ? event.title : 'Create Visit Program'}</h1>
+                        <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-slate-500">Build a complete public programme page with schedule, school registration rules, custom copy, contact details, and images.</p>
                     </div>
-                    <button type="button" onClick={onClose} className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-slate-200 bg-white text-slate-500 shadow-sm hover:bg-slate-50" aria-label="Close editor"><X size={18} /></button>
+                    <button type="button" onClick={onClose} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 shadow-sm hover:bg-slate-50"><ChevronRight className="rotate-180" size={16} /> Back to programs</button>
                 </div>
-                <form action={isEdit ? `/campus-events/${event.id}` : '/campus-events'} method="POST" className="grid gap-4 overflow-y-auto p-4 md:grid-cols-2 md:p-5">
+            </div>
+
+            <form action={isEdit ? `/campus-events/${event.id}` : '/campus-events'} method="POST" encType="multipart/form-data" className="grid gap-5">
+                <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-5">
+                    <div className="mb-4">
+                        <h2 className="text-lg font-black text-slate-950">Programme basics</h2>
+                        <p className="mt-1 text-sm font-semibold text-slate-500">Core information used on dashboards, shared links, and registration records.</p>
+                    </div>
+                    <div className="grid gap-4 md:grid-cols-2">
                     <input type="hidden" name="_token" value={csrf} />
                     {isEdit && <input type="hidden" name="_method" value="PUT" />}
                     <div className="md:col-span-2"><FormErrorSummary errors={errors} /></div>
                     <LightField label="Program title" name="title" defaultValue={value('title')} error={errors.title?.[0]} />
                     <LightField label="Venue" name="venue" defaultValue={value('venue')} error={errors.venue?.[0]} />
                     {conflict && <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm font-bold text-amber-800 md:col-span-2">Conflict warning: {conflict.title} already uses this venue and start time. The backend will block overlapping schedules.</div>}
+                    <LightField label="Location" name="location" defaultValue={value('location')} error={errors.location?.[0]} />
+                    <LightField label="Capacity" name="capacity" type="number" min="1" defaultValue={value('capacity', defaults.capacity || '50')} error={errors.capacity?.[0]} />
+                    </div>
+                </section>
+
+                <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-5">
+                    <div className="mb-4">
+                        <h2 className="text-lg font-black text-slate-950">Schedule and registration window</h2>
+                        <p className="mt-1 text-sm font-semibold text-slate-500">Set when the programme happens and when schools can register.</p>
+                    </div>
+                    <div className="grid gap-4 md:grid-cols-2">
                     <LightField label="Start date and time" name="starts_at" type="datetime-local" defaultValue={toInputDateTime(value('startsAt') || value('starts_at'))} error={errors.starts_at?.[0]} />
                     <LightField label="End date and time" name="ends_at" type="datetime-local" defaultValue={toInputDateTime(value('endsAt') || value('ends_at'))} error={errors.ends_at?.[0]} />
                     <LightField label="Registration opens" name="registration_opens_at" type="datetime-local" defaultValue={toInputDateTime(value('registrationOpensAt') || value('registration_opens_at'))} error={errors.registration_opens_at?.[0]} />
                     <LightField label="Registration closes" name="registration_closes_at" type="datetime-local" defaultValue={toInputDateTime(value('registrationClosesAt') || value('registration_closes_at'))} error={errors.registration_closes_at?.[0]} />
-                    <LightField label="Location" name="location" defaultValue={value('location')} error={errors.location?.[0]} />
-                    <LightField label="Capacity" name="capacity" type="number" min="1" defaultValue={value('capacity', defaults.capacity || '50')} error={errors.capacity?.[0]} />
+                    </div>
+                </section>
+
+                <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-5">
+                    <div className="mb-4">
+                        <h2 className="text-lg font-black text-slate-950">Registration rules</h2>
+                        <p className="mt-1 text-sm font-semibold text-slate-500">Control visibility, external school registration, and group limits.</p>
+                    </div>
+                    <div className="grid gap-4 md:grid-cols-2">
                     <LightField label="Per-school capacity" name="per_school_capacity" type="number" min="1" defaultValue={value('perSchoolCapacity') || value('per_school_capacity') || defaults.per_school_capacity || ''} error={errors.per_school_capacity?.[0]} />
                     <LightField label="Per-group capacity" name="per_group_capacity" type="number" min="1" defaultValue={value('perGroupCapacity') || value('per_group_capacity') || defaults.per_group_capacity || ''} error={errors.per_group_capacity?.[0]} />
-                    <div className="md:col-span-2"><LightTextarea label="Description" name="description" defaultValue={value('description')} error={errors.description?.[0]} /></div>
                     <label className="text-sm font-semibold text-slate-700">Status<select name="status" defaultValue={value('status', 'published')} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-950 outline-none focus:border-[#006a61] focus:ring-4 focus:ring-emerald-50"><option value="published">Active</option><option value="draft">Draft</option><option value="cancelled">Archived</option></select></label>
                     <label className="text-sm font-semibold text-slate-700">Visibility<select name="visibility" defaultValue={value('visibility', defaults.visibility || 'public')} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-950 outline-none focus:border-[#006a61] focus:ring-4 focus:ring-emerald-50"><option value="public">Public</option><option value="invite_only">Invite only</option><option value="private">Private</option></select></label>
+                    <label className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-bold text-slate-700"><span>Allow off-platform school registration</span><input type="hidden" name="guest_registration_enabled" value="0" /><input type="checkbox" name="guest_registration_enabled" value="1" defaultChecked={event?.guestRegistrationEnabled !== false} className="h-4 w-4 rounded border-slate-300 text-[#006a61]" /></label>
                     <label className="text-sm font-semibold text-slate-700">Lifecycle stage<select name="lifecycle_stage" defaultValue={value('lifecycleStage') || value('lifecycle_stage', defaults.lifecycle_stage || 'planning')} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-950 outline-none focus:border-[#006a61] focus:ring-4 focus:ring-emerald-50"><option value="planning">Planning</option><option value="inviting">Inviting</option><option value="open">Open</option><option value="full">Full</option><option value="in_progress">In progress</option><option value="completed">Completed</option><option value="archived">Archived</option></select></label>
+                    </div>
+                </section>
+
+                <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-5">
+                    <div className="mb-4">
+                        <h2 className="text-lg font-black text-slate-950">Public page content</h2>
+                        <p className="mt-1 text-sm font-semibold text-slate-500">Write this however you want. Line breaks are preserved on the shared programme page.</p>
+                    </div>
+                    <div className="grid gap-4">
+                        <LightField label="Short about" name="about" maxLength="220" defaultValue={value('about')} error={errors.about?.[0]} placeholder="A one-line summary schools see on the shared page" />
+                        <RichTextEditor label="Description" name="description" defaultValue={value('description')} error={errors.description?.[0]} />
+                        <RichTextEditor label="Detailed programme description" name="detailed_description" minHeight="220px" defaultValue={value('detailedDescription') || value('detailed_description')} error={errors.detailed_description?.[0]} placeholder="Programme goals, experience, outcomes, departments involved, and what schools should expect." />
+                        <RichTextEditor label="Audience" name="audience" defaultValue={value('audience')} error={errors.audience?.[0]} placeholder="Ideal school types, grades, interests, or student profiles." />
+                        <RichTextEditor label="Agenda" name="agenda" minHeight="180px" defaultValue={value('agenda')} error={errors.agenda?.[0]} placeholder="Arrival, sessions, tours, labs, lunch, Q&A, departure." />
+                        <RichTextEditor label="Requirements" name="requirements" defaultValue={value('requirements')} error={errors.requirements?.[0]} placeholder="Consent, student lists, arrival instructions, dress code, IDs, or accessibility notes." />
+                    </div>
+                </section>
+
+                <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-5">
+                    <div className="mb-4">
+                        <h2 className="text-lg font-black text-slate-950">Contact details</h2>
+                        <p className="mt-1 text-sm font-semibold text-slate-500">Add the official person or office schools should contact about this programme.</p>
+                    </div>
+                    <div className="grid gap-4 md:grid-cols-2">
+                        <LightField label="Contact name" name="contact_name" defaultValue={contactValue('contactName', 'contact_name')} error={errors.contact_name?.[0]} placeholder="Dr. Ada Williams" />
+                        <LightField label="Role or department" name="contact_title" defaultValue={contactValue('contactTitle', 'contact_title')} error={errors.contact_title?.[0]} placeholder="Admissions Outreach Coordinator" />
+                        <LightField label="Email address" name="contact_email" type="email" defaultValue={contactValue('contactEmail', 'contact_email')} error={errors.contact_email?.[0]} placeholder="outreach@university.edu" />
+                        <LightField label="Phone number" name="contact_phone" defaultValue={contactValue('contactPhone', 'contact_phone')} error={errors.contact_phone?.[0]} placeholder="+234 800 000 0000" />
+                        <LightField label="Office or unit" name="contact_office" defaultValue={contactValue('contactOffice', 'contact_office')} error={errors.contact_office?.[0]} placeholder="Admissions Office, Main Campus" />
+                        <LightField label="Website" name="contact_website" type="url" defaultValue={contactValue('contactWebsite', 'contact_website')} error={errors.contact_website?.[0]} placeholder="https://university.edu/visit" />
+                        <div className="md:col-span-2">
+                            <RichTextEditor label="Additional contact notes" name="contact_details" defaultValue={value('contactDetails') || value('contact_details')} error={errors.contact_details?.[0]} placeholder="Office hours, preferred contact method, escalation notes, or special instructions for schools." />
+                        </div>
+                    </div>
+                </section>
+
+                <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-5">
+                    <div className="mb-4">
+                        <h2 className="text-lg font-black text-slate-950">Media</h2>
+                        <p className="mt-1 text-sm font-semibold text-slate-500">Upload the programme hero image directly and add a public YouTube or Vimeo video link.</p>
+                    </div>
+                    <div className="grid gap-4 md:grid-cols-2">
+                        <label className="text-sm font-semibold text-slate-700">
+                            Upload hero image
+                            <input type="file" name="hero_image" accept="image/png,image/jpeg,image/webp,image/gif" className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-semibold text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-950 file:px-3 file:py-2 file:text-xs file:font-black file:text-white" />
+                            <span className="mt-1 block text-xs font-semibold text-slate-400">PNG, JPG, WebP, or GIF up to 5 MB.</span>
+                            {errors.hero_image?.[0] && <span className="mt-1 block text-xs font-semibold text-red-600">{errors.hero_image[0]}</span>}
+                        </label>
+                        <LightField label="Hero image alt text" name="hero_image_alt" defaultValue={value('heroImageAlt') || value('hero_image_alt')} error={errors.hero_image_alt?.[0]} placeholder="Students touring the engineering lab" />
+                        <LightField label="Video title" name="video_title" defaultValue={value('videoTitle') || value('video_title')} error={errors.video_title?.[0]} placeholder="Inside the campus experience" />
+                        <div className="md:col-span-2"><LightField label="Video link" name="video_url" type="url" defaultValue={value('videoUrl') || value('video_url')} error={errors.video_url?.[0]} placeholder="https://www.youtube.com/watch?v=..." /></div>
+                    </div>
+                </section>
+
+                <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-5">
+                    <div className="mb-4">
+                        <h2 className="text-lg font-black text-slate-950">Automation</h2>
+                        <p className="mt-1 text-sm font-semibold text-slate-500">Set recurrence and reminder defaults for this programme.</p>
+                    </div>
+                    <div className="grid gap-4 md:grid-cols-2">
                     <label className="text-sm font-semibold text-slate-700">Recurring visit<select name="recurrence_rule" defaultValue={value('recurrenceRule') || value('recurrence_rule', 'none')} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-950 outline-none focus:border-[#006a61] focus:ring-4 focus:ring-emerald-50"><option value="none">Does not repeat</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select></label>
                     <LightField label="Occurrences" name="recurrence_count" type="number" min="1" max="24" defaultValue={value('recurrenceCount') || value('recurrence_count', '1')} error={errors.recurrence_count?.[0]} />
                     <label className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-bold text-slate-700"><span>Enable reminders</span><input type="checkbox" name="reminders_enabled" value="1" defaultChecked={event?.remindersEnabled !== false} className="h-4 w-4 rounded border-slate-300 text-[#006a61]" /></label>
                     <LightField label="Reminder days before" name="reminder_days_before" type="number" min="0" max="60" defaultValue={value('reminderDaysBefore') || value('reminder_days_before', '7')} error={errors.reminder_days_before?.[0]} />
                     <LightField label="Reminder time" name="reminder_time" type="time" defaultValue={value('reminderTime') || value('reminder_time', '09:00')} error={errors.reminder_time?.[0]} />
-                    <div className="grid grid-cols-2 gap-2 md:items-end">
-                        <button type="button" onClick={onClose} className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-700 hover:bg-slate-50">Cancel</button>
-                        <button className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-black text-white hover:bg-slate-800">{isEdit ? 'Save Changes' : 'Create Program'}</button>
                     </div>
-                </form>
-            </div>
+                </section>
+
+                <div className="sticky bottom-3 z-10 flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-lg backdrop-blur sm:flex-row sm:items-center sm:justify-end">
+                    <button type="button" onClick={onClose} className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-700 hover:bg-slate-50">Cancel</button>
+                    <button className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-black text-white hover:bg-slate-800">{isEdit ? 'Save changes' : 'Create program'}</button>
+                </div>
+            </form>
         </section>
     );
 }
@@ -2896,6 +3481,14 @@ function UniversityProgramDetailModal({ event, registrations = [], schools = [],
     const percent = eventCapacityPercent(event);
     const invitedCount = (event.invitedSchoolIds || []).length;
     const lifecycle = event.lifecycleLog || [];
+    const [copied, setCopied] = useState(false);
+    const shareUrl = event.shareUrl || (event.shareSlug ? `${window.location.origin}/programs/${event.shareSlug}` : '');
+    const copyShareUrl = async () => {
+        if (!shareUrl) return;
+        await navigator.clipboard?.writeText(shareUrl);
+        setCopied(true);
+        window.setTimeout(() => setCopied(false), 1600);
+    };
 
     return (
         <section className="fixed inset-0 z-[90] grid place-items-center bg-slate-950/55 px-3 py-5 backdrop-blur-sm">
@@ -2920,6 +3513,7 @@ function UniversityProgramDetailModal({ event, registrations = [], schools = [],
                             <h3 className="text-sm font-black text-slate-950">Logistics & controls</h3>
                             <div className="mt-3 grid gap-3 text-sm font-semibold text-slate-600 md:grid-cols-2">
                                 <p>Visibility: <span className="font-black capitalize text-slate-950">{String(event.visibility || 'public').replace('_', ' ')}</span></p>
+                                <p>External registration: <span className="font-black text-slate-950">{event.guestRegistrationEnabled === false ? 'Off' : 'On'}</span></p>
                                 <p>Lifecycle: <span className="font-black capitalize text-slate-950">{String(event.lifecycleStage || 'planning').replace('_', ' ')}</span></p>
                                 <p>Registration opens: <span className="font-black text-slate-950">{formatDateTime(event.registrationOpensAt)}</span></p>
                                 <p>Registration closes: <span className="font-black text-slate-950">{formatDateTime(event.registrationClosesAt)}</span></p>
@@ -2929,6 +3523,36 @@ function UniversityProgramDetailModal({ event, registrations = [], schools = [],
                             <div className="mt-4 grid grid-cols-2 gap-2">
                                 <button type="button" onClick={onEdit} className="rounded-xl bg-slate-950 px-4 py-3 text-sm font-black text-white">Edit Program</button>
                                 <button type="button" onClick={onInvite} className="rounded-xl border border-[#006a61]/25 bg-emerald-50 px-4 py-3 text-sm font-black text-[#006a61]">Invite Schools</button>
+                            </div>
+                        </section>
+                        <section className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
+                            <h3 className="text-sm font-black text-blue-950">Shareable public link</h3>
+                            <p className="mt-2 text-sm font-semibold leading-6 text-blue-900">Schools that are not on the platform can open this link, read the programme details, and register a school group.</p>
+                            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                                <input readOnly value={shareUrl || 'Publish this public program to generate a link'} className="min-w-0 flex-1 rounded-xl border border-blue-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700" />
+                                {shareUrl && <button type="button" onClick={copyShareUrl} className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-700 px-4 py-2 text-sm font-black text-white"><Paperclip size={16} /> {copied ? 'Copied' : 'Copy link'}</button>}
+                            </div>
+                        </section>
+                        <section className="rounded-2xl border border-slate-200 bg-white p-4">
+                            <h3 className="text-sm font-black text-slate-950">Public programme details</h3>
+                            <div className="mt-3 grid gap-3 text-sm leading-6 text-slate-600">
+                                <p><span className="font-black text-slate-950">About:</span> {event.about || event.description || 'Not provided'}</p>
+                                <div><span className="font-black text-slate-950">Detailed description:</span><RichTextDisplay html={event.detailedDescription} fallback="Not provided" className="mt-1" /></div>
+                                <div><span className="font-black text-slate-950">Audience:</span><RichTextDisplay html={event.audience} fallback="Not provided" className="mt-1" /></div>
+                                <div><span className="font-black text-slate-950">Agenda:</span><RichTextDisplay html={event.agenda} fallback="Not provided" className="mt-1" /></div>
+                                <div><span className="font-black text-slate-950">Requirements:</span><RichTextDisplay html={event.requirements} fallback="Not provided" className="mt-1" /></div>
+                                <div>
+                                    <span className="font-black text-slate-950">Contact:</span>
+                                    <div className="mt-2 grid gap-2 rounded-xl bg-slate-50 p-3">
+                                        <p><span className="font-black text-slate-700">Name:</span> {event.contactName || 'Not provided'}</p>
+                                        <p><span className="font-black text-slate-700">Role:</span> {event.contactTitle || 'Not provided'}</p>
+                                        <p><span className="font-black text-slate-700">Email:</span> {event.contactEmail || 'Not provided'}</p>
+                                        <p><span className="font-black text-slate-700">Phone:</span> {event.contactPhone || 'Not provided'}</p>
+                                        <p><span className="font-black text-slate-700">Office:</span> {event.contactOffice || 'Not provided'}</p>
+                                        <p><span className="font-black text-slate-700">Website:</span> {event.contactWebsite || 'Not provided'}</p>
+                                    </div>
+                                    <RichTextDisplay html={event.contactDetails} fallback="No additional notes" className="mt-2" />
+                                </div>
                             </div>
                         </section>
                         <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
@@ -3341,7 +3965,7 @@ function SchoolAvailableVisitsSection({ csrf, events = [], visitRequests = [], o
     const savedHubs = focusOptions.slice(0, 3).map((focus) => ({ focus, count: rows.filter((row) => row.focus === focus).length }));
     const filteredRows = rows
         .filter((row) => {
-            const haystack = `${row.university} ${row.title} ${row.description} ${row.location} ${row.venue} ${row.focus}`.toLowerCase();
+            const haystack = `${row.university} ${row.title} ${row.description} ${row.about} ${row.detailedDescription} ${row.audience} ${row.location} ${row.venue} ${row.focus}`.toLowerCase();
             const matchesQuery = !query || haystack.includes(query.toLowerCase());
             const matchesRegion = region === 'all' || row.filterLocation === region;
             const matchesUniversity = universityFilter === 'all' || row.university === universityFilter;
@@ -3366,7 +3990,7 @@ function SchoolAvailableVisitsSection({ csrf, events = [], visitRequests = [], o
     const openCount = rows.filter((row) => row.seatsLeft > 0).length;
     const mobileRows = filteredRows.slice(0, mobileVisibleCount);
     const mobileChips = [
-        { label: 'All Visits', active: availability === 'all' && focusFilters.length === 0 && region === 'all', onClick: () => resetFilters() },
+        { label: 'All Programmes', active: availability === 'all' && focusFilters.length === 0 && region === 'all', onClick: () => resetFilters() },
         ...focusOptions.slice(0, 3).map((focus) => ({ label: focus, active: focusFilters.includes(focus), onClick: () => toggleFocus(focus) })),
         { label: 'Open Seats', active: availability === 'open', onClick: () => setAvailability((current) => current === 'open' ? 'all' : 'open') },
     ];
@@ -3408,7 +4032,7 @@ function SchoolAvailableVisitsSection({ csrf, events = [], visitRequests = [], o
                         value={query}
                         onChange={(event) => setQuery(event.target.value)}
                         className="w-full rounded-xl border border-slate-200 bg-white py-3.5 pl-12 pr-4 text-sm font-semibold text-slate-800 shadow-sm outline-none focus:border-[#006a61] focus:ring-4 focus:ring-emerald-50"
-                        placeholder="Search programs, universities..."
+                        placeholder="Search university programmes..."
                     />
                 </label>
                 <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -3429,7 +4053,7 @@ function SchoolAvailableVisitsSection({ csrf, events = [], visitRequests = [], o
             </section>
 
             <section className="flex items-center justify-between gap-3">
-                <h2 className="text-xl font-black text-slate-950">Available Programs <span className="text-sm font-semibold text-slate-400">({filteredRows.length})</span></h2>
+                <h2 className="text-xl font-black text-slate-950">University Programmes <span className="text-sm font-semibold text-slate-400">({filteredRows.length})</span></h2>
                 <select value={sortBy} onChange={(event) => setSortBy(event.target.value)} className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-black text-[#006a61] outline-none">
                     <option value="date">Sort: Date</option>
                     <option value="availability">Sort: Seats</option>
@@ -3480,7 +4104,7 @@ function SchoolAvailableVisitsSection({ csrf, events = [], visitRequests = [], o
                     <div className="rounded-xl border border-slate-200 bg-white p-8 text-center">
                         <Search className="mx-auto text-slate-300" size={40} />
                         <p className="mt-3 font-black text-slate-950">No programs match your filters</p>
-                        <p className="mt-1 text-sm text-slate-500">Adjust search or filters to see more published visits.</p>
+                        <p className="mt-1 text-sm text-slate-500">Adjust search or filters to see more university programmes.</p>
                     </div>
                 )}
             </section>
@@ -3503,7 +4127,7 @@ function SchoolAvailableVisitsSection({ csrf, events = [], visitRequests = [], o
                     </div>
 
                     <div className="mt-4 grid grid-cols-3 gap-2 xl:grid-cols-1">
-                        <SchoolDiscoveryStat label="Published Visits" value={rows.length} />
+                        <SchoolDiscoveryStat label="University Programmes" value={rows.length} />
                         <SchoolDiscoveryStat label="Open Capacity" value={openCount} />
                         <SchoolDiscoveryStat label="Existing Requests" value={requestedCount} />
                     </div>
@@ -3538,7 +4162,7 @@ function SchoolAvailableVisitsSection({ csrf, events = [], visitRequests = [], o
                                     {focus}
                                 </label>
                             ))}
-                            {focusOptions.length === 0 && <p className="text-sm text-slate-500">Focus filters appear after universities publish visits.</p>}
+                            {focusOptions.length === 0 && <p className="text-sm text-slate-500">Focus filters appear after universities publish programmes.</p>}
                         </div>
                     </section>
                 </aside>
@@ -3547,8 +4171,8 @@ function SchoolAvailableVisitsSection({ csrf, events = [], visitRequests = [], o
                     <header className="border-b border-slate-200 bg-white p-4">
                         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                             <div>
-                                <h1 className="text-3xl font-black text-slate-950">Discover Visits</h1>
-                                <p className="mt-1 text-sm text-slate-500">Find university visit programs your school can request. Every action creates a shared request record.</p>
+                                <h1 className="text-3xl font-black text-slate-950">Discover Programmes</h1>
+                                <p className="mt-1 text-sm text-slate-500">Browse programmes published by universities and request attendance for your student group.</p>
                             </div>
                             <div className="flex flex-wrap gap-2">
                                 <button type="button" onClick={() => setSection?.('bookings')} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50">{requestedCount} Existing Requests</button>
@@ -3558,7 +4182,7 @@ function SchoolAvailableVisitsSection({ csrf, events = [], visitRequests = [], o
                         <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_180px]">
                             <label className="relative">
                                 <Search size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                                <input value={query} onChange={(event) => setQuery(event.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-10 pr-4 text-sm font-semibold outline-none focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50" placeholder="Global search: institutions, programs, locations..." />
+                                <input value={query} onChange={(event) => setQuery(event.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-10 pr-4 text-sm font-semibold outline-none focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50" placeholder="Search university, programme, focus, or location..." />
                             </label>
                             <select value={sortBy} onChange={(event) => setSortBy(event.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-black text-slate-700 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-50">
                                 <option value="date">Sort by Date</option>
@@ -3611,8 +4235,8 @@ function SchoolAvailableVisitsSection({ csrf, events = [], visitRequests = [], o
                                     <tr>
                                         <td colSpan="7" className="px-5 py-16 text-center">
                                             <Search className="mx-auto text-slate-300" size={42} />
-                                            <p className="mt-3 font-black text-slate-950">No visits match this discovery configuration</p>
-                                            <p className="mt-1 text-sm text-slate-500">Adjust filters or wait for universities to publish more visit programs.</p>
+                                            <p className="mt-3 font-black text-slate-950">No university programmes match this discovery configuration</p>
+                                            <p className="mt-1 text-sm text-slate-500">Adjust filters or wait for universities to publish more programmes.</p>
                                         </td>
                                     </tr>
                                 )}
@@ -3626,7 +4250,7 @@ function SchoolAvailableVisitsSection({ csrf, events = [], visitRequests = [], o
                             <span>Filtered: <b className="text-slate-950">{filteredRows.length}</b></span>
                             <span>Selected: <b className="text-blue-700">{selectedRows.length}</b></span>
                         </div>
-                        <span>Database-backed published visit programs</span>
+                        <span>Published university programmes</span>
                     </footer>
                 </main>
 
@@ -3643,7 +4267,7 @@ function SchoolDiscoveryStat({ label, value }) {
 
 function RequestVisitForm({ csrf, row, old = {}, compact = false, onReview }) {
     if (compact) {
-        return <button type="button" onClick={onReview} className="rounded-lg bg-slate-950 px-3 py-2 text-[11px] font-black text-white hover:bg-slate-800">Review Request</button>;
+        return <button type="button" onClick={onReview} className="rounded-lg bg-slate-950 px-3 py-2 text-[11px] font-black text-white hover:bg-slate-800">View Details</button>;
     }
 
     return (
@@ -3652,9 +4276,9 @@ function RequestVisitForm({ csrf, row, old = {}, compact = false, onReview }) {
             <input type="hidden" name="campus_event_id" value={row.id} />
             <input type="hidden" name="requested_window" value={row.startsAt && new Date(row.startsAt) > new Date() ? new Date(row.startsAt).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10)} />
             <input type="hidden" name="priority" value="2" />
-            <input type="hidden" name="notes" value={`Requested from School Discover Visits. Program focus: ${row.focus}.`} />
+            <input type="hidden" name="notes" value={`Requested from School Discover Programmes. Programme focus: ${row.focus}.`} />
             <label className="text-sm font-bold text-slate-700">Students in group<input name="group_size" type="number" min="1" max="5000" required defaultValue={old.party_size || old.group_size || '1'} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-400" /></label>
-            <button className="w-full rounded-xl bg-blue-600 px-4 py-3 text-sm font-black text-white hover:bg-blue-700">{row.seatsLeft > 0 ? 'Request Visit' : 'Join Waitlist'}</button>
+            <button className="w-full rounded-xl bg-blue-600 px-4 py-3 text-sm font-black text-white hover:bg-blue-700">{row.seatsLeft > 0 ? 'Request Programme' : 'Join Waitlist'}</button>
         </form>
     );
 }
@@ -3664,52 +4288,143 @@ function SchoolVisitPreview({ csrf, row, old, setSection, onClose }) {
         return null;
     }
 
+    const hasHero = Boolean(row.heroImageUrl);
+    const embedUrl = getVideoEmbedUrl(row.videoUrl);
+    const detailSections = [
+        { title: 'About', value: row.about || row.description },
+        { title: 'Detailed Description', value: row.detailedDescription },
+        { title: 'Who Should Attend', value: row.audience },
+        { title: 'Agenda', value: row.agenda },
+        { title: 'Requirements', value: row.requirements },
+    ].filter((section) => section.value);
+    const contactItems = [
+        row.contactName && ['Contact person', [row.contactName, row.contactTitle].filter(Boolean).join(', ')],
+        row.contactEmail && ['Email', row.contactEmail],
+        row.contactPhone && ['Phone', row.contactPhone],
+        row.contactOffice && ['Office', row.contactOffice],
+        row.contactWebsite && ['Website', row.contactWebsite],
+    ].filter(Boolean);
+
     return (
-        <div className="fixed inset-0 z-50 bg-slate-950/20 backdrop-blur-[1px]" onClick={onClose}>
-        <aside className="absolute right-0 top-0 h-full w-full max-w-[420px] overflow-y-auto border-l border-slate-200 bg-white p-5 shadow-2xl" onClick={(event) => event.stopPropagation()}>
-            <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-3">
-                    <span className="grid h-16 w-16 place-items-center rounded-xl bg-slate-950 text-lg font-black text-white">{row.initials}</span>
-                    <div>
-                        <h2 className="text-xl font-black leading-tight text-slate-950">{row.university}</h2>
-                        <p className="mt-1 text-sm font-semibold text-slate-500">{row.location || 'Location TBA'}</p>
-                    </div>
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/35 p-0 backdrop-blur-[2px] sm:p-6" onClick={onClose}>
+        <aside className="mx-auto min-h-full w-full max-w-6xl bg-white shadow-2xl sm:min-h-0 sm:overflow-hidden sm:rounded-2xl" onClick={(event) => event.stopPropagation()}>
+            <header className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur sm:px-6">
+                <div className="min-w-0">
+                    <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Programme Details</p>
+                    <h2 className="truncate text-lg font-black text-slate-950 sm:text-xl">{row.title}</h2>
                 </div>
-                <div className="flex items-center gap-2">
-                    <span className="rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-black text-blue-700">{row.focus}</span>
-                    <button type="button" onClick={onClose} className="grid h-8 w-8 place-items-center rounded-full border border-slate-200 text-slate-500 hover:bg-slate-50" aria-label="Close university preview"><X size={16} /></button>
-                </div>
+                <button type="button" onClick={onClose} className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-slate-200 text-slate-500 hover:bg-slate-50" aria-label="Close programme details"><X size={16} /></button>
+            </header>
+
+            <div className="grid lg:grid-cols-[minmax(0,1fr)_360px]">
+                <main className="min-w-0 p-4 sm:p-6">
+                    <section className="grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
+                        <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
+                            {hasHero ? (
+                                <img src={row.heroImageUrl} alt={row.heroImageAlt || row.title || 'Programme image'} className="h-48 w-full object-cover lg:h-full" />
+                            ) : (
+                                <div className={cx('grid h-48 place-items-center text-4xl font-black text-white lg:h-full', eventImageTone(row))}>{row.initials}</div>
+                            )}
+                        </div>
+                        <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <span className="rounded-full bg-blue-50 px-3 py-1 text-[11px] font-black text-blue-700">{row.focus}</span>
+                                <span className={cx('rounded-full border px-3 py-1 text-[11px] font-black uppercase', row.statusTone)}>{row.statusLabel}</span>
+                            </div>
+                            <h3 className="mt-3 text-2xl font-black leading-tight text-slate-950 sm:text-3xl">{row.title}</h3>
+                            <p className="mt-2 text-sm font-bold text-slate-600">{row.university || 'University Partner'}</p>
+                            <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">{row.description || row.about || 'The university has published this programme for school coordination.'}</p>
+                            <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                                <ProgrammeFact icon={CalendarDays} label="Date and time" value={`${formatDateTime(row.startsAt)}${row.endsAt ? ` - ${formatDateTime(row.endsAt)}` : ''}`} />
+                                <ProgrammeFact icon={MapPin} label="Venue" value={row.venue || 'Venue TBA'} />
+                                <ProgrammeFact icon={MapIcon} label="Location" value={row.location || 'Location TBA'} />
+                                <ProgrammeFact icon={UsersRound} label="Group limit" value={row.perGroupCapacity ? `${row.perGroupCapacity} per group` : 'Set by university'} />
+                            </div>
+                        </div>
+                    </section>
+
+                    <section className="mt-6 grid gap-3 sm:grid-cols-3">
+                        <MiniStat label="Open Seats" value={row.seatsLeft.toLocaleString()} />
+                        <MiniStat label="Capacity" value={row.capacity.toLocaleString()} />
+                        <MiniStat label="Confirmed" value={row.confirmedSeats.toLocaleString()} />
+                    </section>
+
+                    <section className="mt-6 space-y-4">
+                        {detailSections.map((section) => (
+                            <article key={section.title} className="rounded-xl border border-slate-200 p-4">
+                                <p className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-500">{section.title}</p>
+                                <RichTextDisplay html={section.value} fallback="Not provided" className="mt-3 text-sm leading-6" />
+                            </article>
+                        ))}
+                    </section>
+
+                    {(contactItems.length > 0 || row.contactDetails) && (
+                        <section className="mt-6 rounded-xl border border-slate-200 p-4">
+                            <p className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-500">University Contact</p>
+                            {contactItems.length > 0 && (
+                                <dl className="mt-3 grid gap-3 sm:grid-cols-2">
+                                    {contactItems.map(([label, value]) => (
+                                        <div key={label} className="rounded-lg bg-slate-50 p-3">
+                                            <dt className="text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">{label}</dt>
+                                            <dd className="mt-1 break-words text-sm font-bold text-slate-800">{value}</dd>
+                                        </div>
+                                    ))}
+                                </dl>
+                            )}
+                            {row.contactDetails && <RichTextDisplay html={row.contactDetails} fallback="" className="mt-4 text-sm leading-6" />}
+                        </section>
+                    )}
+
+                    {row.videoUrl && (
+                        <section className="mt-6 rounded-xl border border-slate-200 p-4">
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                                <p className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-500">Programme Media</p>
+                                <a href={normalizeExternalUrl(row.videoUrl)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50"><LinkIcon size={14} /> Open video</a>
+                            </div>
+                            <div className="mt-3 overflow-hidden rounded-xl bg-slate-950">
+                                {embedUrl ? (
+                                    <iframe
+                                        title={row.videoTitle || `${row.title} video`}
+                                        src={embedUrl}
+                                        className="aspect-video w-full"
+                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                        allowFullScreen
+                                    />
+                                ) : (
+                                    <a href={normalizeExternalUrl(row.videoUrl)} target="_blank" rel="noreferrer" className="flex aspect-video w-full items-center justify-center px-4 text-center text-sm font-black text-white">Open programme video</a>
+                                )}
+                            </div>
+                        </section>
+                    )}
+                </main>
+
+                <aside className="border-t border-slate-200 bg-slate-50 p-4 sm:p-6 lg:border-l lg:border-t-0">
+                    <section className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
+                        <p className="text-sm font-black text-slate-950">Request attendance</p>
+                        <p className="mt-1 text-xs leading-5 text-slate-600">{row.existingRequest ? 'A request already exists for this programme. Review it from My Requests.' : 'Submit one request for your school group. The university will review it from their dashboard.'}</p>
+                        <div className="mt-4 rounded-lg bg-slate-50 p-3 text-xs font-bold leading-5 text-slate-600">
+                            <p>{row.availabilityLabel}</p>
+                            <p>{row.perSchoolCapacity ? `${row.perSchoolCapacity} maximum seats per school` : 'School allocation is managed by the university.'}</p>
+                        </div>
+                        <div className="mt-4">
+                            {row.existingRequest ? <button type="button" onClick={() => setSection?.('bookings')} className="w-full rounded-xl bg-slate-950 px-4 py-3 text-sm font-black text-white">View My Request</button> : <RequestVisitForm csrf={csrf} row={row} old={old} />}
+                        </div>
+                    </section>
+                </aside>
             </div>
-
-            <div className="mt-5 grid grid-cols-2 gap-3">
-                <MiniStat label="Open Seats" value={row.seatsLeft} />
-                <MiniStat label="Capacity" value={row.capacity} />
-            </div>
-
-            <section className="mt-5">
-                <p className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-500">Visit Program</p>
-                <h3 className="mt-2 font-black text-slate-950">{row.title}</h3>
-                <p className="mt-2 text-sm leading-6 text-slate-600">{row.description || 'The university has published this visit program for school coordination.'}</p>
-                <p className="mt-3 inline-flex items-center gap-2 text-sm font-bold text-slate-600"><CalendarDays size={15} /> {formatDateTime(row.startsAt)}</p>
-                <p className="mt-2 inline-flex items-center gap-2 text-sm font-bold text-slate-600"><MapPin size={15} /> {row.venue || row.location || 'Venue TBA'}</p>
-            </section>
-
-            <section className="mt-5">
-                <p className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-500">Published Availability</p>
-                <div className="mt-3 rounded-xl bg-slate-50 p-4">
-                    <p className="text-sm font-black text-slate-950">{row.confirmedSeats.toLocaleString()} confirmed · {row.seatsLeft.toLocaleString()} seats open</p>
-                    <p className="mt-2 text-xs text-slate-500">Calculated directly from the published capacity and confirmed registration count.</p>
-                </div>
-            </section>
-
-            <section className="mt-5 rounded-xl border border-blue-100 bg-blue-50 p-4">
-                <p className="text-sm font-black text-slate-950">Coordinator command</p>
-                <p className="mt-1 text-xs leading-5 text-slate-600">{row.existingRequest ? 'A request already exists for this visit. Review it from My Requests.' : 'Create one shared request record. The university will see it as a Visit Request.'}</p>
-                <div className="mt-4">
-                    {row.existingRequest ? <button type="button" onClick={() => setSection?.('bookings')} className="w-full rounded-xl bg-slate-950 px-4 py-3 text-sm font-black text-white">View My Request</button> : <RequestVisitForm csrf={csrf} row={row} old={old} />}
-                </div>
-            </section>
         </aside>
+        </div>
+    );
+}
+
+function ProgrammeFact({ icon: Icon, label, value }) {
+    return (
+        <div className="flex min-w-0 items-start gap-3 rounded-lg border border-slate-200 bg-white p-3">
+            <Icon size={16} className="mt-0.5 shrink-0 text-slate-400" />
+            <div className="min-w-0">
+                <p className="text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">{label}</p>
+                <p className="mt-1 break-words text-sm font-bold leading-5 text-slate-800">{value || 'Not provided'}</p>
+            </div>
         </div>
     );
 }
@@ -3873,7 +4588,7 @@ function SchoolBookingsSection({ csrf = '', visitRequests = [], registrations = 
                 </div>
                 <div className="flex flex-wrap gap-2">
                     <button type="button" onClick={() => setSection?.('events')} className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 hover:bg-slate-50">
-                        Discover Visits
+                        Discover Programmes
                     </button>
                     <button type="button" onClick={() => setCreateOpen(true)} className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-3 text-sm font-black text-white shadow-sm hover:bg-slate-800">
                         <Plus size={16} /> New Request
@@ -6001,6 +6716,27 @@ function SchoolCoordinatorOverviewSection({ events = [], registrations = [], sch
     const latestMessage = messages[0];
     const schedulePreview = upcomingVisits.slice(0, 3);
     const firstName = String(profile.coordinatorName || 'Coordinator').trim().split(' ')[0] || 'Coordinator';
+    const profileFields = [
+        profile.name,
+        profile.schoolCode,
+        profile.schoolType,
+        profile.institutionLevel,
+        profile.website,
+        profile.mainPhone,
+        profile.address,
+        profile.district,
+        profile.coordinatorEmail,
+        profile.principalEmail,
+        profile.counselorEmail,
+        profile.emergencyContactPhone,
+        profile.gradeRange,
+        profile.studentCount,
+        profile.curriculum,
+        profile.accreditation,
+        profile.transportationNotes,
+        profile.visitPolicy,
+    ];
+    const profileCompleteness = Math.round((profileFields.filter((item) => item !== null && item !== undefined && String(item).trim() !== '').length / profileFields.length) * 100);
     const activityItems = [
         latestMessage && {
             id: 'message',
@@ -6099,7 +6835,7 @@ function SchoolCoordinatorOverviewSection({ events = [], registrations = [], sch
                                 </span>
                             </button>
                         )) : (
-                            <div className="relative z-10 rounded-lg bg-slate-50 p-5 text-center text-sm font-semibold text-slate-500">No scheduled visits yet. Discover visits to request one.</div>
+                            <div className="relative z-10 rounded-lg bg-slate-50 p-5 text-center text-sm font-semibold text-slate-500">No scheduled visits yet. Discover university programmes to request one.</div>
                         )}
                     </div>
                 </div>
@@ -6148,6 +6884,33 @@ function SchoolCoordinatorOverviewSection({ events = [], registrations = [], sch
                 <SchoolOverviewMetric icon={CalendarDays} label="Confirmed Visits" value={confirmedVisits.length || scheduledRequests.length} trend={nextDate ? `Next: ${formatShortDate(nextDate)}` : 'No confirmed date'} tone="indigo" />
                 <SchoolOverviewMetric icon={GraduationCap} label="Registered Students" value={confirmedStudents.toLocaleString()} trend={studentTotal > 0 ? `${registrationPct}% of ${studentTotal.toLocaleString()} student profiles` : 'No student profiles recorded'} tone="emerald" progress={registrationPct} />
             </div>
+
+            <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                <div className="grid gap-0 xl:grid-cols-[minmax(0,1fr)_300px]">
+                    <div className="p-5 md:p-6">
+                        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                            <div>
+                                <p className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-400">School profile</p>
+                                <h2 className="mt-1 text-2xl font-black text-slate-950">{profile.name || 'School profile pending'}</h2>
+                                <p className="mt-2 text-sm font-semibold leading-6 text-slate-500">{profile.schoolCode || 'No code'} · {titleCase(String(profile.schoolType || 'school').replace('_', ' '))} · {profile.district || profile.region || profile.location || 'Location pending'}</p>
+                            </div>
+                            <button type="button" onClick={() => setSection?.('profile')} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-black text-slate-700 hover:bg-slate-50">Edit profile</button>
+                        </div>
+                        <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                            <SchoolProfileFact label="Coordinator" value={profile.coordinatorName || 'Not set'} detail={profile.coordinatorEmail} />
+                            <SchoolProfileFact label="Students" value={profile.studentCount ? Number(profile.studentCount).toLocaleString() : 'Not set'} detail={profile.gradeRange || 'Grade range pending'} />
+                            <SchoolProfileFact label="Curriculum" value={profile.curriculum || 'Not set'} detail={profile.accreditation} />
+                            <SchoolProfileFact label="Visit readiness" value={profile.visitPolicy ? 'Policy added' : 'Policy pending'} detail={profile.transportationNotes || 'Transportation notes pending'} />
+                        </div>
+                    </div>
+                    <aside className="border-t border-slate-200 bg-slate-50 p-5 xl:border-l xl:border-t-0">
+                        <p className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-500">Profile completeness</p>
+                        <p className="mt-2 text-4xl font-black text-slate-950">{profileCompleteness}%</p>
+                        <div className="mt-3 h-2 rounded-full bg-slate-200"><div className="h-2 rounded-full bg-[#006a61]" style={{ width: `${profileCompleteness}%` }} /></div>
+                        <p className="mt-3 text-xs font-semibold leading-5 text-slate-500">{profile.emergencyContactPhone ? 'Emergency contact is available for visit operations.' : 'Add emergency contact details before confirming student visits.'}</p>
+                    </aside>
+                </div>
+            </section>
 
             <div className="grid gap-6 xl:grid-cols-12">
                 <section className="xl:col-span-4">
@@ -6236,7 +6999,7 @@ function SchoolCoordinatorOverviewSection({ events = [], registrations = [], sch
                                             <td colSpan="5" className="py-12 text-center">
                                                 <CalendarDays className="mx-auto text-slate-300" size={40} />
                                                 <p className="mt-3 font-black text-slate-950">No visits scheduled yet</p>
-                                                <p className="mt-1 text-sm text-slate-500">Use Discover Visits to submit your first request.</p>
+                                                <p className="mt-1 text-sm text-slate-500">Use Discover Programmes to submit your first request.</p>
                                             </td>
                                         </tr>
                                     )}
@@ -6311,6 +7074,16 @@ function SchoolOverviewMetric({ icon: Icon, label, value, trend, progress, tone 
             <p className="mt-5 text-[11px] font-black uppercase tracking-[0.12em] text-slate-500">{label}</p>
             <p className="mt-2 text-4xl font-black text-slate-950">{value}</p>
             {typeof progress === 'number' && <div className="mt-3 h-1.5 rounded-full bg-slate-100"><div className="h-1.5 rounded-full bg-blue-600" style={{ width: `${progress}%` }} /></div>}
+        </article>
+    );
+}
+
+function SchoolProfileFact({ label, value, detail }) {
+    return (
+        <article className="min-w-0 rounded-xl border border-slate-100 bg-slate-50 p-4">
+            <p className="text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">{label}</p>
+            <p className="mt-2 truncate text-sm font-black text-slate-950">{value}</p>
+            {detail && <p className="mt-1 line-clamp-2 text-xs font-semibold leading-5 text-slate-500">{detail}</p>}
         </article>
     );
 }
@@ -6798,12 +7571,12 @@ function SchoolExploreUniversitiesSection({ events = [], setSection }) {
                     <div>
                         <h1 className="text-3xl font-black text-slate-950">Explore Universities</h1>
                         <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
-                            Search universities with currently published visit programs, then open the real program schedule for your student cohort.
+                            Search universities with currently published programmes, then open the real programme schedule for your student cohort.
                         </p>
                     </div>
                     <div className="grid gap-3 sm:grid-cols-3 xl:w-[520px]">
                         <DiscoveryStat label="Results" value={universities.length.toLocaleString()} />
-                        <DiscoveryStat label="Published Visits" value={publishedVisitCount.toLocaleString()} />
+                        <DiscoveryStat label="Published Programmes" value={publishedVisitCount.toLocaleString()} />
                         <DiscoveryStat label="Locations" value={locationCount.toLocaleString()} />
                     </div>
                 </div>
@@ -6814,7 +7587,7 @@ function SchoolExploreUniversitiesSection({ events = [], setSection }) {
                         <input
                             value={query}
                             onChange={(event) => setQuery(event.target.value)}
-                            placeholder="Search universities, locations, programs, or tags..."
+                            placeholder="Search universities, locations, programmes, or tags..."
                             className="h-11 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-3 text-sm font-semibold text-slate-700 outline-none focus:border-blue-400"
                         />
                     </label>
@@ -7112,6 +7885,168 @@ function DiscoverySelect({ value, onChange, options }) {
     );
 }
 
+function UniversityInstitutionProfileSection({ csrf, settings = {}, errors = {}, old = {} }) {
+    const profile = settings.profile || {};
+    const branding = settings.branding || {};
+    const defaults = settings.defaults || {};
+    const notifications = settings.notifications || {};
+    const integrations = settings.integrations || {};
+    const calendar = settings.calendar || {};
+    const value = (name, fallback = '') => old[name] ?? fallback;
+
+    return (
+        <section className="grid gap-4">
+            <div>
+                <h1 className="text-3xl font-black text-slate-950">University Profile</h1>
+                <p className="mt-1 max-w-3xl text-sm font-semibold leading-6 text-slate-500">Manage the university identity, contact details, and brand shown across programmes and public pages.</p>
+            </div>
+
+            <form action="/dashboard/university/settings" method="POST" className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
+                <input type="hidden" name="_token" value={csrf} />
+                <input type="hidden" name="default_capacity" value={defaults.capacity || 80} />
+                <input type="hidden" name="default_per_school_capacity" value={defaults.per_school_capacity || ''} />
+                <input type="hidden" name="default_per_group_capacity" value={defaults.per_group_capacity || ''} />
+                <input type="hidden" name="default_visibility" value={defaults.visibility || 'public'} />
+                <input type="hidden" name="default_lifecycle_stage" value={defaults.lifecycle_stage || 'planning'} />
+                <input type="hidden" name="default_visit_duration_minutes" value={defaults.duration_minutes || 180} />
+                <input type="hidden" name="notify_request_created" value={notifications.request_created !== false ? '1' : '0'} />
+                <input type="hidden" name="notify_request_updated" value={notifications.request_updated !== false ? '1' : '0'} />
+                <input type="hidden" name="notify_registration_confirmed" value={notifications.registration_confirmed !== false ? '1' : '0'} />
+                <input type="hidden" name="notify_waitlist_promoted" value={notifications.waitlist_promoted !== false ? '1' : '0'} />
+                <input type="hidden" name="notify_schedule_changed" value={notifications.schedule_changed !== false ? '1' : '0'} />
+                <input type="hidden" name="email_enabled" value={notifications.email_enabled !== false ? '1' : '0'} />
+                <input type="hidden" name="reminder_days_before" value={notifications.reminder_days_before || 7} />
+                <input type="hidden" name="timezone" value={calendar.timezone || 'UTC'} />
+                <input type="hidden" name="calendar_week_start" value={calendar.weekStart || 'monday'} />
+                <input type="hidden" name="calendar_provider" value={integrations.calendar_provider || 'ical'} />
+                <input type="hidden" name="crm_provider" value={integrations.crm_provider || 'none'} />
+                <input type="hidden" name="webhook_url" value={integrations.webhook_url || ''} />
+                <input type="hidden" name="api_sync_enabled" value={integrations.api_sync_enabled ? '1' : '0'} />
+                <input type="hidden" name="logo_url" value={old.logo_url || branding.logoUrl || ''} />
+                <FormErrorSummary errors={errors} />
+                <section className="grid gap-4">
+                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
+                        <span className="grid h-10 w-10 place-items-center rounded-2xl bg-[#e5eeff] text-[#006a61]"><GraduationCap size={20} /></span>
+                        <div>
+                            <h2 className="text-lg font-black text-slate-950">Institution Details</h2>
+                            <p className="text-sm font-semibold text-slate-500">This information is used when creating and sharing programmes.</p>
+                        </div>
+                    </div>
+                    <div className="mt-4 grid gap-4 md:grid-cols-2">
+                        <LightField label="Institution name" name="institution_name" defaultValue={value('institution_name', profile.institutionName || '')} error={errors.institution_name?.[0]} />
+                        <LightField label="Institution code" name="institution_code" defaultValue={value('institution_code', profile.institutionCode || '')} error={errors.institution_code?.[0]} placeholder="SSU" />
+                        <LightField label="Institution type" name="institution_type" defaultValue={value('institution_type', profile.institutionType || '')} error={errors.institution_type?.[0]} placeholder="Research university, polytechnic, liberal arts college" />
+                        <LightField label="Ownership" name="ownership" defaultValue={value('ownership', profile.ownership || '')} error={errors.ownership?.[0]} placeholder="Public, private, faith-based" />
+                        <LightField label="Accreditation" name="accreditation" defaultValue={value('accreditation', profile.accreditation || '')} error={errors.accreditation?.[0]} />
+                        <LightField label="Founded year" name="founded_year" defaultValue={value('founded_year', profile.foundedYear || '')} error={errors.founded_year?.[0]} />
+                        <LightField label="Website" name="website" type="url" placeholder="https://university.edu" defaultValue={value('website', profile.website || '')} error={errors.website?.[0]} />
+                        <LightField label="Recruitment region" name="region" defaultValue={value('region', profile.region || '')} error={errors.region?.[0]} />
+                    </div>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <h2 className="text-lg font-black text-slate-950">Campus Location</h2>
+                    <div className="mt-4 grid gap-4 border-t border-slate-100 pt-4 md:grid-cols-2">
+                        <div className="md:col-span-2"><LightField label="Campus address" name="address" defaultValue={value('address', profile.address || '')} error={errors.address?.[0]} /></div>
+                        <LightField label="City" name="city" defaultValue={value('city', profile.city || '')} error={errors.city?.[0]} />
+                        <LightField label="State / province" name="state" defaultValue={value('state', profile.state || '')} error={errors.state?.[0]} />
+                        <LightField label="Country" name="country" defaultValue={value('country', profile.country || '')} error={errors.country?.[0]} />
+                        <LightField label="Campus map URL" name="campus_map_url" type="url" defaultValue={value('campus_map_url', profile.campusMapUrl || '')} error={errors.campus_map_url?.[0]} />
+                    </div>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <h2 className="text-lg font-black text-slate-950">Contacts</h2>
+                    <div className="mt-4 grid gap-4 border-t border-slate-100 pt-4 md:grid-cols-2">
+                        <LightField label="Primary contact name" name="primary_contact_name" defaultValue={value('primary_contact_name', profile.primaryContactName || '')} error={errors.primary_contact_name?.[0]} />
+                        <LightField label="Primary contact email" name="primary_contact_email" type="email" defaultValue={value('primary_contact_email', profile.primaryContactEmail || '')} error={errors.primary_contact_email?.[0]} />
+                        <LightField label="Primary contact phone" name="primary_contact_phone" defaultValue={value('primary_contact_phone', profile.primaryContactPhone || '')} error={errors.primary_contact_phone?.[0]} />
+                        <LightField label="Admissions email" name="admissions_email" type="email" defaultValue={value('admissions_email', profile.admissionsEmail || '')} error={errors.admissions_email?.[0]} />
+                        <LightField label="Admissions phone" name="admissions_phone" defaultValue={value('admissions_phone', profile.admissionsPhone || '')} error={errors.admissions_phone?.[0]} />
+                        <LightField label="Outreach contact name" name="outreach_contact_name" defaultValue={value('outreach_contact_name', profile.outreachContactName || '')} error={errors.outreach_contact_name?.[0]} />
+                        <LightField label="Outreach contact email" name="outreach_contact_email" type="email" defaultValue={value('outreach_contact_email', profile.outreachContactEmail || '')} error={errors.outreach_contact_email?.[0]} />
+                        <LightField label="Outreach contact phone" name="outreach_contact_phone" defaultValue={value('outreach_contact_phone', profile.outreachContactPhone || '')} error={errors.outreach_contact_phone?.[0]} />
+                        <LightField label="Emergency contact name" name="emergency_contact_name" defaultValue={value('emergency_contact_name', profile.emergencyContactName || '')} error={errors.emergency_contact_name?.[0]} />
+                        <LightField label="Emergency contact phone" name="emergency_contact_phone" defaultValue={value('emergency_contact_phone', profile.emergencyContactPhone || '')} error={errors.emergency_contact_phone?.[0]} />
+                    </div>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <h2 className="text-lg font-black text-slate-950">Academic and Public Profile</h2>
+                    <div className="mt-4 grid gap-4 border-t border-slate-100 pt-4">
+                        <LightTextarea label="Public profile summary" name="public_profile_summary" rows="3" maxLength="500" defaultValue={value('public_profile_summary', profile.publicProfileSummary || '')} error={errors.public_profile_summary?.[0]} />
+                        <LightTextarea label="About the university" name="about" rows="5" defaultValue={value('about', profile.about || '')} error={errors.about?.[0]} />
+                        <LightTextarea label="Academic strengths" name="academic_strengths" rows="5" defaultValue={value('academic_strengths', profile.academicStrengths || '')} error={errors.academic_strengths?.[0]} />
+                        <LightTextarea label="Student support services" name="student_support_services" rows="4" defaultValue={value('student_support_services', profile.studentSupportServices || '')} error={errors.student_support_services?.[0]} />
+                        <LightTextarea label="International student support" name="international_student_support" rows="4" defaultValue={value('international_student_support', profile.internationalStudentSupport || '')} error={errors.international_student_support?.[0]} />
+                        <LightTextarea label="Accessibility services" name="accessibility_services" rows="4" defaultValue={value('accessibility_services', profile.accessibilityServices || '')} error={errors.accessibility_services?.[0]} />
+                    </div>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <h2 className="text-lg font-black text-slate-950">Visit Policies and Links</h2>
+                    <div className="mt-4 grid gap-4 border-t border-slate-100 pt-4 md:grid-cols-2">
+                        <div className="md:col-span-2"><LightTextarea label="University visit policy" name="visit_policy" rows="4" defaultValue={value('visit_policy', profile.visitPolicy || '')} error={errors.visit_policy?.[0]} /></div>
+                        <div className="md:col-span-2"><LightTextarea label="Safety policy" name="safety_policy" rows="4" defaultValue={value('safety_policy', profile.safetyPolicy || '')} error={errors.safety_policy?.[0]} /></div>
+                        <LightField label="Virtual tour URL" name="virtual_tour_url" type="url" defaultValue={value('virtual_tour_url', profile.virtualTourUrl || '')} error={errors.virtual_tour_url?.[0]} />
+                        <LightField label="Facebook URL" name="facebook_url" type="url" defaultValue={value('facebook_url', profile.facebookUrl || '')} error={errors.facebook_url?.[0]} />
+                        <LightField label="LinkedIn URL" name="linkedin_url" type="url" defaultValue={value('linkedin_url', profile.linkedinUrl || '')} error={errors.linkedin_url?.[0]} />
+                        <LightField label="Instagram URL" name="instagram_url" type="url" defaultValue={value('instagram_url', profile.instagramUrl || '')} error={errors.instagram_url?.[0]} />
+                        <LightField label="YouTube URL" name="youtube_url" type="url" defaultValue={value('youtube_url', profile.youtubeUrl || '')} error={errors.youtube_url?.[0]} />
+                    </div>
+                </div>
+                </section>
+
+                <aside className="grid content-start gap-4 xl:sticky xl:top-24">
+                    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                        <div>
+                            <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#006a61]">Public Identity</p>
+                            <h2 className="mt-1 text-lg font-black text-slate-950">Logo and Brand</h2>
+                        </div>
+                        <div className="mt-4 grid gap-4">
+                            <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                                <p className="text-xs font-black uppercase tracking-wide text-slate-400">Current logo</p>
+                                <div className="mt-3 flex items-center gap-3">
+                                    <span className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-2xl text-lg font-black text-white shadow-sm" style={{ backgroundColor: old.brand_color || branding.brandColor || '#006a61' }}>
+                                        {branding.logoUrl ? <img src={branding.logoUrl} alt="" className="h-full w-full object-cover" /> : (profile.institutionName || 'SC').split(' ').map((word) => word[0]).slice(0, 2).join('').toUpperCase()}
+                                    </span>
+                                    <div className="min-w-0">
+                                        <p className="truncate font-black text-slate-950">{old.institution_name || profile.institutionName || 'University name'}</p>
+                                        <p className="mt-1 text-xs font-semibold text-slate-500">{branding.logoUrl ? 'Uploaded logo is active' : 'Upload a logo to replace initials'}</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <label className="grid gap-2 text-sm font-black text-slate-700">
+                                Upload institution logo
+                                <input form="university-logo-upload" type="file" name="logo" accept="image/png,image/jpeg,image/webp,image/gif" required className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-semibold file:mr-3 file:rounded-lg file:border-0 file:bg-slate-950 file:px-3 file:py-2 file:text-xs file:font-black file:text-white" />
+                                <span className="text-xs font-semibold text-slate-400">PNG, JPG, WebP, or GIF up to 5 MB.</span>
+                            </label>
+                            <button form="university-logo-upload" className="rounded-xl bg-[#006a61] px-5 py-3 text-sm font-black text-white hover:bg-[#005b54]">Upload Logo</button>
+                            <LightField label="Brand color" name="brand_color" type="color" defaultValue={old.brand_color || branding.brandColor || '#006a61'} error={errors.brand_color?.[0]} />
+                            <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                                <p className="text-xs font-black uppercase tracking-wide text-slate-400">Preview</p>
+                                <div className="mt-3 flex items-center gap-3">
+                                    <span className="grid h-12 w-12 place-items-center rounded-2xl text-white" style={{ backgroundColor: old.brand_color || branding.brandColor || '#006a61' }}>{branding.logoUrl ? <img src={branding.logoUrl} alt="" className="h-full w-full rounded-2xl object-cover" /> : 'SC'}</span>
+                                    <div>
+                                        <p className="font-black text-slate-950">{old.institution_name || profile.institutionName || 'University name'}</p>
+                                        <p className="text-xs font-semibold text-slate-500">{profile.region || 'Recruitment region'}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                    <button className="rounded-2xl bg-slate-950 px-5 py-3 text-sm font-black text-white shadow-sm hover:bg-slate-800">Save Profile</button>
+                </aside>
+            </form>
+
+            <form id="university-logo-upload" action="/university/branding/logo" method="POST" encType="multipart/form-data" className="hidden">
+                <input type="hidden" name="_token" value={csrf} />
+            </form>
+        </section>
+    );
+}
+
 function UniversitySettingsSection({ csrf, settings = {}, securityProfile = {}, compliance = {}, errors = {}, old = {} }) {
     const profile = settings.profile || {};
     const branding = settings.branding || {};
@@ -7121,10 +8056,8 @@ function UniversitySettingsSection({ csrf, settings = {}, securityProfile = {}, 
     const calendar = settings.calendar || {};
     const team = settings.team || [];
     const [teamEditor, setTeamEditor] = useState(null);
-    const [activeTab, setActiveTab] = useState('profile');
+    const [activeTab, setActiveTab] = useState('defaults');
     const tabs = [
-        ['profile', 'Profile', GraduationCap],
-        ['branding', 'Branding', Sparkles],
         ['defaults', 'Visit Defaults', CalendarDays],
         ['notifications', 'Notifications', Bell],
         ['integrations', 'Integrations', Blocks],
@@ -7140,7 +8073,7 @@ function UniversitySettingsSection({ csrf, settings = {}, securityProfile = {}, 
                 <div>
                     <p className="text-xs font-black uppercase tracking-[0.14em] text-[#006a61]">University operations</p>
                     <h1 className="mt-1 text-2xl font-black text-slate-950">Settings</h1>
-                    <p className="mt-1 max-w-3xl text-sm font-semibold leading-6 text-slate-500">Compact controls for profile, branding, team contacts, defaults, notifications, integrations, timezone, and security.</p>
+                    <p className="mt-1 max-w-3xl text-sm font-semibold leading-6 text-slate-500">Operational defaults, notifications, integrations, calendar, team contacts, security, and compliance.</p>
                 </div>
                 <div className="mt-4 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                     {tabs.map(([id, label, Icon]) => (
@@ -7155,51 +8088,46 @@ function UniversitySettingsSection({ csrf, settings = {}, securityProfile = {}, 
 
             {!['team', 'security', 'compliance'].includes(activeTab) && <form action="/dashboard/university/settings" method="POST" className="grid gap-4">
                 <input type="hidden" name="_token" value={csrf} />
+                <input type="hidden" name="institution_name" value={old.institution_name || profile.institutionName || ''} />
+                <input type="hidden" name="institution_code" value={old.institution_code || profile.institutionCode || ''} />
+                <input type="hidden" name="institution_type" value={old.institution_type || profile.institutionType || ''} />
+                <input type="hidden" name="ownership" value={old.ownership || profile.ownership || ''} />
+                <input type="hidden" name="accreditation" value={old.accreditation || profile.accreditation || ''} />
+                <input type="hidden" name="founded_year" value={old.founded_year || profile.foundedYear || ''} />
+                <input type="hidden" name="website" value={old.website || profile.website || ''} />
+                <input type="hidden" name="primary_contact_name" value={old.primary_contact_name || profile.primaryContactName || ''} />
+                <input type="hidden" name="primary_contact_email" value={old.primary_contact_email || profile.primaryContactEmail || ''} />
+                <input type="hidden" name="primary_contact_phone" value={old.primary_contact_phone || profile.primaryContactPhone || ''} />
+                <input type="hidden" name="admissions_email" value={old.admissions_email || profile.admissionsEmail || ''} />
+                <input type="hidden" name="admissions_phone" value={old.admissions_phone || profile.admissionsPhone || ''} />
+                <input type="hidden" name="outreach_contact_name" value={old.outreach_contact_name || profile.outreachContactName || ''} />
+                <input type="hidden" name="outreach_contact_email" value={old.outreach_contact_email || profile.outreachContactEmail || ''} />
+                <input type="hidden" name="outreach_contact_phone" value={old.outreach_contact_phone || profile.outreachContactPhone || ''} />
+                <input type="hidden" name="emergency_contact_name" value={old.emergency_contact_name || profile.emergencyContactName || ''} />
+                <input type="hidden" name="emergency_contact_phone" value={old.emergency_contact_phone || profile.emergencyContactPhone || ''} />
+                <input type="hidden" name="region" value={old.region || profile.region || ''} />
+                <input type="hidden" name="address" value={old.address || profile.address || ''} />
+                <input type="hidden" name="city" value={old.city || profile.city || ''} />
+                <input type="hidden" name="state" value={old.state || profile.state || ''} />
+                <input type="hidden" name="country" value={old.country || profile.country || ''} />
+                <input type="hidden" name="public_profile_summary" value={old.public_profile_summary || profile.publicProfileSummary || ''} />
+                <input type="hidden" name="about" value={old.about || profile.about || ''} />
+                <input type="hidden" name="academic_strengths" value={old.academic_strengths || profile.academicStrengths || ''} />
+                <input type="hidden" name="student_support_services" value={old.student_support_services || profile.studentSupportServices || ''} />
+                <input type="hidden" name="international_student_support" value={old.international_student_support || profile.internationalStudentSupport || ''} />
+                <input type="hidden" name="accessibility_services" value={old.accessibility_services || profile.accessibilityServices || ''} />
+                <input type="hidden" name="visit_policy" value={old.visit_policy || profile.visitPolicy || ''} />
+                <input type="hidden" name="safety_policy" value={old.safety_policy || profile.safetyPolicy || ''} />
+                <input type="hidden" name="campus_map_url" value={old.campus_map_url || profile.campusMapUrl || ''} />
+                <input type="hidden" name="virtual_tour_url" value={old.virtual_tour_url || profile.virtualTourUrl || ''} />
+                <input type="hidden" name="facebook_url" value={old.facebook_url || profile.facebookUrl || ''} />
+                <input type="hidden" name="linkedin_url" value={old.linkedin_url || profile.linkedinUrl || ''} />
+                <input type="hidden" name="instagram_url" value={old.instagram_url || profile.instagramUrl || ''} />
+                <input type="hidden" name="youtube_url" value={old.youtube_url || profile.youtubeUrl || ''} />
+                <input type="hidden" name="logo_url" value={old.logo_url || branding.logoUrl || ''} />
+                <input type="hidden" name="brand_color" value={old.brand_color || branding.brandColor || '#006a61'} />
                 <FormErrorSummary errors={errors} />
                 <div className="grid gap-4">
-                    <section className={cx('rounded-2xl border border-slate-200 bg-white p-4 shadow-sm', activeTab !== 'profile' && 'hidden')}>
-                        <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
-                            <span className="grid h-10 w-10 place-items-center rounded-2xl bg-[#e5eeff] text-[#006a61]"><GraduationCap size={20} /></span>
-                            <div>
-                                <h2 className="text-lg font-black text-slate-950">University Profile</h2>
-                                <p className="text-sm font-semibold text-slate-500">Controls institution identity across the portal.</p>
-                            </div>
-                        </div>
-                        <div className="mt-4 grid gap-4 md:grid-cols-2">
-                            <LightField label="Institution name" name="institution_name" defaultValue={old.institution_name || profile.institutionName || ''} error={errors.institution_name?.[0]} />
-                            <LightField label="Website" name="website" type="url" placeholder="https://university.edu" defaultValue={old.website || profile.website || ''} error={errors.website?.[0]} />
-                            <LightField label="Primary contact name" name="primary_contact_name" defaultValue={old.primary_contact_name || profile.primaryContactName || ''} error={errors.primary_contact_name?.[0]} />
-                            <LightField label="Primary contact email" name="primary_contact_email" type="email" defaultValue={old.primary_contact_email || profile.primaryContactEmail || ''} error={errors.primary_contact_email?.[0]} />
-                            <LightField label="Primary contact phone" name="primary_contact_phone" defaultValue={old.primary_contact_phone || profile.primaryContactPhone || ''} error={errors.primary_contact_phone?.[0]} />
-                            <LightField label="Recruitment region" name="region" defaultValue={old.region || profile.region || ''} error={errors.region?.[0]} />
-                            <div className="md:col-span-2"><LightField label="Campus address" name="address" defaultValue={old.address || profile.address || ''} error={errors.address?.[0]} /></div>
-                        </div>
-                    </section>
-
-                    <section className={cx('rounded-2xl border border-slate-200 bg-white p-4 shadow-sm', activeTab !== 'branding' && 'hidden')}>
-                        <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
-                            <span className="grid h-10 w-10 place-items-center rounded-2xl bg-teal-50 text-[#006a61]"><Sparkles size={20} /></span>
-                            <div>
-                                <h2 className="text-lg font-black text-slate-950">Logo & Branding</h2>
-                                <p className="text-sm font-semibold text-slate-500">Use a public logo URL or upload an image directly.</p>
-                            </div>
-                        </div>
-                        <div className="mt-4 grid gap-4 md:grid-cols-[1fr_140px]">
-                            <LightField label="Logo URL" name="logo_url" type="url" placeholder="https://..." defaultValue={old.logo_url || branding.logoUrl || ''} error={errors.logo_url?.[0]} />
-                            <LightField label="Brand color" name="brand_color" type="color" defaultValue={old.brand_color || branding.brandColor || '#006a61'} error={errors.brand_color?.[0]} />
-                        </div>
-                        <div className="mt-4 rounded-2xl border border-slate-100 bg-slate-50 p-4">
-                            <p className="text-xs font-black uppercase tracking-wide text-slate-400">Preview</p>
-                            <div className="mt-3 flex items-center gap-3">
-                                <span className="grid h-12 w-12 place-items-center rounded-2xl text-white" style={{ backgroundColor: old.brand_color || branding.brandColor || '#006a61' }}>{branding.logoUrl ? <img src={branding.logoUrl} alt="" className="h-full w-full rounded-2xl object-cover" /> : 'SC'}</span>
-                                <div>
-                                    <p className="font-black text-slate-950">{old.institution_name || profile.institutionName || 'University name'}</p>
-                                    <p className="text-xs font-semibold text-slate-500">{profile.region || 'Recruitment region'}</p>
-                                </div>
-                            </div>
-                        </div>
-                    </section>
-
                     <section className={cx('rounded-2xl border border-slate-200 bg-white p-4 shadow-sm', activeTab !== 'defaults' && 'hidden')}>
                         <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
                             <span className="grid h-10 w-10 place-items-center rounded-2xl bg-blue-50 text-blue-700"><CalendarDays size={20} /></span>
@@ -7257,14 +8185,6 @@ function UniversitySettingsSection({ csrf, settings = {}, securityProfile = {}, 
 
                     <button className="rounded-2xl bg-slate-950 px-5 py-3 text-sm font-black text-white shadow-sm hover:bg-slate-800">Save Settings</button>
                 </aside>
-            </form>}
-
-            {activeTab === 'branding' && <form id="university-logo-upload" action="/university/branding/logo" method="POST" encType="multipart/form-data" className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                <input type="hidden" name="_token" value={csrf} />
-                <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
-                    <label className="grid gap-2 text-sm font-black text-slate-700">Upload institution logo<input type="file" name="logo" accept="image/png,image/jpeg,image/webp,image/gif" required className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-semibold file:mr-3 file:rounded-lg file:border-0 file:bg-slate-950 file:px-3 file:py-2 file:text-xs file:font-black file:text-white" /><span className="text-xs font-semibold text-slate-400">PNG, JPG, WebP, or GIF up to 5 MB.</span></label>
-                    <button className="rounded-xl bg-[#006a61] px-5 py-3 text-sm font-black text-white">Upload Logo</button>
-                </div>
             </form>}
 
             {activeTab === 'team' && <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -7462,8 +8382,8 @@ function SchoolSettingsSection({ csrf, profile, errors, old }) {
     return (
         <div className="grid gap-6">
             <div>
-                <h1 className="text-3xl font-black text-slate-950">Settings</h1>
-                <p className="mt-1 text-sm text-slate-500">Manage your school profile and notification preferences.</p>
+                <h1 className="text-3xl font-black text-slate-950">School Profile</h1>
+                <p className="mt-1 text-sm text-slate-500">Manage your school identity, contacts, academics, visit logistics, and notification preference.</p>
             </div>
 
             <form action="/dashboard/school/settings" method="POST" className="grid gap-6 xl:grid-cols-[1fr_320px]">
@@ -7484,7 +8404,14 @@ function SchoolSettingsSection({ csrf, profile, errors, old }) {
                             </div>
                             <div className="grid gap-4">
                                 <LightField label="School Name" name="name" defaultValue={value('name')} error={errors.name?.[0]} />
+                                <LightField label="School Code" name="school_code" defaultValue={value('school_code', profile.schoolCode || '')} error={errors.school_code?.[0]} />
+                                <div className="grid gap-4 md:grid-cols-3">
+                                    <label className="text-sm font-semibold text-gray-700">School Type<select name="school_type" defaultValue={value('school_type', profile.schoolType || 'public')} className="mt-2 w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-950 outline-none focus:border-gray-400 focus:ring-4 focus:ring-gray-100"><option value="public">Public</option><option value="private">Private</option><option value="charter">Charter</option><option value="international">International</option><option value="faith_based">Faith-based</option><option value="other">Other</option></select></label>
+                                    <label className="text-sm font-semibold text-gray-700">Institution Level<select name="institution_level" defaultValue={value('institution_level', profile.institutionLevel || 'high_school')} className="mt-2 w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-950 outline-none focus:border-gray-400 focus:ring-4 focus:ring-gray-100"><option value="high_school">High school</option><option value="middle_high_school">Middle and high school</option><option value="k12">K-12</option><option value="sixth_form">Sixth form / college</option><option value="other">Other</option></select></label>
+                                    <LightField label="Ownership / Operator" name="ownership" defaultValue={value('ownership', profile.ownership || '')} error={errors.ownership?.[0]} />
+                                </div>
                                 <LightField label="Website" name="website" type="url" placeholder="https://school.edu" defaultValue={value('website', profile.website || '')} error={errors.website?.[0]} />
+                                <LightField label="Main Phone" name="main_phone" defaultValue={value('main_phone', profile.mainPhone || '')} error={errors.main_phone?.[0]} />
                                 <LightTextarea label="Public location" name="location" defaultValue={value('location')} error={errors.location?.[0]} />
                             </div>
                         </div>
@@ -7499,10 +8426,28 @@ function SchoolSettingsSection({ csrf, profile, errors, old }) {
                             <LightField label="City" name="city" defaultValue={value('city', profile.city || '')} error={errors.city?.[0]} />
                             <LightField label="State / Province" name="state" defaultValue={value('state', profile.state || '')} error={errors.state?.[0]} />
                             <LightField label="Country" name="country" defaultValue={value('country', profile.country || '')} error={errors.country?.[0]} />
+                            <LightField label="District" name="district" defaultValue={value('district', profile.district || '')} error={errors.district?.[0]} />
+                            <LightField label="Region" name="region" defaultValue={value('region', profile.region || '')} error={errors.region?.[0]} />
+                            <LightField label="Timezone" name="timezone" defaultValue={value('timezone', profile.timezone || '')} error={errors.timezone?.[0]} />
                             <LightField label="Grade Range" name="grade_range" defaultValue={value('grade_range', profile.gradeRange || '')} error={errors.grade_range?.[0]} />
                             <LightField label="Student Count" name="student_count" type="number" min="0" defaultValue={value('student_count', profile.studentCount || '')} error={errors.student_count?.[0]} />
+                        </div>
+                    </div>
+
+                    <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                        <h2 className="text-lg font-black text-slate-950">Academic Profile</h2>
+                        <div className="mt-4 grid gap-4 border-t border-slate-100 pt-4 md:grid-cols-2">
+                            <LightField label="Accreditation" name="accreditation" defaultValue={value('accreditation', profile.accreditation || '')} error={errors.accreditation?.[0]} />
+                            <LightField label="Curriculum" name="curriculum" defaultValue={value('curriculum', profile.curriculum || '')} error={errors.curriculum?.[0]} />
+                            <LightField label="Academic Calendar" name="academic_calendar" defaultValue={value('academic_calendar', profile.academicCalendar || '')} error={errors.academic_calendar?.[0]} />
+                            <LightField label="Graduation Rate (%)" name="graduation_rate" type="number" min="0" max="100" step="0.01" defaultValue={value('graduation_rate', profile.graduationRate || '')} error={errors.graduation_rate?.[0]} />
+                            <LightField label="Average Class Size" name="average_class_size" type="number" min="0" defaultValue={value('average_class_size', profile.averageClassSize || '')} error={errors.average_class_size?.[0]} />
+                            <div className="grid gap-3 md:col-span-2 md:grid-cols-2">
+                                <SettingToggle name="boarding_available" title="Boarding Available" description="School has residential/boarding facilities." defaultChecked={boolValue('boarding_available', profile.boardingAvailable || false)} />
+                                <SettingToggle name="international_students" title="International Students" description="School enrolls international students." defaultChecked={boolValue('international_students', profile.internationalStudents || false)} />
+                            </div>
                             <div className="md:col-span-2">
-                                <LightTextarea label="Visit Notes" name="visit_notes" defaultValue={value('visit_notes', profile.visitNotes || '')} error={errors.visit_notes?.[0]} />
+                                <LightTextarea label="Student Support Services" name="student_support_services" defaultValue={value('student_support_services', profile.studentSupportServices || '')} error={errors.student_support_services?.[0]} />
                             </div>
                         </div>
                     </div>
@@ -7515,11 +8460,31 @@ function SchoolSettingsSection({ csrf, profile, errors, old }) {
                             </div>
                             <LightField label="Email Address" name="coordinator_email" type="email" defaultValue={value('coordinator_email', profile.coordinatorEmail || '')} error={errors.coordinator_email?.[0]} />
                             <LightField label="Phone Number" name="coordinator_phone" defaultValue={value('coordinator_phone', profile.coordinatorPhone || '')} error={errors.coordinator_phone?.[0]} />
+                            <LightField label="Admissions Email" name="admissions_email" type="email" defaultValue={value('admissions_email', profile.admissionsEmail || '')} error={errors.admissions_email?.[0]} />
+                            <LightField label="Registrar Email" name="registrar_email" type="email" defaultValue={value('registrar_email', profile.registrarEmail || '')} error={errors.registrar_email?.[0]} />
                             <LightField label="Principal Name" name="principal_name" defaultValue={value('principal_name', profile.principalName || '')} error={errors.principal_name?.[0]} />
+                            <LightField label="Principal Email" name="principal_email" type="email" defaultValue={value('principal_email', profile.principalEmail || '')} error={errors.principal_email?.[0]} />
                             <LightField label="Counselor Name" name="counselor_name" defaultValue={value('counselor_name', profile.counselorName || '')} error={errors.counselor_name?.[0]} />
+                            <LightField label="Counselor Phone" name="counselor_phone" defaultValue={value('counselor_phone', profile.counselorPhone || '')} error={errors.counselor_phone?.[0]} />
                             <div className="md:col-span-2">
                                 <LightField label="Counselor Email" name="counselor_email" type="email" defaultValue={value('counselor_email', profile.counselorEmail || '')} error={errors.counselor_email?.[0]} />
                             </div>
+                            <LightField label="Emergency Contact Name" name="emergency_contact_name" defaultValue={value('emergency_contact_name', profile.emergencyContactName || '')} error={errors.emergency_contact_name?.[0]} />
+                            <LightField label="Emergency Contact Phone" name="emergency_contact_phone" defaultValue={value('emergency_contact_phone', profile.emergencyContactPhone || '')} error={errors.emergency_contact_phone?.[0]} />
+                            <div className="md:col-span-2"><LightField label="Emergency Contact Email" name="emergency_contact_email" type="email" defaultValue={value('emergency_contact_email', profile.emergencyContactEmail || '')} error={errors.emergency_contact_email?.[0]} /></div>
+                        </div>
+                    </div>
+
+                    <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                        <h2 className="text-lg font-black text-slate-950">Visit Logistics and Public Links</h2>
+                        <div className="mt-4 grid gap-4 border-t border-slate-100 pt-4 md:grid-cols-2">
+                            <div className="md:col-span-2"><LightTextarea label="Transportation Notes" name="transportation_notes" defaultValue={value('transportation_notes', profile.transportationNotes || '')} error={errors.transportation_notes?.[0]} /></div>
+                            <div className="md:col-span-2"><LightTextarea label="Visit Policy" name="visit_policy" defaultValue={value('visit_policy', profile.visitPolicy || '')} error={errors.visit_policy?.[0]} /></div>
+                            <div className="md:col-span-2"><LightTextarea label="Visit Notes" name="visit_notes" defaultValue={value('visit_notes', profile.visitNotes || '')} error={errors.visit_notes?.[0]} /></div>
+                            <LightField label="Safety Policy URL" name="safety_policy_url" type="url" defaultValue={value('safety_policy_url', profile.safetyPolicyUrl || '')} error={errors.safety_policy_url?.[0]} />
+                            <LightField label="Facebook URL" name="facebook_url" type="url" defaultValue={value('facebook_url', profile.facebookUrl || '')} error={errors.facebook_url?.[0]} />
+                            <LightField label="LinkedIn URL" name="linkedin_url" type="url" defaultValue={value('linkedin_url', profile.linkedinUrl || '')} error={errors.linkedin_url?.[0]} />
+                            <LightField label="Instagram URL" name="instagram_url" type="url" defaultValue={value('instagram_url', profile.instagramUrl || '')} error={errors.instagram_url?.[0]} />
                         </div>
                     </div>
 
@@ -11474,7 +12439,85 @@ function LightTextarea({ label, name, error, ...props }) {
     return (
         <div>
             <label htmlFor={name} className="text-sm font-semibold text-gray-700">{label}</label>
-            <textarea id={name} name={name} rows="4" className={cx('mt-2 w-full rounded-lg border bg-white px-3 py-2.5 text-sm text-gray-950 outline-none focus:border-gray-400 focus:ring-4 focus:ring-gray-100', error ? 'border-red-300' : 'border-gray-200')} {...props} />
+            <textarea id={name} name={name} rows="4" dir="ltr" className={cx('mt-2 w-full rounded-lg border bg-white px-3 py-2.5 text-left text-sm text-gray-950 outline-none focus:border-gray-400 focus:ring-4 focus:ring-gray-100', error ? 'border-red-300' : 'border-gray-200')} {...props} />
+            {error && <p className="mt-1 text-xs font-semibold text-red-600">{error}</p>}
+        </div>
+    );
+}
+
+function RichTextEditor({ label, name, defaultValue = '', error, placeholder = 'Write details...', minHeight = '160px' }) {
+    const editorRef = useRef(null);
+    const [value, setValue] = useState(defaultValue || '');
+
+    useEffect(() => {
+        setValue(defaultValue || '');
+        if (editorRef.current && editorRef.current.innerHTML !== (defaultValue || '')) {
+            editorRef.current.innerHTML = defaultValue || '';
+        }
+    }, [defaultValue]);
+
+    const sync = () => setValue(editorRef.current?.innerHTML || '');
+    const run = (command, commandValue = null) => {
+        editorRef.current?.focus();
+        document.execCommand(command, false, commandValue);
+        sync();
+    };
+    const addLink = () => {
+        const url = window.prompt('Paste a link URL');
+        if (!url) return;
+        run('createLink', url);
+    };
+    const toolbar = [
+        ['bold', 'Bold', Bold],
+        ['italic', 'Italic', Italic],
+        ['underline', 'Underline', Underline],
+        ['insertUnorderedList', 'Bulleted list', List],
+        ['insertOrderedList', 'Numbered list', ListOrdered],
+    ];
+
+    return (
+        <div>
+            <label className="text-sm font-semibold text-gray-700">{label}</label>
+            <input type="hidden" name={name} value={value} />
+            <div className={cx('mt-2 overflow-hidden rounded-xl border bg-white', error ? 'border-red-300' : 'border-gray-200')}>
+                <div className="flex flex-wrap items-center gap-1 border-b border-gray-200 bg-gray-50 p-2">
+                    <select
+                        aria-label={`${label} text style`}
+                        onChange={(event) => { run('formatBlock', event.target.value); event.target.value = 'p'; }}
+                        defaultValue="p"
+                        className="h-9 rounded-lg border border-gray-200 bg-white px-2 text-xs font-bold text-gray-700"
+                    >
+                        <option value="p">Paragraph</option>
+                        <option value="h2">Heading</option>
+                        <option value="h3">Subheading</option>
+                    </select>
+                    {toolbar.map(([command, title, Icon]) => (
+                        <button key={command} type="button" title={title} aria-label={title} onClick={() => run(command)} className="grid h-9 w-9 place-items-center rounded-lg border border-gray-200 bg-white text-gray-700 hover:border-[#006a61]/30 hover:bg-emerald-50 hover:text-[#006a61]">
+                            <Icon size={16} />
+                        </button>
+                    ))}
+                    <button type="button" title="Insert link" aria-label="Insert link" onClick={addLink} className="grid h-9 w-9 place-items-center rounded-lg border border-gray-200 bg-white text-gray-700 hover:border-[#006a61]/30 hover:bg-emerald-50 hover:text-[#006a61]">
+                        <LinkIcon size={16} />
+                    </button>
+                    <button type="button" title="Clear formatting" aria-label="Clear formatting" onClick={() => run('removeFormat')} className="grid h-9 w-9 place-items-center rounded-lg border border-gray-200 bg-white text-gray-700 hover:border-[#006a61]/30 hover:bg-emerald-50 hover:text-[#006a61]">
+                        <Heading2 size={16} />
+                    </button>
+                </div>
+                <div
+                    ref={editorRef}
+                    role="textbox"
+                    aria-multiline="true"
+                    dir="ltr"
+                    contentEditable
+                    suppressContentEditableWarning
+                    data-placeholder={placeholder}
+                    onInput={sync}
+                    onBlur={sync}
+                    className="rich-text-editor min-h-40 w-full overflow-y-auto px-4 py-3 text-left text-sm leading-7 text-gray-950 outline-none"
+                    style={{ minHeight }}
+                    dangerouslySetInnerHTML={{ __html: value }}
+                />
+            </div>
             {error && <p className="mt-1 text-xs font-semibold text-red-600">{error}</p>}
         </div>
     );
@@ -12069,28 +13112,31 @@ function dashboardNavGroups(role) {
             { id: 'calendar', title: 'Schedule', icon: CalendarDays },
             { id: 'insights', title: 'Insights', icon: Brain },
             { id: 'messages', title: 'Communications', icon: Send },
+            { id: 'profile', title: 'Profile', icon: GraduationCap },
             { id: 'settings', title: 'Settings', icon: Command },
         ],
         school: [
             { id: 'overview', title: 'Overview', icon: LayoutDashboard },
-            { id: 'events', title: 'Discover Visits', icon: Search },
+            { id: 'events', title: 'Discover Programmes', icon: Search },
             { id: 'bookings', title: 'My Requests', icon: FolderKanban },
             { id: 'itinerary', title: 'Itinerary', icon: RouteIcon },
             { id: 'students', title: 'My Students', icon: UsersRound },
             { id: 'calendar', title: 'My Schedule', icon: CalendarDays },
             { id: 'messages', title: 'Messages', icon: Inbox },
             { id: 'reports', title: 'Activity Summary', icon: BarChart3 },
+            { id: 'profile', title: 'Profile', icon: School },
             { id: 'settings', title: 'Settings', icon: Command },
         ],
         high_school: [
             { id: 'overview', title: 'Overview', icon: LayoutDashboard },
-            { id: 'events', title: 'Discover Visits', icon: Search },
+            { id: 'events', title: 'Discover Programmes', icon: Search },
             { id: 'bookings', title: 'My Requests', icon: FolderKanban },
             { id: 'itinerary', title: 'Itinerary', icon: RouteIcon },
             { id: 'students', title: 'My Students', icon: UsersRound },
             { id: 'calendar', title: 'My Schedule', icon: CalendarDays },
             { id: 'messages', title: 'Messages', icon: Inbox },
             { id: 'reports', title: 'Activity Summary', icon: BarChart3 },
+            { id: 'profile', title: 'Profile', icon: School },
             { id: 'settings', title: 'Settings', icon: Command },
         ],
         student: [
@@ -12233,10 +13279,20 @@ function dashboardContent(role, activeId, metrics, actions, context = {}) {
         return { title: 'Communications', subtitle: 'Send and review direct student communications.', action: 'New message', metrics: baseMetrics, custom: <ConversationCenterSection currentUserId={securityProfile?.user?.id} /> };
     }
 
+    if (role === 'university' && activeId === 'profile') {
+        return {
+            title: 'Profile',
+            subtitle: 'Manage university identity, public contact details, logo, and brand.',
+            action: 'Save profile',
+            metrics: baseMetrics,
+            custom: <UniversityInstitutionProfileSection csrf={csrf} settings={universitySettings || {}} errors={errors || {}} old={old || {}} />,
+        };
+    }
+
     if (role === 'university' && activeId === 'settings') {
         return {
             title: 'Settings',
-            subtitle: 'Manage university profile, branding, team contacts, defaults, notifications, integrations, and security.',
+            subtitle: 'Manage operational defaults, notifications, integrations, team contacts, calendar, security, and compliance.',
             action: 'Save changes',
             metrics: baseMetrics,
             custom: <UniversitySettingsSection csrf={csrf} settings={universitySettings || {}} securityProfile={securityProfile || {}} compliance={universityCompliance || {}} errors={errors || {}} old={old || {}} />,
@@ -12256,7 +13312,7 @@ function dashboardContent(role, activeId, metrics, actions, context = {}) {
     }
 
     if (['school', 'high_school'].includes(role) && activeId === 'events') {
-        return { title: 'Discover Visits', subtitle: 'Find and request upcoming university visit programs for your students.', action: 'Request visit', metrics: baseMetrics, custom: <SchoolAvailableVisitsSection csrf={csrf} events={(events || []).filter((event) => event.status === 'published')} visitRequests={visitRequests || []} old={old || {}} errors={errors || {}} setSection={setActiveId || (() => {})} /> };
+        return { title: 'Discover Programmes', subtitle: 'Browse university-created programmes and request attendance for your students.', action: 'Request programme', metrics: baseMetrics, custom: <SchoolAvailableVisitsSection csrf={csrf} events={(events || []).filter((event) => event.status === 'published')} visitRequests={visitRequests || []} old={old || {}} errors={errors || {}} setSection={setActiveId || (() => {})} /> };
     }
 
     if (['school', 'high_school'].includes(role) && activeId === 'bookings') {
@@ -12276,7 +13332,7 @@ function dashboardContent(role, activeId, metrics, actions, context = {}) {
     }
 
     if (['school', 'high_school'].includes(role) && activeId === 'calendar') {
-        return { title: 'My Schedule', subtitle: 'View approved visits and student attendance dates.', action: 'Discover visits', metrics: baseMetrics, custom: <EventCalendarSection csrf={csrf} events={scheduleEvents || []} registrations={registrations || []} title="School Schedule" canManage={false} /> };
+        return { title: 'My Schedule', subtitle: 'View approved visits and student attendance dates.', action: 'Discover programmes', metrics: baseMetrics, custom: <EventCalendarSection csrf={csrf} events={scheduleEvents || []} registrations={registrations || []} title="School Schedule" canManage={false} /> };
     }
 
     if (['school', 'high_school'].includes(role) && activeId === 'reports') {
@@ -12293,13 +13349,23 @@ function dashboardContent(role, activeId, metrics, actions, context = {}) {
         return { title: 'Messages', subtitle: 'Review direct student and administrator communications.', action: 'New message', metrics: baseMetrics, custom: <ConversationCenterSection currentUserId={securityProfile?.user?.id} /> };
     }
 
+    if (['school', 'high_school'].includes(role) && activeId === 'profile') {
+        return {
+            title: 'Profile',
+            subtitle: 'Manage school identity, contacts, academics, policies, and visit logistics.',
+            action: 'Save profile',
+            metrics: baseMetrics,
+            custom: <SchoolSettingsSection csrf={csrf} profile={schoolProfile || {}} errors={errors || {}} old={old || {}} />,
+        };
+    }
+
     if (['school', 'high_school'].includes(role) && activeId === 'settings') {
         return {
             title: 'Settings',
-            subtitle: 'Manage your school profile, notification preferences, and account security.',
+            subtitle: 'Manage account security, recovery settings, and active sessions.',
             action: 'Save changes',
             metrics: baseMetrics,
-            custom: <div className="space-y-8"><SchoolSettingsSection csrf={csrf} profile={schoolProfile || {}} errors={errors || {}} old={old || {}} /><SecurityAccessSection csrf={csrf} profile={securityProfile || {}} errors={errors || {}} role={role} /></div>,
+            custom: <SecurityAccessSection csrf={csrf} profile={securityProfile || {}} errors={errors || {}} role={role} />,
         };
     }
 

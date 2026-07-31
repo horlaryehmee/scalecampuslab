@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\Route;
  * login.authenticate and password.email names do not collide with these pages.
  */
 // Preserve this legacy name because the existing session logout redirects to it.
-Route::get('/', function () {
+$homepage = function () {
     $settings = PlatformSetting::query()->find('admin.global')?->value ?? [];
 
     if ((bool) data_get($settings, 'launch.waitlistMode', false)) {
@@ -20,7 +20,10 @@ Route::get('/', function () {
     }
 
     return view('marketing');
-})->name('waitlist.landing');
+};
+
+Route::get('/', $homepage)->name('waitlist.landing');
+Route::view('/home', 'marketing')->name('home');
 Route::view('/about', 'marketing')->name('saas.about');
 Route::view('/how-it-works', 'marketing')->name('saas.how-it-works');
 Route::view('/contact', 'marketing')->name('saas.contact');

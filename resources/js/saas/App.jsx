@@ -41,6 +41,7 @@ function AppRoutes() {
         <Routes>
             <Route element={<PublicLayout />}>
                 <Route index element={<HomePage />} />
+                <Route path="home" element={<HomePage />} />
                 <Route path="about" element={<AboutPage />} />
                 <Route path="how-it-works" element={<HowItWorksPage />} />
                 <Route path="contact" element={<ContactPage />} />

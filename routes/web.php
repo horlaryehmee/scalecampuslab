@@ -23,9 +23,13 @@ Route::get('/platform', static function () {
 Route::get('/waitlist', [WaitlistController::class, 'landing'])->name('waitlist.join');
 Route::post('/waitlist', [WaitlistController::class, 'store'])->middleware('throttle:10,1')->name('waitlist.store');
 Route::get('/thank-you', [WaitlistController::class, 'success'])->name('waitlist.success');
+Route::get('/programs/{slug}', [CampusEventController::class, 'showShared'])->name('programs.public.show');
+Route::get('/programs/{slug}/join', [AuthController::class, 'showSchoolProgramSignup'])->name('programs.public.join');
+Route::post('/programs/{slug}/register', [CampusEventController::class, 'registerShared'])->middleware('throttle:20,1')->name('programs.public.register');
 Route::post('/demo-login', [AuthController::class, 'demoLogin'])->middleware('throttle:20,1')->name('demo-login');
 
 Route::middleware('guest')->group(function (): void {
+    Route::post('/programs/{slug}/join', [AuthController::class, 'storeSchoolProgramSignup'])->middleware('throttle:10,1')->name('programs.public.join.store');
     Route::post('/login/pin', [AuthController::class, 'verifyLoginPin'])->middleware('throttle:5,1')->name('login.pin.verify');
     Route::post('/login', [AuthController::class, 'authenticate'])->middleware('throttle:5,1')->name('login.authenticate');
     Route::get('/admin/login', [AuthController::class, 'adminLogin'])->name('admin.login');
@@ -37,6 +41,8 @@ Route::middleware('guest')->group(function (): void {
 });
 
 Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth')->name('logout');
+Route::get('/school/onboarding', [AuthController::class, 'schoolOnboarding'])->middleware(['auth', 'active'])->name('school.onboarding');
+Route::post('/school/onboarding', [AuthController::class, 'storeSchoolOnboarding'])->middleware(['auth', 'active'])->name('school.onboarding.store');
 Route::get('/payments/paystack/callback', [ApplicationPaymentController::class, 'callback'])->middleware('throttle:30,1')->name('payments.paystack.callback');
 Route::middleware(['auth', 'active', 'verified'])->prefix('dashboard')->name('dashboard.')->group(function (): void {
     Route::get('/admin', [DashboardController::class, 'admin'])->middleware('role:admin')->name('admin');

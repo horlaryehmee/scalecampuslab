@@ -6,20 +6,74 @@ use App\Models\CampusEvent;
 use App\Models\EventItineraryItem;
 use App\Models\EventRegistration;
 use App\Models\PlatformNotification;
+use App\Models\School;
 use App\Models\SystemLog;
 use App\Models\TargetSchool;
+use App\Models\UniversitySetting;
 use App\Models\User;
 use App\Models\VisitRequest;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Password as PasswordRule;
 use Illuminate\Validation\ValidationException;
+use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class CampusEventController extends Controller
 {
+    public function showShared(string $slug): View
+    {
+        $event = CampusEvent::query()
+            ->withSum(['registrations as confirmed_seats' => fn ($query) => $query->where('status', 'confirmed')], 'party_size')
+            ->with('university:id,name,email')
+            ->where('share_slug', $slug)
+            ->where('status', 'published')
+            ->where('visibility', 'public')
+            ->firstOrFail();
+
+        return view('app', [
+            'page' => 'public-program',
+            'props' => [
+                'program' => $this->publicProgramPayload($event),
+                'registrationStatus' => session('program_registration_status'),
+                'registrationMessage' => session('program_registration_message'),
+            ],
+        ]);
+    }
+
+    public function registerShared(Request $request, string $slug): RedirectResponse
+    {
+        $event = CampusEvent::query()
+            ->with('university:id,name,email')
+            ->where('share_slug', $slug)
+            ->where('status', 'published')
+            ->where('visibility', 'public')
+            ->firstOrFail();
+
+        abort_unless((bool) $event->guest_registration_enabled, 403);
+
+        $request->session()->put('pending_public_program', [
+            'id' => $event->id,
+            'slug' => $event->share_slug,
+            'title' => $event->title,
+            'university' => $event->university?->name,
+        ]);
+
+        if ($request->user()?->isSchool()) {
+            return $request->user()->school_id
+                ? redirect()->route('dashboard.school')->with('status', "{$event->title} has been saved. Add students, then complete the visit registration from your dashboard.")
+                : redirect()->route('school.onboarding');
+        }
+
+        return redirect()->route('programs.public.join', $event->share_slug);
+    }
+
     public function store(Request $request): RedirectResponse
     {
         abort_unless($request->user()?->role === 'university', 403);
@@ -33,6 +87,7 @@ class CampusEventController extends Controller
         $event = CampusEvent::create($validated + [
             'university_user_id' => $request->user()->id,
             'external_calendar_uid' => (string) Str::uuid(),
+            'share_slug' => $this->uniqueShareSlug($validated['title']),
             'lifecycle_log' => [$this->lifecycleEntry('created', $request->user()->name)],
         ]);
 
@@ -61,6 +116,7 @@ class CampusEventController extends Controller
         $event->update($validated + [
             'last_schedule_change_at' => $scheduleChanged ? now() : $event->last_schedule_change_at,
             'external_calendar_uid' => $event->external_calendar_uid ?: (string) Str::uuid(),
+            'share_slug' => $event->share_slug ?: $this->uniqueShareSlug($validated['title'], $event->id),
             'lifecycle_log' => $this->appendLifecycle($event, 'updated', $request->user()->name),
         ]);
 
@@ -208,6 +264,7 @@ class CampusEventController extends Controller
         $copy->recurrence_rule = 'none';
         $copy->recurrence_count = 1;
         $copy->external_calendar_uid = (string) Str::uuid();
+        $copy->share_slug = $this->uniqueShareSlug($copy->title);
         $copy->last_schedule_change_at = null;
         $copy->lifecycle_log = [$this->lifecycleEntry('duplicated from #'.$event->id, $request->user()->name)];
         $copy->save();
@@ -302,34 +359,199 @@ class CampusEventController extends Controller
         abort_unless(in_array($request->user()?->role, ['student', 'school', 'high_school'], true), 403);
         abort_unless($event->status === 'published', 404);
 
+        $registration = $this->storeProgramRegistration($request, $event, false);
+
+        return back()->with('status', $registration->status === 'confirmed'
+            ? 'Registration confirmed.'
+            : 'The event is full, so this registration was added to the waitlist.');
+    }
+
+    private function validatedEvent(Request $request, bool $isCreating): array
+    {
+        $request->merge([
+            'visibility' => $request->input('visibility', 'public'),
+            'guest_registration_enabled' => $request->boolean('guest_registration_enabled', true),
+            'lifecycle_stage' => $request->input('lifecycle_stage', $request->input('status') === 'published' ? 'open' : 'planning'),
+            'recurrence_rule' => $request->input('recurrence_rule', 'none'),
+            'recurrence_count' => $request->input('recurrence_count', 1),
+            'reminders_enabled' => $request->boolean('reminders_enabled', true),
+            'reminder_days_before' => $request->input('reminder_days_before', 7),
+            'reminder_time' => $request->input('reminder_time', '09:00'),
+        ]);
+
         $validated = $request->validate([
-            'registrant_name' => [$request->user()->role === 'student' ? 'nullable' : 'required', 'string', 'max:160'],
-            'registrant_email' => [$request->user()->role === 'student' ? 'nullable' : 'required', 'email:rfc', 'max:160'],
+            'title' => ['required', 'string', 'max:160'],
+            'starts_at' => ['required', 'date', $isCreating ? 'after:now' : 'nullable'],
+            'ends_at' => ['nullable', 'date', 'after:starts_at'],
+            'venue' => ['required', 'string', 'max:160'],
+            'location' => ['nullable', 'string', 'max:180'],
+            'description' => ['nullable', 'string', 'max:2000'],
+            'about' => ['nullable', 'string', 'max:220'],
+            'detailed_description' => ['nullable', 'string', 'max:8000'],
+            'audience' => ['nullable', 'string', 'max:2000'],
+            'agenda' => ['nullable', 'string', 'max:4000'],
+            'requirements' => ['nullable', 'string', 'max:3000'],
+            'contact_details' => ['nullable', 'string', 'max:2000'],
+            'contact_name' => ['nullable', 'string', 'max:160'],
+            'contact_title' => ['nullable', 'string', 'max:160'],
+            'contact_email' => ['nullable', 'email:rfc', 'max:160'],
+            'contact_phone' => ['nullable', 'string', 'max:80'],
+            'contact_office' => ['nullable', 'string', 'max:180'],
+            'contact_website' => ['nullable', 'url', 'max:2048'],
+            'hero_image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp,gif', 'max:5120'],
+            'hero_image_alt' => ['nullable', 'string', 'max:180'],
+            'video_url' => ['nullable', 'string', 'max:2048'],
+            'video_title' => ['nullable', 'string', 'max:180'],
+            'capacity' => ['required', 'integer', 'min:1', 'max:5000'],
+            'per_school_capacity' => ['nullable', 'integer', 'min:1', 'lte:capacity'],
+            'per_group_capacity' => ['nullable', 'integer', 'min:1', 'lte:capacity'],
+            'status' => ['required', Rule::in(['draft', 'published', 'cancelled'])],
+            'visibility' => ['required', Rule::in(['public', 'invite_only', 'private'])],
+            'guest_registration_enabled' => ['nullable', 'boolean'],
+            'registration_opens_at' => ['nullable', 'date'],
+            'registration_closes_at' => ['nullable', 'date', 'after_or_equal:registration_opens_at', 'before_or_equal:starts_at'],
+            'lifecycle_stage' => ['required', Rule::in(['planning', 'inviting', 'open', 'full', 'in_progress', 'completed', 'archived'])],
+            'recurrence_rule' => ['nullable', Rule::in(['none', 'daily', 'weekly', 'monthly'])],
+            'recurrence_count' => ['nullable', 'integer', 'min:1', 'max:24'],
+            'reminders_enabled' => ['nullable', 'boolean'],
+            'reminder_days_before' => ['required', 'integer', 'min:0', 'max:60'],
+            'reminder_time' => ['required', 'date_format:H:i'],
+        ]);
+
+        foreach (['description', 'detailed_description', 'audience', 'agenda', 'requirements', 'contact_details'] as $field) {
+            $validated[$field] = $this->cleanRichText($validated[$field] ?? null);
+        }
+
+        if (! empty($validated['video_url'])) {
+            $validated['video_url'] = $this->normalizeExternalUrl($validated['video_url']);
+        }
+
+        if ($request->hasFile('hero_image')) {
+            $validated['hero_image_url'] = $this->storePublicProgramImage($request->file('hero_image'));
+        }
+
+        $validated['gallery_image_urls'] = null;
+        unset($validated['hero_image']);
+
+        $validated = $this->withUniversityContactDefaults($request, $validated);
+
+        return $validated;
+    }
+
+    private function storePublicProgramImage(\Illuminate\Http\UploadedFile $image): string
+    {
+        $path = Storage::disk('public')->putFile('programs', $image);
+
+        return '/storage/'.ltrim((string) $path, '/');
+    }
+
+    private function normalizeExternalUrl(string $value): string
+    {
+        $url = trim($value);
+
+        return preg_match('/^https?:\/\//i', $url) ? $url : 'https://'.$url;
+    }
+
+    private function withUniversityContactDefaults(Request $request, array $validated): array
+    {
+        $user = $request->user();
+        if (! $user) {
+            return $validated;
+        }
+
+        $settings = UniversitySetting::query()
+            ->where('university_user_id', $user->id)
+            ->first();
+
+        $defaults = [
+            'contact_name' => $settings?->primary_contact_name ?: $user->name,
+            'contact_title' => $settings?->institution_name ? 'Admissions / outreach office' : null,
+            'contact_email' => $settings?->primary_contact_email ?: $user->email,
+            'contact_phone' => $settings?->primary_contact_phone ?: $user->phone,
+            'contact_office' => $settings?->institution_name,
+            'contact_website' => $settings?->website,
+        ];
+
+        foreach ($defaults as $field => $fallback) {
+            if (($validated[$field] ?? null) === null || trim((string) $validated[$field]) === '') {
+                $validated[$field] = $fallback;
+            }
+        }
+
+        return $validated;
+    }
+
+    private function cleanRichText(?string $value): ?string
+    {
+        if ($value === null || trim($value) === '') {
+            return null;
+        }
+
+        $allowedTags = '<p><br><strong><b><em><i><u><ul><ol><li><h2><h3><a>';
+        $clean = strip_tags($value, $allowedTags);
+        $clean = preg_replace('/\s(?:style|class|id|on\w+)=(["\']).*?\1/i', '', $clean) ?? $clean;
+        $clean = preg_replace('/href=(["\'])\s*javascript:.*?\1/i', 'href="#"', $clean) ?? $clean;
+
+        return trim($clean) ?: null;
+    }
+
+    private function storeProgramRegistration(Request $request, CampusEvent $event, bool $isGuest): EventRegistration
+    {
+        $user = $request->user();
+
+        $validated = $request->validate($isGuest ? [
+            'school_name' => ['required', 'string', 'max:160'],
+            'school_location' => ['nullable', 'string', 'max:180'],
+            'school_website' => ['nullable', 'string', 'max:255'],
+            'contact_name' => ['required', 'string', 'max:160'],
+            'contact_email' => ['required', 'email:rfc', 'max:160'],
+            'contact_phone' => ['nullable', 'string', 'max:80'],
+            'password' => ['required', 'confirmed', PasswordRule::min(8)->letters()->numbers()],
+            'party_size' => ['required', 'integer', 'min:1', 'max:'.max(1, (int) ($event->per_group_capacity ?: 200))],
+            'notes' => ['nullable', 'string', 'max:1200'],
+        ] : [
+            'registrant_name' => [$user?->role === 'student' ? 'nullable' : 'required', 'string', 'max:160'],
+            'registrant_email' => [$user?->role === 'student' ? 'nullable' : 'required', 'email:rfc', 'max:160'],
             'party_size' => ['required', 'integer', 'min:1', 'max:'.max(1, (int) ($event->per_group_capacity ?: 200))],
             'student_ids' => ['nullable', 'array'],
             'student_ids.*' => ['integer', 'exists:users,id'],
         ]);
 
         if ($event->registration_opens_at && now()->lt($event->registration_opens_at)) {
-            return back()->withErrors(['registration' => 'Registration is not open for this visit program yet.']);
+            throw ValidationException::withMessages(['registration' => 'Registration is not open for this visit program yet.']);
         }
 
         if ($event->registration_closes_at && now()->gt($event->registration_closes_at)) {
-            return back()->withErrors(['registration' => 'Registration has closed for this visit program.']);
+            throw ValidationException::withMessages(['registration' => 'Registration has closed for this visit program.']);
         }
 
-        if ($request->user()->role === 'student') {
-            $validated['registrant_name'] = $validated['registrant_name'] ?: $request->user()->name;
-            $validated['registrant_email'] = $validated['registrant_email'] ?: $request->user()->email;
+        if ($isGuest) {
+            if (! empty($validated['school_website'])) {
+                $validated['school_website'] = $this->normalizeExternalUrl($validated['school_website']);
+            }
+            $user = $this->resolvePublicSchoolAccount($validated);
+            $validated['registrant_name'] = $validated['school_name'];
+            $validated['registrant_email'] = Str::of($validated['contact_email'])->lower()->toString();
+            $validated['registrant_type'] = 'school_group';
+            $validated['medical_notes'] = collect([
+                'External school registration',
+                'Contact: '.$validated['contact_name'],
+                ! empty($validated['contact_phone']) ? 'Phone: '.$validated['contact_phone'] : null,
+                ! empty($validated['notes']) ? 'Notes: '.$validated['notes'] : null,
+            ])->filter()->implode("\n");
+            unset($validated['school_name'], $validated['school_location'], $validated['school_website'], $validated['contact_name'], $validated['contact_email'], $validated['contact_phone'], $validated['password'], $validated['password_confirmation'], $validated['notes']);
+        } elseif ($user?->role === 'student') {
+            $validated['registrant_name'] = $validated['registrant_name'] ?: $user->name;
+            $validated['registrant_email'] = $validated['registrant_email'] ?: $user->email;
             $validated['party_size'] = 1;
         }
 
-        $registration = DB::transaction(function () use ($request, $event, $validated): EventRegistration {
+        return DB::transaction(function () use ($request, $event, $validated, $isGuest, $user): EventRegistration {
             $studentIds = collect($validated['student_ids'] ?? [])->map(fn ($id) => (int) $id)->unique()->values();
-            if ($request->user()->isSchool() && $studentIds->isNotEmpty()) {
+            if (! $isGuest && $user?->isSchool() && $studentIds->isNotEmpty()) {
                 $selectedStudentCount = User::query()
                     ->where('role', 'student')
-                    ->where('school_id', $request->user()->school_id)
+                    ->where('school_id', $user->school_id)
                     ->whereIn('id', $studentIds)
                     ->count();
                 if ($selectedStudentCount > 0) {
@@ -344,12 +566,9 @@ class CampusEventController extends Controller
                 ->where('status', 'confirmed')
                 ->where('registrant_email', $validated['registrant_email'])
                 ->sum('party_size');
-
-            if ($event->per_school_capacity && ($registrantConfirmedSeats + (int) $validated['party_size']) > $event->per_school_capacity) {
-                $status = 'waitlisted';
-            } else {
-                $status = ($confirmedSeats + (int) $validated['party_size']) <= $event->capacity ? 'confirmed' : 'waitlisted';
-            }
+            $status = $event->per_school_capacity && ($registrantConfirmedSeats + (int) $validated['party_size']) > $event->per_school_capacity
+                ? 'waitlisted'
+                : (($confirmedSeats + (int) $validated['party_size']) <= $event->capacity ? 'confirmed' : 'waitlisted');
 
             $registration = EventRegistration::updateOrCreate(
                 [
@@ -357,16 +576,16 @@ class CampusEventController extends Controller
                     'registrant_email' => $validated['registrant_email'],
                 ],
                 $validated + [
-                    'user_id' => $request->user()->id,
-                    'registrant_type' => $request->user()->isSchool() ? 'school_group' : 'student',
+                    'user_id' => $user?->id,
+                    'registrant_type' => $validated['registrant_type'] ?? ($user?->isSchool() ? 'school_group' : 'student'),
                     'status' => $status,
                 ]
             );
 
-            if ($request->user()->isSchool()) {
+            if (! $isGuest && $user?->isSchool()) {
                 $students = User::query()
                     ->where('role', 'student')
-                    ->where('school_id', $request->user()->school_id)
+                    ->where('school_id', $user->school_id)
                     ->when($studentIds->isNotEmpty(), fn ($query) => $query->whereIn('id', $studentIds))
                     ->when($studentIds->isEmpty(), fn ($query) => $query->whereJsonContains('assigned_events', $event->title))
                     ->limit((int) $registration->party_size)
@@ -390,55 +609,66 @@ class CampusEventController extends Controller
             }
 
             PlatformNotification::create([
-                'user_id' => $request->user()->id,
+                'user_id' => $user?->id,
                 'campus_event_id' => $event->id,
                 'channel' => 'email',
                 'subject' => $status === 'confirmed' ? 'Registration confirmed' : 'Added to waitlist',
-                'body' => "Your registration for {$event->title} is {$status}.",
+                'body' => ($isGuest ? 'External school registration' : 'Your registration')." for {$event->title} is {$status}.",
                 'status' => 'queued',
             ]);
 
             return $registration;
         });
-
-        return back()->with('status', $registration->status === 'confirmed'
-            ? 'Registration confirmed.'
-            : 'The event is full, so this registration was added to the waitlist.');
     }
 
-    private function validatedEvent(Request $request, bool $isCreating): array
+    private function resolvePublicSchoolAccount(array $validated): User
     {
-        $request->merge([
-            'visibility' => $request->input('visibility', 'public'),
-            'lifecycle_stage' => $request->input('lifecycle_stage', $request->input('status') === 'published' ? 'open' : 'planning'),
-            'recurrence_rule' => $request->input('recurrence_rule', 'none'),
-            'recurrence_count' => $request->input('recurrence_count', 1),
-            'reminders_enabled' => $request->boolean('reminders_enabled', true),
-            'reminder_days_before' => $request->input('reminder_days_before', 7),
-            'reminder_time' => $request->input('reminder_time', '09:00'),
+        $email = Str::of($validated['contact_email'])->lower()->trim()->toString();
+        $existingUser = User::query()->where('email', $email)->first();
+
+        if ($existingUser) {
+            if (! $existingUser->isSchool() || ! Hash::check($validated['password'], $existingUser->password)) {
+                throw ValidationException::withMessages([
+                    'contact_email' => 'This email is already attached to an account. Use the correct school account password or sign in first.',
+                ]);
+            }
+
+            Auth::guard('web')->login($existingUser, true);
+            request()->session()->regenerate();
+
+            return $existingUser;
+        }
+
+        $school = School::query()->updateOrCreate(
+            ['coordinator_email' => $email],
+            [
+                'name' => $validated['school_name'],
+                'location' => $validated['school_location'] ?? null,
+                'website' => $validated['school_website'] ?? null,
+                'coordinator_name' => $validated['contact_name'],
+                'coordinator_phone' => $validated['contact_phone'] ?? null,
+                'email_notifications' => true,
+                'visit_notes' => 'Created from public programme registration.',
+            ],
+        );
+
+        $user = User::query()->create([
+            'name' => $validated['contact_name'],
+            'email' => $email,
+            'phone' => $validated['contact_phone'] ?? null,
+            'password' => Hash::make($validated['password']),
+            'role' => 'school',
+            'access_status' => 'active',
+            'school_id' => $school->id,
+            'email_verified_at' => now(),
+            'is_demo' => false,
+            'two_factor_enabled' => false,
         ]);
 
-        return $request->validate([
-            'title' => ['required', 'string', 'max:160'],
-            'starts_at' => ['required', 'date', $isCreating ? 'after:now' : 'nullable'],
-            'ends_at' => ['nullable', 'date', 'after:starts_at'],
-            'venue' => ['required', 'string', 'max:160'],
-            'location' => ['nullable', 'string', 'max:180'],
-            'description' => ['nullable', 'string', 'max:2000'],
-            'capacity' => ['required', 'integer', 'min:1', 'max:5000'],
-            'per_school_capacity' => ['nullable', 'integer', 'min:1', 'lte:capacity'],
-            'per_group_capacity' => ['nullable', 'integer', 'min:1', 'lte:capacity'],
-            'status' => ['required', Rule::in(['draft', 'published', 'cancelled'])],
-            'visibility' => ['required', Rule::in(['public', 'invite_only', 'private'])],
-            'registration_opens_at' => ['nullable', 'date'],
-            'registration_closes_at' => ['nullable', 'date', 'after_or_equal:registration_opens_at', 'before_or_equal:starts_at'],
-            'lifecycle_stage' => ['required', Rule::in(['planning', 'inviting', 'open', 'full', 'in_progress', 'completed', 'archived'])],
-            'recurrence_rule' => ['nullable', Rule::in(['none', 'daily', 'weekly', 'monthly'])],
-            'recurrence_count' => ['nullable', 'integer', 'min:1', 'max:24'],
-            'reminders_enabled' => ['nullable', 'boolean'],
-            'reminder_days_before' => ['required', 'integer', 'min:0', 'max:60'],
-            'reminder_time' => ['required', 'date_format:H:i'],
-        ]);
+        Auth::guard('web')->login($user, true);
+        request()->session()->regenerate();
+
+        return $user;
     }
 
     private function hasVenueConflict(array $event, ?int $ignoreId = null): bool
@@ -589,5 +819,68 @@ class CampusEventController extends Controller
                 'user_agent' => Str::limit((string) $request->userAgent(), 180, ''),
             ], $metadata),
         ]);
+    }
+
+    private function uniqueShareSlug(string $title, ?int $ignoreId = null): string
+    {
+        $base = Str::slug($title) ?: 'program';
+        $slug = $base;
+        $suffix = 2;
+
+        while (CampusEvent::query()
+            ->where('share_slug', $slug)
+            ->when($ignoreId, fn ($query) => $query->whereKeyNot($ignoreId))
+            ->exists()) {
+            $slug = $base.'-'.$suffix;
+            $suffix++;
+        }
+
+        return $slug;
+    }
+
+    private function publicProgramPayload(CampusEvent $event): array
+    {
+        $confirmedSeats = (int) ($event->confirmed_seats ?? $event->registrations()->where('status', 'confirmed')->sum('party_size'));
+        $remainingSeats = max(0, (int) $event->capacity - $confirmedSeats);
+
+        return [
+            'id' => $event->id,
+            'title' => $event->title,
+            'university' => $event->university?->name,
+            'startsAt' => $event->starts_at?->toIso8601String(),
+            'endsAt' => $event->ends_at?->toIso8601String(),
+            'registrationOpensAt' => $event->registration_opens_at?->toIso8601String(),
+            'registrationClosesAt' => $event->registration_closes_at?->toIso8601String(),
+            'venue' => $event->venue,
+            'location' => $event->location,
+            'description' => $event->description,
+            'about' => $event->about,
+            'detailedDescription' => $event->detailed_description,
+            'audience' => $event->audience,
+            'agenda' => $event->agenda,
+            'requirements' => $event->requirements,
+            'contactDetails' => $event->contact_details,
+            'contactName' => $event->contact_name,
+            'contactTitle' => $event->contact_title,
+            'contactEmail' => $event->contact_email,
+            'contactPhone' => $event->contact_phone,
+            'contactOffice' => $event->contact_office,
+            'contactWebsite' => $event->contact_website,
+            'heroImageUrl' => $event->hero_image_url,
+            'heroImageAlt' => $event->hero_image_alt,
+            'galleryImageUrls' => $event->gallery_image_urls ?: [],
+            'videoUrl' => $event->video_url,
+            'videoTitle' => $event->video_title,
+            'capacity' => (int) $event->capacity,
+            'confirmedSeats' => $confirmedSeats,
+            'remainingSeats' => $remainingSeats,
+            'perSchoolCapacity' => $event->per_school_capacity,
+            'perGroupCapacity' => $event->per_group_capacity,
+            'guestRegistrationEnabled' => (bool) $event->guest_registration_enabled,
+            'registrationOpen' => (! $event->registration_opens_at || now()->gte($event->registration_opens_at))
+                && (! $event->registration_closes_at || now()->lte($event->registration_closes_at)),
+            'shareSlug' => $event->share_slug,
+            'shareUrl' => route('programs.public.show', $event->share_slug),
+        ];
     }
 }

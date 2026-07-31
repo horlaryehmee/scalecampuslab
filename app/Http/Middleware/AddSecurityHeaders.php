@@ -31,31 +31,36 @@ class AddSecurityHeaders
     private function contentSecurityPolicy(): string
     {
         $directives = [
-            "default-src 'self'",
-            "base-uri 'self'",
-            "object-src 'none'",
-            "frame-ancestors 'self'",
-            "form-action 'self'",
-            "img-src 'self' data: blob: https:",
-            "font-src 'self' data:",
-            "style-src 'self' 'unsafe-inline'",
-            "script-src 'self'",
-            "connect-src 'self'",
-            "frame-src 'self' https://www.openstreetmap.org",
-            "media-src 'self' blob:",
-            "worker-src 'self' blob:",
-            "manifest-src 'self'",
+            'default-src' => "default-src 'self'",
+            'base-uri' => "base-uri 'self'",
+            'object-src' => "object-src 'none'",
+            'frame-ancestors' => "frame-ancestors 'self'",
+            'form-action' => "form-action 'self'",
+            'img-src' => "img-src 'self' data: blob: https:",
+            'font-src' => "font-src 'self' data: https://fonts.gstatic.com",
+            'style-src' => "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+            'script-src' => "script-src 'self'",
+            'connect-src' => "connect-src 'self'",
+            'frame-src' => "frame-src 'self' https://www.openstreetmap.org https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com",
+            'media-src' => "media-src 'self' blob:",
+            'worker-src' => "worker-src 'self' blob:",
+            'manifest-src' => "manifest-src 'self'",
         ];
 
         if (app()->isLocal()) {
-            $directives[8] = "script-src 'self' 'unsafe-inline' http://localhost:* http://127.0.0.1:* http://[::1]:*";
-            $directives[9] = "connect-src 'self' http://localhost:* http://127.0.0.1:* http://[::1]:* ws://localhost:* ws://127.0.0.1:* ws://[::1]:*";
+            $viteHttp = 'http://localhost:* http://127.0.0.1:*';
+            $viteWs = 'ws://localhost:* ws://127.0.0.1:*';
+
+            $directives['font-src'] = "font-src 'self' data: https://fonts.gstatic.com {$viteHttp}";
+            $directives['style-src'] = "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com {$viteHttp}";
+            $directives['script-src'] = "script-src 'self' 'unsafe-inline' {$viteHttp}";
+            $directives['connect-src'] = "connect-src 'self' {$viteHttp} {$viteWs}";
         }
 
         if (app()->isProduction()) {
             $directives[] = 'upgrade-insecure-requests';
         }
 
-        return implode('; ', $directives).';';
+        return implode('; ', array_values($directives)).';';
     }
 }
