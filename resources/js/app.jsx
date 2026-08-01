@@ -11875,19 +11875,20 @@ function PartnerSchoolMessageModal({ csrf, school, recipient, onClose }) {
                 <input type="hidden" name="_token" value={csrf} />
                 <div className="flex items-start justify-between gap-4 border-b border-slate-100 p-4">
                     <div>
-                        <p className="text-[11px] font-black uppercase tracking-[0.16em] text-blue-700">System message</p>
-                        <h2 className="mt-1 text-xl font-black text-slate-950">Message {school.name}</h2>
+                        <p className="text-[11px] font-black uppercase tracking-[0.16em] text-blue-700">Communications</p>
+                        <h2 className="mt-1 text-xl font-black text-slate-950">New School Message</h2>
                         <p className="mt-1 text-xs font-semibold text-slate-500">To {recipient.role}: {recipient.name}{recipient.email ? ` · ${recipient.email}` : ''}</p>
                     </div>
                     <button type="button" onClick={onClose} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-slate-200 text-slate-500"><X size={16} /></button>
                 </div>
                 <div className="grid gap-3 p-4">
-                    <input name="subject" required defaultValue={`Follow-up with ${school.name}`} className="rounded-lg border border-slate-200 px-3 py-2.5 text-sm font-semibold" />
-                    <textarea name="message" required rows="5" className="rounded-lg border border-slate-200 px-3 py-2.5 text-sm leading-6" defaultValue={`Hi ${greeting}, we'd like to coordinate the next visit opportunity with ${school.name}.`} />
+                    <label className="text-sm font-bold text-slate-700">Subject<input name="subject" required defaultValue={`Visit coordination with ${school.name}`} className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm font-semibold" /></label>
+                    <label className="text-sm font-bold text-slate-700">Message<textarea name="message" required rows="6" className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm leading-6" defaultValue={`Hi ${greeting},\n\nWe would like to coordinate the next visit opportunity with ${school.name}. Please let us know your preferred dates, student group size, and any support your team needs.\n\nThank you.`} /></label>
+                    <p className="rounded-lg bg-blue-50 px-3 py-2 text-xs font-semibold leading-5 text-blue-700">This will be saved in Communications as a thread so replies can continue there.</p>
                 </div>
                 <div className="grid grid-cols-2 gap-2 border-t border-slate-100 p-4">
                     <button type="button" onClick={onClose} className="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-black text-slate-700">Cancel</button>
-                    <button className="rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-black text-white">Send Message</button>
+                    <button className="rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-black text-white">Send</button>
                 </div>
             </form>
         </section>

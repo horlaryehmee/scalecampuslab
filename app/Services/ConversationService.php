@@ -29,9 +29,12 @@ class ConversationService
             ->whereNotNull('email_verified_at');
 
         if ($actorRole !== 'admin') {
-            $roles = $actorRole === 'student'
-                ? ['admin', 'university', 'school', 'high_school']
-                : ['admin', 'student'];
+            $roles = match ($actorRole) {
+                'student' => ['admin', 'university', 'school', 'high_school'],
+                'university' => ['admin', 'student', 'school', 'high_school'],
+                'school' => ['admin', 'student', 'university'],
+                default => ['admin', 'student'],
+            };
 
             $query->whereIn('role', $roles);
         }
@@ -255,6 +258,8 @@ class ConversationService
         $recipientRole = $this->normalizedRole($recipient);
         $allowed = $actorRole === 'admin'
             || $recipientRole === 'admin'
+            || ($actorRole === 'university' && $recipientRole === 'school')
+            || ($actorRole === 'school' && $recipientRole === 'university')
             || ($actorRole === 'student' && in_array($recipientRole, ['university', 'school'], true))
             || ($recipientRole === 'student' && in_array($actorRole, ['university', 'school'], true));
 

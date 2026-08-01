@@ -38,6 +38,7 @@ use App\Models\VisitRequest;
 use App\Models\VisitTask;
 use App\Models\WaitlistSignup;
 use App\Services\AccountSessionRevoker;
+use App\Services\ConversationService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -57,7 +58,10 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class DashboardController extends Controller
 {
-    public function __construct(private readonly AccountSessionRevoker $sessionRevoker) {}
+    public function __construct(
+        private readonly AccountSessionRevoker $sessionRevoker,
+        private readonly ConversationService $conversations,
+    ) {}
 
     public function admin(): View
     {
@@ -828,12 +832,25 @@ class DashboardController extends Controller
         $linkedSchool = School::query()
             ->where('name', $school->name)
             ->first();
-        $recipientEmail = filter_var($linkedSchool?->counselor_email, FILTER_VALIDATE_EMAIL)
+        $preferredEmail = filter_var($linkedSchool?->counselor_email, FILTER_VALIDATE_EMAIL)
             ? $linkedSchool->counselor_email
             : $school->coordinator_email;
+        $recipientUser = $linkedSchool
+            ? User::query()
+                ->where('school_id', $linkedSchool->id)
+                ->whereIn('role', ['school', 'high_school'])
+                ->where('access_status', 'active')
+                ->whereNotNull('email_verified_at')
+                ->orderByRaw('CASE WHEN email = ? THEN 0 ELSE 1 END', [$preferredEmail])
+                ->orderBy('id')
+                ->first()
+            : null;
+        $recipientEmail = filter_var($preferredEmail, FILTER_VALIDATE_EMAIL)
+            ? $preferredEmail
+            : $recipientUser?->email;
         $recipientName = $linkedSchool?->counselor_email === $recipientEmail
             ? ($linkedSchool->counselor_name ?: 'School counselor')
-            : ($school->coordinator_name ?: $school->name);
+            : ($recipientUser?->name ?: ($school->coordinator_name ?: $school->name));
 
         if (! filter_var($recipientEmail, FILTER_VALIDATE_EMAIL)) {
             return back()->withErrors([
@@ -845,6 +862,17 @@ class DashboardController extends Controller
             'subject' => ['required', 'string', 'max:160'],
             'message' => ['required', 'string', 'max:2000'],
         ]);
+
+        if ($recipientUser) {
+            $this->conversations->start(
+                $request->user(),
+                $recipientUser,
+                $validated['subject'],
+                $validated['message'],
+            );
+
+            return back()->with('status', 'Message sent and saved in Communications.');
+        }
 
         PlatformNotification::create([
             'notification_type' => 'partner_school.outreach',
@@ -872,7 +900,7 @@ class DashboardController extends Controller
             'ai_suggested' => false,
         ]);
 
-        return back()->with('status', 'Email outreach queued for delivery.');
+        return back()->with('status', 'No active school account was found. Email outreach queued for delivery.');
     }
 
     public function storeUniversityPartnerTask(Request $request, TargetSchool $school): RedirectResponse
