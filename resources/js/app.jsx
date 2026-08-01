@@ -8708,6 +8708,7 @@ function UniversityAttendeesSection({ csrf, registrations = [], events = [] }) {
     const [editing, setEditing] = useState(null);
     const [profile, setProfile] = useState(null);
     const [attendanceGroup, setAttendanceGroup] = useState(null);
+    const [attendanceReturnGroup, setAttendanceReturnGroup] = useState(null);
     const [messageOpen, setMessageOpen] = useState(false);
     const [importOpen, setImportOpen] = useState(false);
     const [bulkAction, setBulkAction] = useState('check_in');
@@ -8758,6 +8759,30 @@ function UniversityAttendeesSection({ csrf, registrations = [], events = [] }) {
         const event = events.find((item) => item.title === program || String(item.id) === String(program));
         const params = event ? `?campus_event_id=${encodeURIComponent(event.id)}` : '';
         window.location.href = `/dashboard/university/attendees/export${params}`;
+    };
+    const openAttendanceProfile = (item) => {
+        setAttendanceReturnGroup(attendanceGroup);
+        setAttendanceGroup(null);
+        setProfile(item);
+    };
+    const openAttendanceEdit = (item) => {
+        setAttendanceReturnGroup(attendanceGroup);
+        setAttendanceGroup(null);
+        setEditing(item);
+    };
+    const returnToAttendance = () => {
+        setProfile(null);
+        setEditing(null);
+        setAttendanceGroup(attendanceReturnGroup);
+        setAttendanceReturnGroup(null);
+    };
+    const closeEditing = () => {
+        setEditing(null);
+        setAttendanceReturnGroup(null);
+    };
+    const closeProfile = () => {
+        setProfile(null);
+        setAttendanceReturnGroup(null);
     };
 
     return (
@@ -8921,10 +8946,15 @@ function UniversityAttendeesSection({ csrf, registrations = [], events = [] }) {
             </section>
 
             {editing && (
-                <StudentModal title="Edit Attendee" onClose={() => setEditing(null)}>
+                <StudentModal title="Edit Attendee" onClose={closeEditing}>
                     <form action={`/dashboard/university/attendees/${editing.id}`} method="POST" className="space-y-4">
                         <input type="hidden" name="_token" value={csrf} />
                         <input type="hidden" name="_method" value="PUT" />
+                        {attendanceReturnGroup && (
+                            <button type="button" onClick={returnToAttendance} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50">
+                                <ArrowRight size={14} className="rotate-180" /> Back to attendance
+                            </button>
+                        )}
                         <LightField label="Name" name="registrant_name" defaultValue={editing.name || ''} />
                         <LightField label="Email" name="registrant_email" type="email" defaultValue={editing.email || ''} />
                         <div className="grid gap-4 md:grid-cols-2">
@@ -8979,7 +9009,7 @@ function UniversityAttendeesSection({ csrf, registrations = [], events = [] }) {
                             </div>
                         </div>
                         <div className="flex justify-end gap-3">
-                            <button type="button" onClick={() => setEditing(null)} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-black text-slate-600">Cancel</button>
+                            <button type="button" onClick={closeEditing} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-black text-slate-600">Cancel</button>
                             <button className="rounded-lg bg-slate-950 px-4 py-2 text-sm font-black text-white">Save Changes</button>
                         </div>
                     </form>
@@ -8987,8 +9017,13 @@ function UniversityAttendeesSection({ csrf, registrations = [], events = [] }) {
             )}
 
             {profile && (
-                <StudentModal title="Attendee Profile" onClose={() => setProfile(null)}>
+                <StudentModal title="Attendee Profile" onClose={closeProfile}>
                     <div className="space-y-4">
+                        {attendanceReturnGroup && (
+                            <button type="button" onClick={returnToAttendance} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50">
+                                <ArrowRight size={14} className="rotate-180" /> Back to attendance
+                            </button>
+                        )}
                         <div className="rounded-2xl bg-slate-950 p-5 text-white">
                             <div className="flex items-start gap-3">
                                 <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white/10 text-sm font-black">{initials(profile.name)}</span>
@@ -9062,11 +9097,11 @@ function UniversityAttendeesSection({ csrf, registrations = [], events = [] }) {
                                                     <input type="hidden" name="_token" value={csrf} />
                                                     <button className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-black text-slate-700">{item.checkedIn ? 'Check out' : 'Check in'}</button>
                                                 </form>
-                                                <button type="button" onClick={() => setProfile(item)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-black text-slate-700">Profile</button>
-                                                <button type="button" onClick={() => setEditing(item)} className="rounded-lg bg-slate-950 px-3 py-2 text-xs font-black text-white">Edit</button>
+                                                <button type="button" onClick={() => openAttendanceProfile(item)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-black text-slate-700">Profile</button>
+                                                <button type="button" onClick={() => openAttendanceEdit(item)} className="rounded-lg bg-slate-950 px-3 py-2 text-xs font-black text-white">Edit</button>
                                             </div>
                                         </div>
-                                        <AttendeeRosterList registration={item} onProfile={setProfile} compact />
+                                        <AttendeeRosterList registration={item} onProfile={openAttendanceProfile} compact />
                                     </article>
                                 ))}
                             </div>
