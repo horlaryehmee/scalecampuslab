@@ -11689,6 +11689,7 @@ function PartnerSchoolEditor({ csrf, school, onClose }) {
 
 function PartnerSchoolDetail({ csrf, school, archives, visitsCount, onBack, onEdit }) {
     const [showAllHistory, setShowAllHistory] = useState(false);
+    const [messageOpen, setMessageOpen] = useState(false);
     const leadsCaptured = archives.reduce((total, archive) => total + Number(archive.leads || 0), 0);
     const relationshipScore = Number(school.matchScore || 0);
     const activeApplicants = Number(school.activeApplicants || 0);
@@ -11719,6 +11720,9 @@ function PartnerSchoolDetail({ csrf, school, archives, visitsCount, onBack, onEd
         ['Counselor', school.counselorName, school.counselorEmail, school.counselorPhone],
         ['STEM Coordinator', school.emergencyContactName, school.emergencyContactEmail, school.emergencyContactPhone],
     ].filter(([, name, email, phone]) => name || email || phone);
+    const messageRecipient = school.counselorEmail
+        ? { role: 'Counselor', name: school.counselorName || 'School counselor', email: school.counselorEmail }
+        : { role: 'Coordinator', name: coordinatorName || school.coordinatorName || school.name, email: school.coordinatorEmail };
     const timeline = [
         ...archives.map((archive) => ({
             id: `archive-${archive.id}`,
@@ -11742,6 +11746,8 @@ function PartnerSchoolDetail({ csrf, school, archives, visitsCount, onBack, onEd
 
     return (
         <section className="grid gap-3 md:gap-4">
+            {messageOpen && <PartnerSchoolMessageModal csrf={csrf} school={school} recipient={messageRecipient} onClose={() => setMessageOpen(false)} />}
+
             <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
                 <button type="button" onClick={onBack} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-2 font-black text-slate-700">
                     <ChevronRight size={14} className="rotate-180" /> Directory
@@ -11777,7 +11783,7 @@ function PartnerSchoolDetail({ csrf, school, archives, visitsCount, onBack, onEd
                                 </button>
                             </form>
                         ) : null}
-                        <button type="button" onClick={() => document.getElementById('partner-contact-form')?.scrollIntoView({ behavior: 'smooth', block: 'center' })} className="inline-flex items-center justify-center gap-2 rounded-lg border border-blue-200 bg-white px-4 py-2.5 text-sm font-black text-blue-700">
+                        <button type="button" onClick={() => setMessageOpen(true)} className="inline-flex items-center justify-center gap-2 rounded-lg border border-blue-200 bg-white px-4 py-2.5 text-sm font-black text-blue-700">
                             <MailCheck size={16} /> Message
                         </button>
                     </div>
@@ -11850,37 +11856,40 @@ function PartnerSchoolDetail({ csrf, school, archives, visitsCount, onBack, onEd
                     </section>
 
                     <section className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm md:p-4">
-                        <div className="flex items-center justify-between">
-                            <h2 className="text-base font-black text-slate-950">Internal Notes</h2>
-                            <button type="button" onClick={() => document.getElementById('partner-follow-up-title')?.focus()} className="rounded-lg border border-slate-200 px-2 py-1 text-xs font-black text-slate-600">Add</button>
-                        </div>
-                        <div className="mt-3 space-y-2">
-                            {school.notes && <StrategicNote body={school.notes} author="Saved note" />}
-                            {(school.tasks || []).slice(0, 3).map((task) => <StrategicNote key={task.id} body={task.description || task.title} author="Follow-up" date={task.createdAt} />)}
-                        </div>
-                        <form action={`/dashboard/university/partner-schools/${school.id}/tasks`} method="POST" className="mt-3 grid gap-2">
-                            <input type="hidden" name="_token" value={csrf} />
-                            <input id="partner-follow-up-title" name="title" required placeholder="Follow-up title..." className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold" />
-                            <textarea name="description" rows="2" placeholder="What should happen next?" className="rounded-lg border border-slate-200 px-3 py-2 text-sm" />
-                            <button className="rounded-lg bg-slate-950 px-3 py-2 text-sm font-black text-white">Save Follow-up</button>
-                        </form>
-                    </section>
-
-                    <section className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm md:p-4">
                         <h2 className="text-base font-black text-slate-950">Map</h2>
                         {hasExactCoordinates ? <div className="mt-3"><OpenStreetMapEmbed location={`${school.name}, ${school.city}, ${school.country}`} points={[{ label: school.name, location: `${school.city}, ${school.country}`, latitude: school.latitude, longitude: school.longitude, meta: `${visitsCount} visit record(s) • ${relationshipScore}/100 priority` }]} title={`${school.name} location on OpenStreetMap`} className="h-36" /></div> : <div className="mt-3 grid h-36 place-items-center rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-center text-xs font-semibold text-slate-500">Exact map coordinates have not been recorded for this school.</div>}
                         <OpenStreetMapLink location={`${school.name}, ${school.city}, ${school.country}`} className="mt-2 inline-flex items-center gap-1 text-xs font-black text-blue-700"><MapIcon size={13} /> Open in OpenStreetMap</OpenStreetMapLink>
                     </section>
-
-                    <form id="partner-contact-form" action={`/dashboard/university/partner-schools/${school.id}/contact`} method="POST" className="grid gap-2 rounded-lg border border-slate-200 bg-white p-3 shadow-sm md:p-4">
-                        <input type="hidden" name="_token" value={csrf} />
-                        <h2 className="text-base font-black text-slate-950">Message</h2>
-                        <input name="subject" required defaultValue={`Follow-up with ${school.name}`} className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold" />
-                        <textarea name="message" required rows="3" className="rounded-lg border border-slate-200 px-3 py-2 text-sm" defaultValue={`Hi ${school.coordinatorName || 'Counselor'}, we'd like to coordinate the next visit opportunity.`} />
-                        <button className="rounded-lg bg-[#006a61] px-3 py-2 text-sm font-black text-white">Send Message</button>
-                    </form>
                 </aside>
             </div>
+        </section>
+    );
+}
+
+function PartnerSchoolMessageModal({ csrf, school, recipient, onClose }) {
+    const greeting = recipient.name ? recipient.name.split(' ')[0] : recipient.role;
+
+    return (
+        <section className="fixed inset-0 z-[90] grid place-items-center bg-slate-950/55 px-3 py-5 backdrop-blur-sm">
+            <form action={`/dashboard/university/partner-schools/${school.id}/contact`} method="POST" className="w-full max-w-lg overflow-hidden rounded-2xl border border-white/70 bg-white shadow-2xl">
+                <input type="hidden" name="_token" value={csrf} />
+                <div className="flex items-start justify-between gap-4 border-b border-slate-100 p-4">
+                    <div>
+                        <p className="text-[11px] font-black uppercase tracking-[0.16em] text-blue-700">System message</p>
+                        <h2 className="mt-1 text-xl font-black text-slate-950">Message {school.name}</h2>
+                        <p className="mt-1 text-xs font-semibold text-slate-500">To {recipient.role}: {recipient.name}{recipient.email ? ` · ${recipient.email}` : ''}</p>
+                    </div>
+                    <button type="button" onClick={onClose} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-slate-200 text-slate-500"><X size={16} /></button>
+                </div>
+                <div className="grid gap-3 p-4">
+                    <input name="subject" required defaultValue={`Follow-up with ${school.name}`} className="rounded-lg border border-slate-200 px-3 py-2.5 text-sm font-semibold" />
+                    <textarea name="message" required rows="5" className="rounded-lg border border-slate-200 px-3 py-2.5 text-sm leading-6" defaultValue={`Hi ${greeting}, we'd like to coordinate the next visit opportunity with ${school.name}.`} />
+                </div>
+                <div className="grid grid-cols-2 gap-2 border-t border-slate-100 p-4">
+                    <button type="button" onClick={onClose} className="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-black text-slate-700">Cancel</button>
+                    <button className="rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-black text-white">Send Message</button>
+                </div>
+            </form>
         </section>
     );
 }

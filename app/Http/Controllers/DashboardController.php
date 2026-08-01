@@ -825,9 +825,19 @@ class DashboardController extends Controller
     {
         abort_unless($request->user()?->role === 'university', 403);
 
-        if (! filter_var($school->coordinator_email, FILTER_VALIDATE_EMAIL)) {
+        $linkedSchool = School::query()
+            ->where('name', $school->name)
+            ->first();
+        $recipientEmail = filter_var($linkedSchool?->counselor_email, FILTER_VALIDATE_EMAIL)
+            ? $linkedSchool->counselor_email
+            : $school->coordinator_email;
+        $recipientName = $linkedSchool?->counselor_email === $recipientEmail
+            ? ($linkedSchool->counselor_name ?: 'School counselor')
+            : ($school->coordinator_name ?: $school->name);
+
+        if (! filter_var($recipientEmail, FILTER_VALIDATE_EMAIL)) {
             return back()->withErrors([
-                'school' => 'Add a valid coordinator email before sending outreach to this school.',
+                'school' => 'Add a valid counselor or coordinator email before sending outreach to this school.',
             ]);
         }
 
@@ -846,8 +856,8 @@ class DashboardController extends Controller
             'status' => 'queued',
             'scheduled_for' => now(),
             'metadata' => [
-                'registrant_email' => $school->coordinator_email,
-                'registrant_name' => $school->coordinator_name ?: $school->name,
+                'registrant_email' => $recipientEmail,
+                'registrant_name' => $recipientName,
                 'sender_user_id' => $request->user()->id,
                 'target_school_id' => $school->id,
             ],
