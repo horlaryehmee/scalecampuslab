@@ -279,7 +279,7 @@ class DatabaseSeeder extends Seeder
 
         foreach ($schools as [$name, $code, $city, $state, $region, $country, $type, $tier, $sat, $yield, $score, $applicants, $district, $principal, $counselor, $curriculum, $calendar, $studentCount, $gradeRange]) {
             $slug = Str::slug($name);
-            School::updateOrCreate(
+            $schoolProfile = School::updateOrCreate(
                 ['school_code' => $code],
                 [
                     'name' => $name,
@@ -328,6 +328,21 @@ class DatabaseSeeder extends Seeder
                     'visit_notes' => 'Prefers structured admissions briefings, faculty sessions, lunch timing, accessibility planning, and post-visit application follow-up.',
                     'email_notifications' => true,
                     'is_demo' => true,
+                ]
+            );
+
+            User::updateOrCreate(
+                ['email' => "counselor@{$slug}.scalecampuslab.test"],
+                [
+                    'name' => $counselor,
+                    'role' => 'school',
+                    'school_id' => $schoolProfile->id,
+                    'phone' => $schoolProfile->coordinator_phone ?: '+1 555 0120',
+                    'access_status' => 'active',
+                    'email_verified_at' => now(),
+                    'is_demo' => true,
+                    'two_factor_enabled' => false,
+                    'password' => Hash::make('password'),
                 ]
             );
 

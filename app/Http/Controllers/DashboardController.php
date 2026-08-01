@@ -3652,18 +3652,23 @@ class DashboardController extends Controller
             ->limit(250)
             ->get();
         $linkedSchools = School::query()
-            ->whereIn('name', $targetSchools->pluck('name')->filter()->unique()->values())
+            ->where(function ($query) use ($targetSchools): void {
+                $query->whereIn('name', $targetSchools->pluck('name')->filter()->unique()->values())
+                    ->orWhereIn('school_code', $targetSchools->pluck('school_code')->filter()->unique()->values());
+            })
             ->withCount(['users as active_coordinator_count' => fn ($users) => $users
                 ->whereIn('role', ['school', 'high_school'])
                 ->where('access_status', 'active')
                 ->whereNotNull('email_verified_at')])
-            ->get()
-            ->keyBy(fn (School $school) => Str::lower($school->name));
+            ->get();
+        $linkedSchoolsByName = $linkedSchools->keyBy(fn (School $school) => Str::lower($school->name));
+        $linkedSchoolsByCode = $linkedSchools->keyBy('school_code');
 
         return $targetSchools
-            ->map(function (TargetSchool $school) use ($linkedSchools): array {
+            ->map(function (TargetSchool $school) use ($linkedSchoolsByName, $linkedSchoolsByCode): array {
                 /** @var School|null $linkedSchool */
-                $linkedSchool = $linkedSchools->get(Str::lower($school->name));
+                $linkedSchool = $linkedSchoolsByCode->get($school->school_code)
+                    ?: $linkedSchoolsByName->get(Str::lower($school->name));
 
                 return [
                     'id' => $school->id,
