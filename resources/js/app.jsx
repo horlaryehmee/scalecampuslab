@@ -8707,6 +8707,7 @@ function UniversityAttendeesSection({ csrf, registrations = [], events = [] }) {
     const [selected, setSelected] = useState([]);
     const [editing, setEditing] = useState(null);
     const [profile, setProfile] = useState(null);
+    const [attendanceGroup, setAttendanceGroup] = useState(null);
     const [messageOpen, setMessageOpen] = useState(false);
     const [importOpen, setImportOpen] = useState(false);
     const [bulkAction, setBulkAction] = useState('check_in');
@@ -8725,8 +8726,10 @@ function UniversityAttendeesSection({ csrf, registrations = [], events = [] }) {
             && (program === 'all' || item.event === program)
             && (interest === 'all' || item.interest === interest));
     }, [searchableRegistrations, query, status, program, interest]);
-    const pages = Math.max(1, Math.ceil(filtered.length / perPage));
-    const visible = filtered.slice((page - 1) * perPage, page * perPage);
+    const schoolGroups = useMemo(() => attendeeSchoolGroups(filtered), [filtered]);
+    const pages = Math.max(1, Math.ceil(schoolGroups.length / perPage));
+    const visibleGroups = schoolGroups.slice((page - 1) * perPage, page * perPage);
+    const visible = visibleGroups.flatMap((group) => group.registrations);
     const selectedVisible = visible.length > 0 && visible.every((item) => selected.includes(item.id));
     const totalSeats = filtered.reduce((sum, item) => sum + Number(item.partySize || 0), 0);
     const confirmedSeats = filtered.filter((item) => item.status === 'confirmed').reduce((sum, item) => sum + Number(item.partySize || 0), 0);
@@ -8741,13 +8744,15 @@ function UniversityAttendeesSection({ csrf, registrations = [], events = [] }) {
         setSelected((current) => current.filter((id) => filtered.some((item) => item.id === id)));
     }, [filtered, perPage]);
 
-    const toggleOne = (id) => {
-        setSelected((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
-    };
     const toggleVisible = () => {
         setSelected((current) => selectedVisible
             ? current.filter((id) => !visible.some((item) => item.id === id))
             : [...new Set([...current, ...visible.map((item) => item.id)])]);
+    };
+    const toggleGroup = (group) => {
+        const ids = group.registrations.map((item) => item.id);
+        const allSelected = ids.every((id) => selected.includes(id));
+        setSelected((current) => allSelected ? current.filter((id) => !ids.includes(id)) : [...new Set([...current, ...ids])]);
     };
     const exportCsv = () => {
         const event = events.find((item) => item.title === program || String(item.id) === String(program));
@@ -8827,96 +8832,86 @@ function UniversityAttendeesSection({ csrf, registrations = [], events = [] }) {
 
             <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
                 <div className="grid gap-2 p-3 md:hidden">
-                    {visible.map((item) => (
-                        <article key={item.id} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+                    {visibleGroups.map((group) => (
+                        <article key={group.key} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
                             <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0">
-                                    <p className="truncate text-sm font-black text-slate-950">{item.name}</p>
-                                    <p className="mt-1 truncate text-[11px] font-semibold text-slate-500">{item.school || 'Direct student'} • {item.partySize} seat(s) • {(item.students || []).length} profile(s)</p>
+                                    <p className="truncate text-sm font-black text-slate-950">{group.school}</p>
+                                    <p className="mt-1 truncate text-[11px] font-semibold text-slate-500">{group.location || 'Location TBA'} • {group.registrations.length} booking(s)</p>
                                 </div>
-                                <AttendeeStatusBadge status={item.status} attended={item.attended} />
+                                <span className="rounded-full bg-[#e5eeff] px-2.5 py-1 text-[10px] font-black text-[#0b1c30]">{group.seats.toLocaleString()} seats</span>
                             </div>
                             <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] font-semibold text-slate-500">
-                                <span className="truncate rounded-lg bg-slate-50 px-2.5 py-2">{item.event || 'Program TBA'}</span>
-                                <span className="truncate rounded-lg bg-slate-50 px-2.5 py-2">{formatShortDate(item.eventDate)}</span>
-                                <span className="truncate rounded-lg bg-slate-50 px-2.5 py-2">{item.interest || 'Mixed interests'}</span>
-                                <span className="truncate rounded-lg bg-slate-50 px-2.5 py-2">{item.consentStatus || 'not_required'}</span>
+                                <span className="truncate rounded-lg bg-slate-50 px-2.5 py-2">{group.programCount} programme(s)</span>
+                                <span className="truncate rounded-lg bg-slate-50 px-2.5 py-2">{group.studentCount} student profile(s)</span>
+                                <span className="truncate rounded-lg bg-slate-50 px-2.5 py-2">{group.confirmedSeats.toLocaleString()} confirmed</span>
+                                <span className="truncate rounded-lg bg-slate-50 px-2.5 py-2">{group.waitlistedSeats.toLocaleString()} waitlisted</span>
                             </div>
                             <div className="mt-3 flex gap-2">
-                                <button type="button" onClick={() => setProfile(item)} className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12px] font-black text-slate-700">View</button>
-                                <button type="button" onClick={() => setEditing(item)} className="flex-1 rounded-lg bg-slate-950 px-3 py-2 text-[12px] font-black text-white">Edit</button>
+                                <button type="button" onClick={() => setAttendanceGroup(group)} className="flex-1 rounded-lg bg-slate-950 px-3 py-2 text-[12px] font-black text-white">Attendance</button>
+                                <button type="button" onClick={() => toggleGroup(group)} className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12px] font-black text-slate-700">{group.registrations.every((item) => selected.includes(item.id)) ? 'Unselect' : 'Select'}</button>
                             </div>
                         </article>
                     ))}
-                    {visible.length === 0 && <div className="rounded-xl border border-dashed border-slate-200 p-8 text-center text-sm font-semibold text-slate-500">No attendees match the current filters.</div>}
+                    {visibleGroups.length === 0 && <div className="rounded-xl border border-dashed border-slate-200 p-8 text-center text-sm font-semibold text-slate-500">No attendees match the current filters.</div>}
                 </div>
                 <div className="hidden overflow-x-auto md:block">
                     <table className="w-full min-w-[980px] text-left">
                         <thead className="border-b border-slate-200 bg-slate-50">
                             <tr>
                                 <th className="w-12 px-5 py-4"><input type="checkbox" checked={selectedVisible} onChange={toggleVisible} className="rounded border-slate-300 text-blue-600" /></th>
-                                <th className="px-5 py-4 text-[11px] font-black uppercase tracking-wide text-slate-500">Student / Group</th>
-                                <th className="px-5 py-4 text-[11px] font-black uppercase tracking-wide text-slate-500">School / Location</th>
-                                <th className="px-5 py-4 text-[11px] font-black uppercase tracking-wide text-slate-500">Interest Area</th>
-                                <th className="px-5 py-4 text-[11px] font-black uppercase tracking-wide text-slate-500">Visit Program</th>
-                                <th className="px-5 py-4 text-center text-[11px] font-black uppercase tracking-wide text-slate-500">Status</th>
+                                <th className="px-5 py-4 text-[11px] font-black uppercase tracking-wide text-slate-500">School</th>
+                                <th className="px-5 py-4 text-[11px] font-black uppercase tracking-wide text-slate-500">Programmes</th>
+                                <th className="px-5 py-4 text-[11px] font-black uppercase tracking-wide text-slate-500">Seats</th>
+                                <th className="px-5 py-4 text-[11px] font-black uppercase tracking-wide text-slate-500">Students</th>
+                                <th className="px-5 py-4 text-center text-[11px] font-black uppercase tracking-wide text-slate-500">Attendance</th>
                                 <th className="px-5 py-4 text-right text-[11px] font-black uppercase tracking-wide text-slate-500">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                            {visible.map((item) => (
-                                <tr key={item.id} className="group hover:bg-slate-50">
-                                    <td className="px-5 py-3"><input type="checkbox" checked={selected.includes(item.id)} onChange={() => toggleOne(item.id)} className="rounded border-slate-300 text-blue-600" /></td>
+                            {visibleGroups.map((group) => (
+                                <tr key={group.key} className="group hover:bg-slate-50">
+                                    <td className="px-5 py-3"><input type="checkbox" checked={group.registrations.every((item) => selected.includes(item.id))} onChange={() => toggleGroup(group)} className="rounded border-slate-300 text-blue-600" /></td>
                                     <td className="px-5 py-3">
                                         <div className="flex items-center gap-3">
-                                            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-blue-100 text-xs font-black text-blue-800">{initials(item.name)}</span>
+                                            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-blue-100 text-xs font-black text-blue-800">{initials(group.school)}</span>
                                             <span className="min-w-0">
-                                                <span className="block max-w-[220px] truncate text-sm font-black text-slate-950">{item.name}</span>
-                                                <span className="mt-0.5 block max-w-[220px] truncate text-xs text-slate-500">{item.email}</span>
+                                                <span className="block max-w-[260px] truncate text-sm font-black text-slate-950">{group.school}</span>
+                                                <span className="mt-0.5 block max-w-[260px] truncate text-xs text-slate-500">{group.location || 'Location TBA'}</span>
                                             </span>
                                         </div>
                                     </td>
                                     <td className="px-5 py-3">
-                                        <p className="max-w-[220px] truncate text-sm font-semibold text-slate-800">{item.school || 'Direct student'}</p>
-                                        <p className="mt-0.5 max-w-[220px] truncate text-xs text-slate-500">{item.schoolLocation || item.eventLocation || 'Location TBA'}</p>
+                                        <p className="max-w-[260px] truncate text-sm font-semibold text-slate-800">{group.programs.slice(0, 2).join(', ') || 'Program TBA'}</p>
+                                        <p className="mt-0.5 text-xs text-slate-500">{group.programCount} programme(s) • {group.registrations.length} booking(s)</p>
                                     </td>
-                                    <td className="px-5 py-3"><span className="inline-flex max-w-[160px] truncate rounded-md bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-700">{item.interest || 'Mixed interests'}</span></td>
                                     <td className="px-5 py-3">
-                                        <p className="max-w-[240px] truncate text-sm font-semibold text-slate-800">{item.event || 'Program TBA'}</p>
-                                        <p className="mt-0.5 text-xs text-slate-500">{formatShortDate(item.eventDate)} · {item.partySize} seat{Number(item.partySize) === 1 ? '' : 's'} · {(item.students || []).length} profile(s)</p>
+                                        <p className="text-sm font-black text-slate-900">{group.seats.toLocaleString()}</p>
+                                        <p className="mt-0.5 text-xs text-slate-500">{group.confirmedSeats.toLocaleString()} confirmed · {group.waitlistedSeats.toLocaleString()} waitlisted</p>
                                     </td>
-                                    <td className="px-5 py-3 text-center"><AttendeeStatusBadge status={item.status} attended={item.attended} /></td>
+                                    <td className="px-5 py-3"><span className="inline-flex rounded-md bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-700">{group.studentCount.toLocaleString()} profiles</span></td>
+                                    <td className="px-5 py-3 text-center"><span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">{group.attendedSeats.toLocaleString()} attended</span></td>
                                     <td className="px-5 py-3">
                                         <div className="flex justify-end gap-2">
-                                            <button type="button" onClick={() => setProfile(item)} title="View group profile" className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-600 hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700"><UsersRound size={16} /></button>
-                                            <form action={`/dashboard/university/attendees/${item.id}/${item.checkedIn ? 'check-out' : 'check-in'}`} method="POST">
-                                                <input type="hidden" name="_token" value={csrf} />
-                                                <button title={item.checkedIn ? 'Check out group' : 'Check in group'} className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-600 hover:border-[#006a61]/30 hover:bg-emerald-50 hover:text-[#006a61]">{item.checkedIn ? <Clock size={16} /> : <CheckCircle2 size={16} />}</button>
-                                            </form>
-                                            <button type="button" onClick={() => setEditing(item)} title="Edit group booking" className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-600 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"><Edit3 size={16} /></button>
-                                            <form action={`/dashboard/university/attendees/${item.id}`} method="POST">
-                                                <input type="hidden" name="_token" value={csrf} />
-                                                <input type="hidden" name="_method" value="DELETE" />
-                                                <button title="Remove group booking" className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-600 hover:border-red-200 hover:bg-red-50 hover:text-red-700"><Trash2 size={16} /></button>
-                                            </form>
+                                            <button type="button" onClick={() => setAttendanceGroup(group)} className="inline-flex h-9 items-center gap-2 rounded-lg bg-slate-950 px-3 text-xs font-black text-white hover:bg-slate-800"><UsersRound size={15} /> Attendance</button>
                                         </div>
                                     </td>
                                 </tr>
                             ))}
-                            {visible.length === 0 && (
+                            {visibleGroups.length === 0 && (
                                 <tr><td colSpan="7" className="px-5 py-12 text-center text-sm font-semibold text-slate-500">No attendees match the current filters.</td></tr>
                             )}
                         </tbody>
                     </table>
                 </div>
                 <div className="flex flex-col gap-3 border-t border-slate-100 bg-white px-3 py-3 sm:flex-row sm:items-center sm:justify-between md:px-5 md:py-4">
-                    <p className="text-sm text-slate-500">Showing {visible.length ? (page - 1) * perPage + 1 : 0} to {Math.min(page * perPage, filtered.length)} of {filtered.length} attendee records loaded</p>
+                    <p className="text-sm text-slate-500">Showing {visibleGroups.length ? (page - 1) * perPage + 1 : 0} to {Math.min(page * perPage, schoolGroups.length)} of {schoolGroups.length} school group(s) · {filtered.length} attendee record(s)</p>
                     <div className="flex flex-wrap items-center gap-2">
                         <select value={perPage} onChange={(event) => setPerPage(Number(event.target.value))} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-black text-slate-600">
-                            <option value="25">25 / page</option>
-                            <option value="50">50 / page</option>
-                            <option value="100">100 / page</option>
-                            <option value="200">200 / page</option>
+                            <option value="25">25 schools</option>
+                            <option value="50">50 schools</option>
+                            <option value="100">100 schools</option>
+                            <option value="200">200 schools</option>
                         </select>
                         <button type="button" onClick={() => setPage(Math.max(1, page - 1))} disabled={page === 1} className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-black text-slate-600 disabled:opacity-40">Prev</button>
                         <span className="rounded-lg bg-slate-950 px-3 py-2 text-sm font-black text-white">{page} / {pages}</span>
@@ -9035,6 +9030,46 @@ function UniversityAttendeesSection({ csrf, registrations = [], events = [] }) {
                                 <button className="w-full rounded-xl bg-[#006a61] px-4 py-3 text-sm font-black text-white">{profile.checkedIn ? 'Check Out' : 'Check In'}</button>
                             </form>}
                             {!profile.isStudentProfile && <button type="button" onClick={() => { setEditing(profile); setProfile(null); }} className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-black text-slate-700">Edit Group</button>}
+                        </div>
+                    </div>
+                </StudentModal>
+            )}
+
+            {attendanceGroup && (
+                <StudentModal title={`${attendanceGroup.school} Attendance`} onClose={() => setAttendanceGroup(null)}>
+                    <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+                            <MiniStat label="Bookings" value={attendanceGroup.registrations.length.toLocaleString()} />
+                            <MiniStat label="Seats" value={attendanceGroup.seats.toLocaleString()} />
+                            <MiniStat label="Students" value={attendanceGroup.studentCount.toLocaleString()} />
+                            <MiniStat label="Attended" value={attendanceGroup.attendedSeats.toLocaleString()} />
+                        </div>
+                        <div className="max-h-[65vh] overflow-y-auto rounded-xl border border-slate-200">
+                            <div className="divide-y divide-slate-100">
+                                {attendanceGroup.registrations.map((item) => (
+                                    <article key={item.id} className="p-3 md:p-4">
+                                        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                                            <div className="min-w-0">
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                    <h3 className="truncate text-sm font-black text-slate-950">{item.name}</h3>
+                                                    <AttendeeStatusBadge status={item.status} attended={item.attended} />
+                                                </div>
+                                                <p className="mt-1 text-xs font-semibold text-slate-500">{item.event || 'Program TBA'} · {formatDateTime(item.eventDate)} · {item.partySize} seat(s)</p>
+                                                <p className="mt-1 truncate text-xs text-slate-400">{item.email}</p>
+                                            </div>
+                                            <div className="flex shrink-0 gap-2">
+                                                <form action={`/dashboard/university/attendees/${item.id}/${item.checkedIn ? 'check-out' : 'check-in'}`} method="POST">
+                                                    <input type="hidden" name="_token" value={csrf} />
+                                                    <button className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-black text-slate-700">{item.checkedIn ? 'Check out' : 'Check in'}</button>
+                                                </form>
+                                                <button type="button" onClick={() => setProfile(item)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-black text-slate-700">Profile</button>
+                                                <button type="button" onClick={() => setEditing(item)} className="rounded-lg bg-slate-950 px-3 py-2 text-xs font-black text-white">Edit</button>
+                                            </div>
+                                        </div>
+                                        <AttendeeRosterList registration={item} onProfile={setProfile} compact />
+                                    </article>
+                                ))}
+                            </div>
                         </div>
                     </div>
                 </StudentModal>
@@ -9163,6 +9198,43 @@ function ProfileFact({ label, value }) {
             <p className="mt-2 break-words text-sm font-black text-slate-800">{value || 'Not provided'}</p>
         </div>
     );
+}
+
+function attendeeSchoolGroups(items = []) {
+    const grouped = items.reduce((groups, item) => {
+        const school = item.school || item.name || 'Direct students';
+        const key = school.toLowerCase();
+        if (!groups[key]) {
+            groups[key] = {
+                key,
+                school,
+                location: item.schoolLocation || item.eventLocation || '',
+                registrations: [],
+                programs: [],
+                programCount: 0,
+                seats: 0,
+                confirmedSeats: 0,
+                waitlistedSeats: 0,
+                attendedSeats: 0,
+                studentCount: 0,
+            };
+        }
+
+        groups[key].registrations.push(item);
+        groups[key].seats += Number(item.partySize || 0);
+        groups[key].confirmedSeats += item.status === 'confirmed' ? Number(item.partySize || 0) : 0;
+        groups[key].waitlistedSeats += item.status === 'waitlisted' ? Number(item.partySize || 0) : 0;
+        groups[key].attendedSeats += item.attended ? Number(item.partySize || 0) : 0;
+        groups[key].studentCount += (item.students || []).length;
+        if (item.event && !groups[key].programs.includes(item.event)) {
+            groups[key].programs.push(item.event);
+            groups[key].programCount = groups[key].programs.length;
+        }
+
+        return groups;
+    }, {});
+
+    return Object.values(grouped).sort((left, right) => right.seats - left.seats || left.school.localeCompare(right.school));
 }
 
 function topByCount(values) {
