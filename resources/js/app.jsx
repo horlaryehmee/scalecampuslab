@@ -11629,6 +11629,16 @@ function PartnerMetric({ label, value, detail, tone = 'blue' }) {
     return <section className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm md:p-4"><p className="text-[10px] font-black uppercase tracking-wide text-slate-400 md:text-[11px]">{label}</p><p className="mt-2 text-xl font-black text-slate-950 md:text-2xl">{value}</p><p className={cx('mt-1 text-[11px] font-bold md:text-xs', tone === 'green' ? 'text-emerald-600' : 'text-blue-600')}>{detail}</p></section>;
 }
 
+function PartnerInfoCard({ label, value, detail }) {
+    return (
+        <article className="rounded-xl border border-slate-200 bg-white p-4">
+            <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">{label}</p>
+            <p className="mt-2 break-words text-sm font-black text-slate-950">{value || 'Not recorded'}</p>
+            {detail && <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">{detail}</p>}
+        </article>
+    );
+}
+
 function PartnerSchoolEditor({ csrf, school, onClose }) {
     const isEdit = Boolean(school);
     const value = (key, fallback = '') => school?.[key] ?? fallback;
@@ -11701,7 +11711,9 @@ function PartnerSchoolDetail({ csrf, school, archives, visitsCount, onBack, onEd
             </button>
             <div className="flex flex-col gap-4 border-b border-slate-200 pb-5 lg:flex-row lg:items-start lg:justify-between">
                 <div className="flex gap-3">
-                    <span className="grid h-12 w-12 shrink-0 place-items-center rounded-lg border border-slate-200 bg-white text-sm font-black text-blue-700 shadow-sm">{school.name.slice(0, 1)}</span>
+                    <span className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-lg border border-slate-200 bg-white text-sm font-black text-blue-700 shadow-sm">
+                        {school.logoUrl ? <img src={school.logoUrl} alt="" className="h-full w-full object-cover" /> : school.name.slice(0, 1)}
+                    </span>
                     <div>
                         <h2 className="text-2xl font-black tracking-tight text-slate-950">{school.name}</h2>
                         <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-semibold text-slate-500">
@@ -11742,6 +11754,69 @@ function PartnerSchoolDetail({ csrf, school, archives, visitsCount, onBack, onEd
                 <PartnerMetric label="Leads Captured" value={leadsCaptured.toLocaleString()} detail={`Across ${archives.length} archived engagement(s)`} tone="green" />
                 <PartnerMetric label="Visit Activity" value={visitsCount} detail={`${Number(school.visitRequests || 0)} request(s) · ${archives.length} archived`} />
             </div>
+
+            <section className="mt-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:p-5">
+                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                    <div>
+                        <p className="text-xs font-black uppercase tracking-wide text-[#006a61]">School Profile</p>
+                        <h3 className="mt-1 text-xl font-black text-slate-950">Institution Details</h3>
+                        <p className="mt-1 max-w-3xl text-sm font-semibold leading-6 text-slate-500">Core identity, contacts, academics, and visit-readiness information for this partner school.</p>
+                    </div>
+                    {school.linkedSchoolId ? (
+                        <span className="inline-flex w-fit items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700"><CheckCircle2 size={14} /> Registered school account</span>
+                    ) : (
+                        <span className="inline-flex w-fit items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-black text-amber-800"><School size={14} /> Directory profile only</span>
+                    )}
+                </div>
+
+                <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    <PartnerInfoCard label="School code" value={school.code} detail={school.status ? titleCase(school.status) : null} />
+                    <PartnerInfoCard label="School type" value={school.type ? titleCase(school.type.replace('_', ' ')) : 'Partner school'} detail={school.institutionLevel ? titleCase(school.institutionLevel.replace('_', ' ')) : school.ownership} />
+                    <PartnerInfoCard label="Student body" value={school.studentCount ? Number(school.studentCount).toLocaleString() : 'Not recorded'} detail={school.gradeRange || 'Grade range not recorded'} />
+                    <PartnerInfoCard label="Website / phone" value={school.website || 'Website not recorded'} detail={school.mainPhone || 'Main phone not recorded'} />
+                </div>
+
+                <div className="mt-4 grid gap-4 lg:grid-cols-3">
+                    <section className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                        <div className="flex items-center gap-2">
+                            <MailCheck size={16} className="text-[#006a61]" />
+                            <h4 className="text-sm font-black text-slate-950">Contacts</h4>
+                        </div>
+                        <div className="mt-3 grid gap-2">
+                            <PartnerInfoCard label="Coordinator" value={coordinatorName} detail={[school.coordinatorEmail, school.coordinatorPhone].filter(Boolean).join(' / ')} />
+                            <PartnerInfoCard label="Principal" value={school.principalName} detail={school.principalEmail} />
+                            <PartnerInfoCard label="Counselor" value={school.counselorName} detail={[school.counselorEmail, school.counselorPhone].filter(Boolean).join(' / ')} />
+                            <PartnerInfoCard label="Emergency contact" value={school.emergencyContactName} detail={[school.emergencyContactPhone, school.emergencyContactEmail].filter(Boolean).join(' / ')} />
+                        </div>
+                    </section>
+
+                    <section className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                        <div className="flex items-center gap-2">
+                            <GraduationCap size={16} className="text-[#006a61]" />
+                            <h4 className="text-sm font-black text-slate-950">Academics</h4>
+                        </div>
+                        <div className="mt-3 grid gap-2">
+                            <PartnerInfoCard label="Curriculum" value={school.curriculum} detail={school.accreditation} />
+                            <PartnerInfoCard label="Academic calendar" value={school.academicCalendar} />
+                            <PartnerInfoCard label="Average class size" value={school.averageClassSize} detail={school.graduationRate ? `${school.graduationRate}% graduation rate` : null} />
+                            <PartnerInfoCard label="Student support" value={school.studentSupportServices} />
+                        </div>
+                    </section>
+
+                    <section className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                        <div className="flex items-center gap-2">
+                            <RouteIcon size={16} className="text-[#006a61]" />
+                            <h4 className="text-sm font-black text-slate-950">Visit Readiness</h4>
+                        </div>
+                        <div className="mt-3 grid gap-2">
+                            <PartnerInfoCard label="Address" value={school.address || [school.city, school.region, school.country].filter(Boolean).join(', ')} detail={school.district ? `District: ${school.district}` : null} />
+                            <PartnerInfoCard label="Transportation" value={school.transportationNotes} />
+                            <PartnerInfoCard label="Visit policy" value={school.visitPolicy} />
+                            <PartnerInfoCard label="Safety policy" value={school.safetyPolicyUrl} />
+                        </div>
+                    </section>
+                </div>
+            </section>
 
             <div className="mt-5 grid gap-4 xl:grid-cols-[310px_1fr]">
                 <section className="rounded-lg bg-slate-950 p-5 text-white shadow-sm">
