@@ -11720,9 +11720,11 @@ function PartnerSchoolDetail({ csrf, school, archives, visitsCount, onBack, onEd
         ['Counselor', school.counselorName, school.counselorEmail, school.counselorPhone],
         ['STEM Coordinator', school.emergencyContactName, school.emergencyContactEmail, school.emergencyContactPhone],
     ].filter(([, name, email, phone]) => name || email || phone);
-    const messageRecipient = school.counselorEmail
-        ? { role: 'Counselor', name: school.counselorName || 'School counselor', email: school.counselorEmail }
-        : { role: 'Coordinator', name: coordinatorName || school.coordinatorName || school.name, email: school.coordinatorEmail };
+    const messageRecipient = {
+        role: 'Main contact',
+        name: coordinatorName || school.coordinatorName || school.linkedSchoolName || school.name,
+        email: school.coordinatorEmail,
+    };
     const timeline = [
         ...archives.map((archive) => ({
             id: `archive-${archive.id}`,
@@ -11867,11 +11869,43 @@ function PartnerSchoolDetail({ csrf, school, archives, visitsCount, onBack, onEd
 }
 
 function PartnerSchoolMessageModal({ csrf, school, recipient, onClose }) {
-    const greeting = recipient.name ? recipient.name.split(' ')[0] : recipient.role;
+    const [sending, setSending] = useState(false);
+    const [error, setError] = useState('');
+    const submitMessage = async (event) => {
+        event.preventDefault();
+        setSending(true);
+        setError('');
+
+        const formData = new FormData(event.currentTarget);
+
+        try {
+            const payload = await apiRequest(`/dashboard/university/partner-schools/${school.id}/contact`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    subject: formData.get('subject'),
+                    message: formData.get('message'),
+                }),
+            });
+            if (!payload?.conversation_id) {
+                setError(payload?.message || 'Message was queued, but no active school account exists for a replyable thread.');
+                setSending(false);
+                return;
+            }
+            if (typeof window !== 'undefined') {
+                window.sessionStorage.setItem('scalecampus.activeTab.university', 'messages');
+                window.location.href = `${window.location.pathname}${window.location.search}#messages`;
+                window.location.reload();
+            }
+        } catch (sendError) {
+            setError(sendError.message || 'Message could not be sent.');
+            setSending(false);
+        }
+    };
 
     return (
         <section className="fixed inset-0 z-[90] grid place-items-center bg-slate-950/55 px-3 py-5 backdrop-blur-sm">
-            <form action={`/dashboard/university/partner-schools/${school.id}/contact`} method="POST" className="w-full max-w-lg overflow-hidden rounded-2xl border border-white/70 bg-white shadow-2xl">
+            <form action={`/dashboard/university/partner-schools/${school.id}/contact`} method="POST" onSubmit={submitMessage} className="w-full max-w-lg overflow-hidden rounded-2xl border border-white/70 bg-white shadow-2xl">
                 <input type="hidden" name="_token" value={csrf} />
                 <div className="flex items-start justify-between gap-4 border-b border-slate-100 p-4">
                     <div>
@@ -11882,13 +11916,14 @@ function PartnerSchoolMessageModal({ csrf, school, recipient, onClose }) {
                     <button type="button" onClick={onClose} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-slate-200 text-slate-500"><X size={16} /></button>
                 </div>
                 <div className="grid gap-3 p-4">
-                    <label className="text-sm font-bold text-slate-700">Subject<input name="subject" required defaultValue={`Visit coordination with ${school.name}`} className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm font-semibold" /></label>
-                    <label className="text-sm font-bold text-slate-700">Message<textarea name="message" required rows="6" className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm leading-6" defaultValue={`Hi ${greeting},\n\nWe would like to coordinate the next visit opportunity with ${school.name}. Please let us know your preferred dates, student group size, and any support your team needs.\n\nThank you.`} /></label>
+                    <label className="text-sm font-bold text-slate-700">Subject<input name="subject" required defaultValue={`University programme information for ${school.name}`} className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm font-semibold" /></label>
+                    <label className="text-sm font-bold text-slate-700">Message<textarea name="message" required rows="6" className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm leading-6" defaultValue={`Hello,\n\nWe are sharing university programme and visit information that may be relevant to ${school.name}. Please review the available details and let us know if your school would like to discuss student participation or future visit opportunities.\n\nThank you.`} /></label>
                     <p className="rounded-lg bg-blue-50 px-3 py-2 text-xs font-semibold leading-5 text-blue-700">This will be saved in Communications as a thread so replies can continue there.</p>
+                    {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-xs font-bold text-red-700">{error}</p>}
                 </div>
                 <div className="grid grid-cols-2 gap-2 border-t border-slate-100 p-4">
-                    <button type="button" onClick={onClose} className="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-black text-slate-700">Cancel</button>
-                    <button className="rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-black text-white">Send</button>
+                    <button type="button" onClick={onClose} disabled={sending} className="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-black text-slate-700 disabled:opacity-60">Cancel</button>
+                    <button disabled={sending} className="rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-black text-white disabled:cursor-wait disabled:bg-slate-400">{sending ? 'Sending...' : 'Send'}</button>
                 </div>
             </form>
         </section>

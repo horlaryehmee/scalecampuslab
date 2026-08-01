@@ -825,16 +825,25 @@ class DashboardController extends Controller
         return back()->with('status', 'Partner school removed.');
     }
 
-    public function contactUniversityPartnerSchool(Request $request, TargetSchool $school): RedirectResponse
+    public function contactUniversityPartnerSchool(Request $request, TargetSchool $school): RedirectResponse|JsonResponse
     {
         abort_unless($request->user()?->role === 'university', 403);
 
         $linkedSchool = School::query()
-            ->where('name', $school->name)
+            ->where(function ($query) use ($school): void {
+                $query->where('name', $school->name);
+
+                if ($school->school_code) {
+                    $query->orWhere('school_code', $school->school_code);
+                }
+            })
             ->first();
-        $preferredEmail = filter_var($linkedSchool?->counselor_email, FILTER_VALIDATE_EMAIL)
-            ? $linkedSchool->counselor_email
-            : $school->coordinator_email;
+        $preferredEmail = collect([
+            $school->coordinator_email,
+            $linkedSchool?->coordinator_email,
+            $linkedSchool?->admissions_email,
+            $linkedSchool?->principal_email,
+        ])->first(fn ($email) => filter_var($email, FILTER_VALIDATE_EMAIL));
         $recipientUser = $linkedSchool
             ? User::query()
                 ->where('school_id', $linkedSchool->id)
@@ -848,13 +857,18 @@ class DashboardController extends Controller
         $recipientEmail = filter_var($preferredEmail, FILTER_VALIDATE_EMAIL)
             ? $preferredEmail
             : $recipientUser?->email;
-        $recipientName = $linkedSchool?->counselor_email === $recipientEmail
-            ? ($linkedSchool->counselor_name ?: 'School counselor')
-            : ($recipientUser?->name ?: ($school->coordinator_name ?: $school->name));
+        $recipientName = $recipientUser?->name
+            ?: ($school->coordinator_name ?: ($linkedSchool?->coordinator_name ?: $school->name));
 
         if (! filter_var($recipientEmail, FILTER_VALIDATE_EMAIL)) {
+            $message = 'Add a valid main school contact email before sending outreach to this school.';
+
+            if ($request->expectsJson()) {
+                return response()->json(['message' => $message], 422);
+            }
+
             return back()->withErrors([
-                'school' => 'Add a valid counselor or coordinator email before sending outreach to this school.',
+                'school' => $message,
             ]);
         }
 
@@ -864,12 +878,19 @@ class DashboardController extends Controller
         ]);
 
         if ($recipientUser) {
-            $this->conversations->start(
+            $conversation = $this->conversations->start(
                 $request->user(),
                 $recipientUser,
                 $validated['subject'],
                 $validated['message'],
             );
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => 'Message sent and saved in Communications.',
+                    'conversation_id' => $conversation->id,
+                ]);
+            }
 
             return back()->with('status', 'Message sent and saved in Communications.');
         }
@@ -900,7 +921,13 @@ class DashboardController extends Controller
             'ai_suggested' => false,
         ]);
 
-        return back()->with('status', 'No active school account was found. Email outreach queued for delivery.');
+        $status = 'No active school account was found. Email outreach queued for delivery.';
+
+        if ($request->expectsJson()) {
+            return response()->json(['message' => $status, 'conversation_id' => null]);
+        }
+
+        return back()->with('status', $status);
     }
 
     public function storeUniversityPartnerTask(Request $request, TargetSchool $school): RedirectResponse
