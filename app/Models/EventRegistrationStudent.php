@@ -25,6 +25,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'medical_notes',
     'checked_in_at',
     'checked_out_at',
+    'absent_at',
     'student_confirmed_at',
 ])]
 class EventRegistrationStudent extends Model
@@ -35,6 +36,7 @@ class EventRegistrationStudent extends Model
             'is_minor' => 'boolean',
             'checked_in_at' => 'datetime',
             'checked_out_at' => 'datetime',
+            'absent_at' => 'datetime',
             'student_confirmed_at' => 'datetime',
         ];
     }

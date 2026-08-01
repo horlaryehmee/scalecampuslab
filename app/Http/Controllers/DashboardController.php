@@ -1122,6 +1122,85 @@ class DashboardController extends Controller
         return back()->with('status', 'Attendee checked out.');
     }
 
+    public function checkInUniversityAttendeeStudent(Request $request, EventRegistrationStudent $registrationStudent): RedirectResponse
+    {
+        $registration = $this->authorizeUniversityRegistrationStudent($request, $registrationStudent);
+
+        if ($registrationStudent->status !== 'confirmed') {
+            return back()->withErrors(['attendee' => 'Only confirmed students can be checked in.']);
+        }
+
+        $registrationStudent->update([
+            'checked_in_at' => $registrationStudent->checked_in_at ?: now(),
+            'checked_out_at' => null,
+            'absent_at' => null,
+        ]);
+        $this->syncRegistrationAttendanceFromStudents($registration);
+        $this->logUniversityActivity($request, 'attendee_student.checked_in', $registration, [
+            'student' => $registrationStudent->name,
+            'program' => $registration->event?->title,
+        ]);
+
+        return back()->with('status', "{$registrationStudent->name} checked in.");
+    }
+
+    public function checkOutUniversityAttendeeStudent(Request $request, EventRegistrationStudent $registrationStudent): RedirectResponse
+    {
+        $registration = $this->authorizeUniversityRegistrationStudent($request, $registrationStudent);
+
+        if (! $registrationStudent->checked_in_at) {
+            return back()->withErrors(['attendee' => 'Check the student in before checking them out.']);
+        }
+
+        $registrationStudent->update([
+            'checked_out_at' => $registrationStudent->checked_out_at ?: now(),
+            'absent_at' => null,
+        ]);
+        $this->syncRegistrationAttendanceFromStudents($registration);
+        $this->logUniversityActivity($request, 'attendee_student.checked_out', $registration, [
+            'student' => $registrationStudent->name,
+            'program' => $registration->event?->title,
+        ]);
+
+        return back()->with('status', "{$registrationStudent->name} checked out.");
+    }
+
+    public function markUniversityAttendeeStudentAbsent(Request $request, EventRegistrationStudent $registrationStudent): RedirectResponse
+    {
+        $registration = $this->authorizeUniversityRegistrationStudent($request, $registrationStudent);
+
+        $registrationStudent->update([
+            'checked_in_at' => null,
+            'checked_out_at' => null,
+            'absent_at' => $registrationStudent->absent_at ?: now(),
+        ]);
+        $this->syncRegistrationAttendanceFromStudents($registration);
+        $this->logUniversityActivity($request, 'attendee_student.absent', $registration, [
+            'student' => $registrationStudent->name,
+            'program' => $registration->event?->title,
+        ]);
+
+        return back()->with('status', "{$registrationStudent->name} marked absent.");
+    }
+
+    public function markUniversityAttendeeStudentNotArrived(Request $request, EventRegistrationStudent $registrationStudent): RedirectResponse
+    {
+        $registration = $this->authorizeUniversityRegistrationStudent($request, $registrationStudent);
+
+        $registrationStudent->update([
+            'checked_in_at' => null,
+            'checked_out_at' => null,
+            'absent_at' => null,
+        ]);
+        $this->syncRegistrationAttendanceFromStudents($registration);
+        $this->logUniversityActivity($request, 'attendee_student.not_arrived', $registration, [
+            'student' => $registrationStudent->name,
+            'program' => $registration->event?->title,
+        ]);
+
+        return back()->with('status', "{$registrationStudent->name} marked not arrived.");
+    }
+
     public function bulkUpdateUniversityAttendees(Request $request): RedirectResponse
     {
         abort_unless($request->user()?->role === 'university', 403);
@@ -3308,6 +3387,8 @@ class DashboardController extends Controller
                     'checkedInAt' => $student->checked_in_at?->toIso8601String(),
                     'checkedOut' => $student->checked_out_at !== null,
                     'checkedOutAt' => $student->checked_out_at?->toIso8601String(),
+                    'absent' => $student->absent_at !== null,
+                    'absentAt' => $student->absent_at?->toIso8601String(),
                 ])->toArray(),
                 'createdAt' => $registration->created_at?->toIso8601String(),
             ])
@@ -3351,6 +3432,27 @@ class DashboardController extends Controller
     {
         abort_unless($request->user()?->role === 'university', 403);
         abort_unless($registration->event?->university_user_id === $request->user()->id, 403);
+    }
+
+    private function authorizeUniversityRegistrationStudent(Request $request, EventRegistrationStudent $registrationStudent): EventRegistration
+    {
+        $registration = $registrationStudent->registration()->with('event:id,title,university_user_id')->firstOrFail();
+        $this->authorizeUniversityRegistration($request, $registration);
+
+        return $registration;
+    }
+
+    private function syncRegistrationAttendanceFromStudents(EventRegistration $registration): void
+    {
+        $students = $registration->students()->get(['checked_in_at', 'checked_out_at']);
+        $checkedInCount = $students->whereNotNull('checked_in_at')->count();
+        $checkedOutCount = $students->whereNotNull('checked_out_at')->count();
+
+        $registration->update([
+            'checked_in_at' => $checkedInCount > 0 ? ($registration->checked_in_at ?: now()) : null,
+            'attended_at' => $checkedInCount > 0 ? ($registration->attended_at ?: now()) : null,
+            'checked_out_at' => $checkedInCount > 0 && $checkedOutCount >= $checkedInCount ? ($registration->checked_out_at ?: now()) : null,
+        ]);
     }
 
     private function promoteCampusEventWaitlist(CampusEvent $event): void

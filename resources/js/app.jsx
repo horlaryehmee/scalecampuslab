@@ -8870,7 +8870,7 @@ function UniversityAttendeesSection({ csrf, registrations = [], events = [] }) {
                                 <span className="truncate rounded-lg bg-slate-50 px-2.5 py-2">{group.programCount} programme(s)</span>
                                 <span className="truncate rounded-lg bg-slate-50 px-2.5 py-2">{group.studentCount} student profile(s)</span>
                                 <span className="truncate rounded-lg bg-slate-50 px-2.5 py-2">{group.confirmedSeats.toLocaleString()} confirmed</span>
-                                <span className="truncate rounded-lg bg-slate-50 px-2.5 py-2">{group.waitlistedSeats.toLocaleString()} waitlisted</span>
+                                <span className="truncate rounded-lg bg-slate-50 px-2.5 py-2">{group.checkedInStudents.toLocaleString()} / {group.expectedStudents.toLocaleString()} checked in</span>
                             </div>
                             <div className="mt-3 flex gap-2">
                                 <button type="button" onClick={() => setAttendanceGroup(group)} className="flex-1 rounded-lg bg-slate-950 px-3 py-2 text-[12px] font-black text-white">Attendance</button>
@@ -8889,7 +8889,7 @@ function UniversityAttendeesSection({ csrf, registrations = [], events = [] }) {
                                 <th className="px-5 py-4 text-[11px] font-black uppercase tracking-wide text-slate-500">Programmes</th>
                                 <th className="px-5 py-4 text-[11px] font-black uppercase tracking-wide text-slate-500">Seats</th>
                                 <th className="px-5 py-4 text-[11px] font-black uppercase tracking-wide text-slate-500">Students</th>
-                                <th className="px-5 py-4 text-center text-[11px] font-black uppercase tracking-wide text-slate-500">Attendance</th>
+                                <th className="px-5 py-4 text-center text-[11px] font-black uppercase tracking-wide text-slate-500">Checked in</th>
                                 <th className="px-5 py-4 text-right text-[11px] font-black uppercase tracking-wide text-slate-500">Actions</th>
                             </tr>
                         </thead>
@@ -8915,7 +8915,9 @@ function UniversityAttendeesSection({ csrf, registrations = [], events = [] }) {
                                         <p className="mt-0.5 text-xs text-slate-500">{group.confirmedSeats.toLocaleString()} confirmed · {group.waitlistedSeats.toLocaleString()} waitlisted</p>
                                     </td>
                                     <td className="px-5 py-3"><span className="inline-flex rounded-md bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-700">{group.studentCount.toLocaleString()} profiles</span></td>
-                                    <td className="px-5 py-3 text-center"><span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">{group.attendedSeats.toLocaleString()} attended</span></td>
+                                    <td className="px-5 py-3 text-center">
+                                        <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">{group.checkedInStudents.toLocaleString()} / {group.expectedStudents.toLocaleString()}</span>
+                                    </td>
                                     <td className="px-5 py-3">
                                         <div className="flex justify-end gap-2">
                                             <button type="button" onClick={() => setAttendanceGroup(group)} className="inline-flex h-9 items-center gap-2 rounded-lg bg-slate-950 px-3 text-xs font-black text-white hover:bg-slate-800"><UsersRound size={15} /> Attendance</button>
@@ -9045,8 +9047,10 @@ function UniversityAttendeesSection({ csrf, registrations = [], events = [] }) {
                             <ProfileFact label="Interest" value={profile.interest || 'Undeclared'} />
                             {profile.isStudentProfile && <ProfileFact label="Student ID" value={profile.studentIdentifier || 'Not provided'} />}
                             {profile.isStudentProfile && <ProfileFact label="Student email" value={profile.email || 'Not provided'} />}
+                            {profile.isStudentProfile && <ProfileFact label="Attendance status" value={studentAttendanceState(profile).label} />}
                             <ProfileFact label="Check-in" value={profile.checkedInAt ? formatDateTime(profile.checkedInAt) : 'Not checked in'} />
                             <ProfileFact label="Check-out" value={profile.checkedOutAt ? formatDateTime(profile.checkedOutAt) : 'Not checked out'} />
+                            {profile.isStudentProfile && <ProfileFact label="Absent" value={profile.absentAt ? formatDateTime(profile.absentAt) : 'Not marked absent'} />}
                             <ProfileFact label="Consent" value={profile.consentStatus || 'not_required'} />
                             <ProfileFact label="Waitlist promotion" value={profile.waitlistPromotedAt ? formatDateTime(profile.waitlistPromotedAt) : 'Not promoted'} />
                             <ProfileFact label="Guardian" value={profile.guardianName || 'Not provided'} />
@@ -9060,7 +9064,10 @@ function UniversityAttendeesSection({ csrf, registrations = [], events = [] }) {
                         </div>
                         {!profile.isStudentProfile && <AttendeeRosterList registration={profile} onProfile={setProfile} />}
                         <div className="grid grid-cols-2 gap-2">
-                            {!profile.isStudentProfile && <form action={`/dashboard/university/attendees/${profile.id}/${profile.checkedIn ? 'check-out' : 'check-in'}`} method="POST">
+                            {!profile.isStudentProfile && (profile.students || []).length > 0 && (
+                                <div className="col-span-2 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-bold text-blue-800">Use the Attendance popup to check in, check out, or mark individual students absent.</div>
+                            )}
+                            {!profile.isStudentProfile && (profile.students || []).length === 0 && <form action={`/dashboard/university/attendees/${profile.id}/${profile.checkedIn ? 'check-out' : 'check-in'}`} method="POST">
                                 <input type="hidden" name="_token" value={csrf} />
                                 <button className="w-full rounded-xl bg-[#006a61] px-4 py-3 text-sm font-black text-white">{profile.checkedIn ? 'Check Out' : 'Check In'}</button>
                             </form>}
@@ -9074,15 +9081,19 @@ function UniversityAttendeesSection({ csrf, registrations = [], events = [] }) {
                 <StudentModal title={`${attendanceGroup.school} Attendance`} onClose={() => setAttendanceGroup(null)}>
                     <div className="space-y-4">
                         <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-                            <MiniStat label="Bookings" value={attendanceGroup.registrations.length.toLocaleString()} />
-                            <MiniStat label="Seats" value={attendanceGroup.seats.toLocaleString()} />
-                            <MiniStat label="Students" value={attendanceGroup.studentCount.toLocaleString()} />
-                            <MiniStat label="Attended" value={attendanceGroup.attendedSeats.toLocaleString()} />
+                            <MiniStat label="Expected" value={attendanceGroup.expectedStudents.toLocaleString()} />
+                            <MiniStat label="Checked in" value={attendanceGroup.checkedInStudents.toLocaleString()} />
+                            <MiniStat label="Not arrived / absent" value={(attendanceGroup.notArrivedStudents + attendanceGroup.absentStudents).toLocaleString()} />
+                            <MiniStat label="Checked out" value={attendanceGroup.checkedOutStudents.toLocaleString()} />
                         </div>
                         <div className="max-h-[65vh] overflow-y-auto rounded-xl border border-slate-200">
                             <div className="divide-y divide-slate-100">
-                                {attendanceGroup.registrations.map((item) => (
-                                    <article key={item.id} className="p-3 md:p-4">
+                                {attendanceGroup.registrations.map((item) => {
+                                    const metrics = attendanceMetricsForRegistration(item);
+                                    const hasRoster = (item.students || []).length > 0;
+
+                                    return (
+                                    <article key={item.id} className="space-y-3 p-3 md:p-4">
                                         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                                             <div className="min-w-0">
                                                 <div className="flex flex-wrap items-center gap-2">
@@ -9092,18 +9103,69 @@ function UniversityAttendeesSection({ csrf, registrations = [], events = [] }) {
                                                 <p className="mt-1 text-xs font-semibold text-slate-500">{item.event || 'Program TBA'} · {formatDateTime(item.eventDate)} · {item.partySize} seat(s)</p>
                                                 <p className="mt-1 truncate text-xs text-slate-400">{item.email}</p>
                                             </div>
-                                            <div className="flex shrink-0 gap-2">
-                                                <form action={`/dashboard/university/attendees/${item.id}/${item.checkedIn ? 'check-out' : 'check-in'}`} method="POST">
-                                                    <input type="hidden" name="_token" value={csrf} />
-                                                    <button className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-black text-slate-700">{item.checkedIn ? 'Check out' : 'Check in'}</button>
-                                                </form>
+                                            <div className="flex shrink-0 flex-wrap gap-2">
+                                                {!hasRoster && (
+                                                    <form action={`/dashboard/university/attendees/${item.id}/${item.checkedIn ? 'check-out' : 'check-in'}`} method="POST">
+                                                        <input type="hidden" name="_token" value={csrf} />
+                                                        <button className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-black text-slate-700">{item.checkedIn ? 'Check out' : 'Check in'}</button>
+                                                    </form>
+                                                )}
                                                 <button type="button" onClick={() => openAttendanceProfile(item)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-black text-slate-700">Profile</button>
                                                 <button type="button" onClick={() => openAttendanceEdit(item)} className="rounded-lg bg-slate-950 px-3 py-2 text-xs font-black text-white">Edit</button>
                                             </div>
                                         </div>
-                                        <AttendeeRosterList registration={item} onProfile={openAttendanceProfile} compact />
+                                        <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+                                            <MiniStat label="Expected" value={metrics.expected.toLocaleString()} />
+                                            <MiniStat label="Checked in" value={metrics.checkedIn.toLocaleString()} />
+                                            <MiniStat label="Absent" value={metrics.absent.toLocaleString()} />
+                                            <MiniStat label="Checked out" value={metrics.checkedOut.toLocaleString()} />
+                                        </div>
+                                        {hasRoster ? (
+                                            <div className="grid gap-2">
+                                                {item.students.map((student) => {
+                                                    const attendance = studentAttendanceState(student);
+                                                    const profile = {
+                                                        ...student,
+                                                        isStudentProfile: true,
+                                                        parentName: item.name,
+                                                        parentEmail: item.email,
+                                                        school: item.school,
+                                                        schoolLocation: item.schoolLocation,
+                                                        event: item.event,
+                                                        eventDate: item.eventDate,
+                                                        partySize: 1,
+                                                        attended: student.checkedIn,
+                                                        waitlistPromotedAt: item.waitlistPromotedAt,
+                                                    };
+
+                                                    return (
+                                                        <article key={student.id || student.email || student.name} className="rounded-xl border border-slate-200 bg-white p-3">
+                                                            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                                                                <button type="button" onClick={() => openAttendanceProfile(profile)} className="flex min-w-0 items-start gap-3 text-left">
+                                                                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#e5eeff] text-[11px] font-black text-[#0b1c30]">{initials(student.name)}</span>
+                                                                    <span className="min-w-0">
+                                                                        <span className="block truncate text-sm font-black text-slate-950">{student.name}</span>
+                                                                        <span className="mt-0.5 block truncate text-xs font-semibold text-slate-500">{student.grade || 'Grade N/A'} · {student.interest || 'Interest N/A'}</span>
+                                                                        <span className="mt-1 flex flex-wrap gap-1.5">
+                                                                            <span className={cx('rounded-full px-2 py-0.5 text-[10px] font-black uppercase', attendance.className)}>{attendance.label}</span>
+                                                                            <span className={cx('rounded-full px-2 py-0.5 text-[10px] font-black uppercase', student.consentStatus === 'received' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700')}>{student.consentStatus || 'not_required'}</span>
+                                                                        </span>
+                                                                    </span>
+                                                                </button>
+                                                                <div className="lg:w-[430px]">
+                                                                    <StudentAttendanceControls csrf={csrf} student={student} />
+                                                                </div>
+                                                            </div>
+                                                        </article>
+                                                    );
+                                                })}
+                                            </div>
+                                        ) : (
+                                            <AttendeeRosterList registration={item} onProfile={openAttendanceProfile} compact />
+                                        )}
                                     </article>
-                                ))}
+                                    );
+                                })}
                             </div>
                         </div>
                     </div>
@@ -9174,6 +9236,31 @@ function AttendeeStatusBadge({ status, attended }) {
     );
 }
 
+function AttendanceActionForm({ csrf, action, children, disabled = false, className = '' }) {
+    return (
+        <form action={action} method="POST" className={className}>
+            <input type="hidden" name="_token" value={csrf} />
+            <button disabled={disabled} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40">{children}</button>
+        </form>
+    );
+}
+
+function StudentAttendanceControls({ csrf, student }) {
+    const canCheckIn = student.status === 'confirmed' && !student.checkedIn;
+    const canCheckOut = student.checkedIn && !student.checkedOut;
+    const canMarkAbsent = !student.checkedIn && !student.absent;
+    const canReset = student.checkedIn || student.checkedOut || student.absent;
+
+    return (
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <AttendanceActionForm csrf={csrf} action={`/dashboard/university/attendee-students/${student.id}/check-in`} disabled={!canCheckIn}>Check in</AttendanceActionForm>
+            <AttendanceActionForm csrf={csrf} action={`/dashboard/university/attendee-students/${student.id}/check-out`} disabled={!canCheckOut}>Check out</AttendanceActionForm>
+            <AttendanceActionForm csrf={csrf} action={`/dashboard/university/attendee-students/${student.id}/absent`} disabled={!canMarkAbsent}>Absent</AttendanceActionForm>
+            <AttendanceActionForm csrf={csrf} action={`/dashboard/university/attendee-students/${student.id}/not-arrived`} disabled={!canReset}>Not arrived</AttendanceActionForm>
+        </div>
+    );
+}
+
 function AttendeeRosterList({ registration, onProfile, compact = false }) {
     const students = registration.students || [];
 
@@ -9193,6 +9280,7 @@ function AttendeeRosterList({ registration, onProfile, compact = false }) {
             </div>
             <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
                 {students.map((student) => {
+                    const attendance = studentAttendanceState(student);
                     const profile = {
                         ...student,
                         isStudentProfile: true,
@@ -9215,7 +9303,7 @@ function AttendeeRosterList({ registration, onProfile, compact = false }) {
                                 <span className="mt-0.5 block truncate text-[11px] font-semibold text-slate-500">{student.grade || 'Grade N/A'} • {student.interest || 'Interest N/A'}</span>
                                 <span className="mt-1 flex flex-wrap gap-1">
                                     <span className={cx('rounded-full px-2 py-0.5 text-[9px] font-black uppercase', student.consentStatus === 'received' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700')}>{student.consentStatus || 'not_required'}</span>
-                                    <span className={cx('rounded-full px-2 py-0.5 text-[9px] font-black uppercase', student.checkedIn ? 'bg-blue-50 text-blue-700' : 'bg-slate-100 text-slate-500')}>{student.checkedIn ? 'Checked in' : 'Not in'}</span>
+                                    <span className={cx('rounded-full px-2 py-0.5 text-[9px] font-black uppercase', attendance.className)}>{attendance.label}</span>
                                 </span>
                             </span>
                         </button>
@@ -9224,6 +9312,49 @@ function AttendeeRosterList({ registration, onProfile, compact = false }) {
             </div>
         </div>
     );
+}
+
+function studentAttendanceState(student = {}) {
+    if (student.absent) {
+        return { label: 'Absent', className: 'bg-red-50 text-red-700', tone: 'red' };
+    }
+    if (student.checkedOut) {
+        return { label: 'Checked out', className: 'bg-violet-50 text-violet-700', tone: 'violet' };
+    }
+    if (student.checkedIn) {
+        return { label: 'Checked in', className: 'bg-blue-50 text-blue-700', tone: 'blue' };
+    }
+
+    return { label: 'Not arrived', className: 'bg-slate-100 text-slate-500', tone: 'slate' };
+}
+
+function attendanceMetricsForRegistration(registration = {}) {
+    const students = registration.students || [];
+    if (students.length > 0) {
+        const checkedIn = students.filter((student) => student.checkedIn).length;
+        const checkedOut = students.filter((student) => student.checkedOut).length;
+        const absent = students.filter((student) => student.absent).length;
+
+        return {
+            expected: students.length,
+            checkedIn,
+            checkedOut,
+            absent,
+            notArrived: Math.max(0, students.length - checkedIn - absent),
+        };
+    }
+
+    const expected = Number(registration.partySize || 0);
+    const checkedIn = registration.checkedIn ? expected : 0;
+    const checkedOut = registration.checkedOut ? expected : 0;
+
+    return {
+        expected,
+        checkedIn,
+        checkedOut,
+        absent: 0,
+        notArrived: Math.max(0, expected - checkedIn),
+    };
 }
 
 function ProfileFact({ label, value }) {
@@ -9252,15 +9383,26 @@ function attendeeSchoolGroups(items = []) {
                 waitlistedSeats: 0,
                 attendedSeats: 0,
                 studentCount: 0,
+                expectedStudents: 0,
+                checkedInStudents: 0,
+                checkedOutStudents: 0,
+                absentStudents: 0,
+                notArrivedStudents: 0,
             };
         }
 
+        const metrics = attendanceMetricsForRegistration(item);
         groups[key].registrations.push(item);
         groups[key].seats += Number(item.partySize || 0);
         groups[key].confirmedSeats += item.status === 'confirmed' ? Number(item.partySize || 0) : 0;
         groups[key].waitlistedSeats += item.status === 'waitlisted' ? Number(item.partySize || 0) : 0;
-        groups[key].attendedSeats += item.attended ? Number(item.partySize || 0) : 0;
+        groups[key].attendedSeats += metrics.checkedIn;
         groups[key].studentCount += (item.students || []).length;
+        groups[key].expectedStudents += metrics.expected;
+        groups[key].checkedInStudents += metrics.checkedIn;
+        groups[key].checkedOutStudents += metrics.checkedOut;
+        groups[key].absentStudents += metrics.absent;
+        groups[key].notArrivedStudents += metrics.notArrived;
         if (item.event && !groups[key].programs.includes(item.event)) {
             groups[key].programs.push(item.event);
             groups[key].programCount = groups[key].programs.length;
