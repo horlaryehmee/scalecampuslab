@@ -1390,28 +1390,28 @@ function AIPanel() {
     }, []);
 
     return (
-        <Panel title="AI recruitment intelligence" action={<button onClick={run} className="rounded-lg bg-gray-950 px-3 py-2 text-sm font-semibold text-white">Refresh AI</button>}>
+        <Panel title="Recruitment intelligence" action={<button onClick={run} className="rounded-lg bg-gray-950 px-3 py-2 text-sm font-semibold text-white">Refresh</button>}>
             {loading && <LoadingState />}
             {error && <ErrorBanner message={error} />}
             {!loading && (
                 <div className="grid gap-4 xl:grid-cols-3">
-                    <AICard title="Recommended schools" icon={Sparkles}>
+                    <RecommendationCard title="Recommended schools" icon={Sparkles}>
                         {(result.matches || []).map((item) => (
                             <div key={item.name} className="rounded-lg bg-gray-50 p-3">
                                 <p className="font-semibold">{item.name}</p>
                                 <p className="text-sm text-gray-500">Score {item.match_score}</p>
                             </div>
                         ))}
-                    </AICard>
-                    <AICard title="Predicted engagement" icon={Activity}>
+                    </RecommendationCard>
+                    <RecommendationCard title="Predicted engagement" icon={Activity}>
                         <p className="text-4xl font-semibold">{result.engagement?.engagement_probability || 0}%</p>
                         <p className="mt-2 text-sm text-gray-500">{result.engagement?.recommended_action}</p>
-                    </AICard>
-                    <AICard title="Itinerary suggestions" icon={CalendarDays}>
+                    </RecommendationCard>
+                    <RecommendationCard title="Itinerary suggestions" icon={CalendarDays}>
                         {(result.itinerary?.days || []).map((item) => (
                             <p key={`${item.day}-${item.stop}`} className="rounded-lg bg-gray-50 p-3 text-sm">Day {item.day}: {item.stop} at {item.recommended_time}</p>
                         ))}
-                    </AICard>
+                    </RecommendationCard>
                 </div>
             )}
         </Panel>
@@ -1743,7 +1743,7 @@ function ChartCard({ title, data }) {
     );
 }
 
-function AICard({ title, icon: Icon, children }) {
+function RecommendationCard({ title, icon: Icon, children }) {
     return (
         <section className="rounded-xl border border-gray-200 bg-white p-4">
             <div className="mb-4 flex items-center gap-2">

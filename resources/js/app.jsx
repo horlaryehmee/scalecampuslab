@@ -3085,7 +3085,7 @@ function UniversityOverviewSection({ events, registrations, schools, analytics, 
 
             <div className="grid gap-6 xl:grid-cols-[1fr_340px]">
                 <section className="rounded-3xl border border-violet-200 bg-violet-600 p-6 text-white shadow-sm">
-                    <p className="text-sm font-black uppercase tracking-wide text-white/80">AI recruitment intelligence</p>
+                    <p className="text-sm font-black uppercase tracking-wide text-white/80">Recruitment intelligence</p>
                     <h2 className="mt-3 max-w-2xl text-2xl font-black leading-tight">High-propensity clusters identified in your active school pipeline.</h2>
                     <p className="mt-3 max-w-2xl text-sm leading-6 text-white/80">Demo data suggests reallocating attention to the strongest target schools and upcoming published visits could increase registration yield.</p>
                     <div className="mt-6 flex gap-3">
@@ -3785,8 +3785,8 @@ function UniversityCreateEventWizard({ csrf, errors, old }) {
                         </div>
                     ))}
                     <div className="mt-8 rounded-2xl bg-emerald-950 p-4 text-white">
-                        <p className="text-xs font-black uppercase text-emerald-300">AI optimizer</p>
-                        <p className="mt-2 text-xs leading-5 text-white/75">Demo intelligence will recommend timing and regions as data grows.</p>
+                        <p className="text-xs font-black uppercase text-emerald-300">Planning assistant</p>
+                        <p className="mt-2 text-xs leading-5 text-white/75">Programme data will recommend timing and regions as activity grows.</p>
                     </div>
                 </aside>
                 <form action="/campus-events" method="POST" className="grid gap-4 p-6 md:grid-cols-2">
@@ -3860,7 +3860,7 @@ function UniversityEventDetail({ event, registrations, onCreate }) {
             </section>
 
             <section className="rounded-3xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm">
-                <p className="text-xs font-black uppercase tracking-wide text-emerald-700">AI insights</p>
+                <p className="text-xs font-black uppercase tracking-wide text-emerald-700">Programme insights</p>
                 <p className="mt-2 text-sm leading-6 text-emerald-950">{event.title} quality score is <span className="font-black">8.4/10</span>. Demo data shows strongest conversion from confirmed attendees.</p>
                 <div className="mt-4 grid grid-cols-2 gap-3">
                     <MiniStat label="Top tier" value={roster.length || event.confirmedSeats} />
@@ -6472,7 +6472,7 @@ function AdminSettingsSection({ csrf, settings = {}, profile = {}, errors = {} }
                                 <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-black uppercase text-slate-500">Stored only</span>
                             </div>
                             <div className="mt-5 space-y-4">
-                                <ToggleBox name="ai_matchmaking" label="AI Matchmaking · not enforced" defaultChecked={!!features.aiMatchmaking} disabled />
+                                <ToggleBox name="ai_matchmaking" label="School matching · not enforced" defaultChecked={!!features.aiMatchmaking} disabled />
                                 <ToggleBox name="beta_messaging" label="Beta Messaging · not enforced" defaultChecked={!!features.betaMessaging} disabled />
                                 <ToggleBox name="advanced_analytics" label="Advanced Analytics · not enforced" defaultChecked={features.advancedAnalytics !== false} disabled />
                                 <ToggleBox name="maintenance_mode" label="Maintenance Mode · not enforced" defaultChecked={!!features.maintenanceMode} disabled />
@@ -8815,8 +8815,8 @@ function UniversityAttendeesSection({ csrf, registrations = [], events = [] }) {
                 </div>
                 <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm md:p-5">
                     <div className="flex items-center gap-2">
-                        <Sparkles size={18} className="text-emerald-700" />
-                        <p className="text-xs font-black uppercase tracking-wide text-emerald-800">Roster Insight</p>
+                        <ClipboardCheck size={18} className="text-emerald-700" />
+                        <p className="text-xs font-black uppercase tracking-wide text-emerald-800">Roster Summary</p>
                     </div>
                     <p className="mt-3 text-sm leading-6 text-emerald-900">Highest attendee concentration is <span className="font-black">{topInterest}</span>. Use this to plan faculty coverage, lab guides, and follow-up messaging.</p>
                     <p className="mt-2 text-xs font-bold text-emerald-800">{waitlistedSeats.toLocaleString()} waitlisted seat(s) visible for promotion tracking. Attendance marked: {Math.round((attendedSeats / Math.max(1, confirmedSeats)) * 100)}%.</p>
@@ -11523,7 +11523,7 @@ function DiscoverySection({ schools }) {
                 <section className="rounded-xl bg-[#071a33] p-5 text-white shadow-sm">
                     <div className="flex items-center gap-2 text-sm font-bold">
                         <Sparkles size={18} className="text-indigo-300" />
-                        AI opportunity radar
+                        Opportunity radar
                     </div>
                     <p className="mt-5 text-sm leading-6 text-white/70">3 schools in Massachusetts show a 12% spike in engineering interest this quarter.</p>
                     <button className="mt-5 w-full rounded-lg bg-indigo-500 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-400">View forecast</button>
@@ -11896,7 +11896,7 @@ function VisitArchiveSection({ csrf, archives, analytics }) {
                     { label: 'Engagement', value: `${analytics.engagementAverage || 0}%` },
                 ]} />
                 <section className="rounded-xl border border-indigo-200 bg-indigo-50 p-5">
-                    <p className="text-sm font-bold uppercase text-indigo-700">AI recruitment insight</p>
+                    <p className="text-sm font-bold uppercase text-indigo-700">Recruitment insight</p>
                     <p className="mt-3 text-sm leading-6 text-indigo-950">Schools visited twice show a 24% higher conversion rate when scheduled during October cycles.</p>
                     {archives[0] && (
                         <form action={`/visit-archives/${archives[0].id}/sync`} method="POST" className="mt-4">
@@ -12373,7 +12373,7 @@ function CheckoutSection({ csrf, archives, tasks }) {
                 <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
                     <div className="flex items-center justify-between">
                         <h3 className="text-sm font-semibold uppercase tracking-wider text-gray-600">Next actions</h3>
-                        <span className="rounded-md bg-indigo-50 px-2 py-1 text-xs font-bold uppercase text-indigo-700">AI suggested</span>
+                        <span className="rounded-md bg-indigo-50 px-2 py-1 text-xs font-bold uppercase text-indigo-700">Suggested</span>
                     </div>
                     <div className="mt-5 space-y-4">
                         {visibleTasks.map((task) => (

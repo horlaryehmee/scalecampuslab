@@ -355,7 +355,7 @@ class DashboardController extends Controller
                 ['Business & Leadership Preview', 24, 140, 'Main Auditorium', 'Lagos, Nigeria'],
                 ['Health Sciences Experience', 38, 120, 'Clinical Skills Centre', 'Lagos, Nigeria'],
                 ['Creative Arts Portfolio Day', 52, 100, 'Arts Pavilion', 'Lagos, Nigeria'],
-                ['Computing & AI Campus Tour', 66, 160, 'Technology Hub', 'Lagos, Nigeria'],
+                ['Computing Campus Tour', 66, 160, 'Technology Hub', 'Lagos, Nigeria'],
                 ['Admissions Open House', 82, 220, 'University Welcome Centre', 'Lagos, Nigeria'],
             ];
 
@@ -453,7 +453,7 @@ class DashboardController extends Controller
             ['Business & Leadership Preview', 24, 140, 'Main Auditorium', 'Lagos, Nigeria'],
             ['Health Sciences Experience', 38, 120, 'Clinical Skills Centre', 'Lagos, Nigeria'],
             ['Creative Arts Portfolio Day', 52, 100, 'Arts Pavilion', 'Lagos, Nigeria'],
-            ['Computing & AI Campus Tour', 66, 160, 'Technology Hub', 'Lagos, Nigeria'],
+            ['Computing Campus Tour', 66, 160, 'Technology Hub', 'Lagos, Nigeria'],
             ['Admissions Open House', 82, 220, 'University Welcome Centre', 'Lagos, Nigeria'],
         ];
 

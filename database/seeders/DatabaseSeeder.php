@@ -532,9 +532,9 @@ class DatabaseSeeder extends Seeder
             ['Scheduling', 'Calendar view', 'Weekly and monthly visual schedules for campus visits.', 'planned'],
             ['Notifications', 'Email confirmations and reminders', 'Transactional messages for confirmations, changes, reminders, and cancellations.', 'planned'],
             ['Analytics', 'Reports and exports', 'Registration, attendance, conversion, and school engagement reporting.', 'planned'],
-            ['AI', 'School matchmaking', 'Recommend high schools based on recruitment goals and historical engagement.', 'planned'],
-            ['AI', 'Predictive school scoring', 'Rank schools by engagement, application quality, and enrollment outcomes.', 'planned'],
-            ['AI', 'Itinerary and route optimization', 'Generate efficient recruiter travel schedules across regions.', 'planned'],
+            ['Planning', 'School matching', 'Recommend high schools based on recruitment goals and historical engagement.', 'planned'],
+            ['Planning', 'School scoring', 'Rank schools by engagement, application quality, and enrollment outcomes.', 'planned'],
+            ['Planning', 'Itinerary and route optimization', 'Generate efficient recruiter travel schedules across regions.', 'planned'],
             ['Compliance', 'Security, legal, and privacy controls', 'Least-privilege access, validation, consent-aware data handling, and deployable production settings.', 'in_progress'],
             ['Performance', 'Production optimization', 'Cacheable config, lean dashboard payloads, indexes, and responsive UI.', 'in_progress'],
         ];
