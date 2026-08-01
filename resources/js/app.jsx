@@ -8772,6 +8772,7 @@ function RegistrationTable({ registrations }) {
 }
 
 function UniversityAttendeesSection({ csrf, registrations = [], events = [] }) {
+    const [rosterRegistrations, setRosterRegistrations] = useState(registrations);
     const [query, setQuery] = useState('');
     const [status, setStatus] = useState('all');
     const [program, setProgram] = useState('all');
@@ -8786,12 +8787,17 @@ function UniversityAttendeesSection({ csrf, registrations = [], events = [] }) {
     const [bulkAction, setBulkAction] = useState('check_in');
     const [page, setPage] = useState(1);
     const [perPage, setPerPage] = useState(50);
-    const searchableRegistrations = useMemo(() => registrations.map((item) => ({
+    const [attendanceBusy, setAttendanceBusy] = useState('');
+    const [attendanceMessage, setAttendanceMessage] = useState('');
+    useEffect(() => {
+        setRosterRegistrations(registrations);
+    }, [registrations]);
+    const searchableRegistrations = useMemo(() => rosterRegistrations.map((item) => ({
         ...item,
         searchText: `${item.name || ''} ${item.email || ''} ${item.school || ''} ${item.schoolLocation || ''} ${item.event || ''} ${item.interest || ''} ${(item.students || []).map((student) => `${student.name || ''} ${student.email || ''} ${student.grade || ''} ${student.interest || ''}`).join(' ')}`.toLowerCase(),
-    })), [registrations]);
-    const programs = useMemo(() => [...new Set(registrations.map((item) => item.event).filter(Boolean))].sort(), [registrations]);
-    const interests = useMemo(() => [...new Set(registrations.map((item) => item.interest).filter(Boolean))].sort(), [registrations]);
+    })), [rosterRegistrations]);
+    const programs = useMemo(() => [...new Set(rosterRegistrations.map((item) => item.event).filter(Boolean))].sort(), [rosterRegistrations]);
+    const interests = useMemo(() => [...new Set(rosterRegistrations.map((item) => item.interest).filter(Boolean))].sort(), [rosterRegistrations]);
     const filtered = useMemo(() => {
         const needle = query.toLowerCase().trim();
         return searchableRegistrations.filter((item) => (!needle || item.searchText.includes(needle))
@@ -8800,6 +8806,7 @@ function UniversityAttendeesSection({ csrf, registrations = [], events = [] }) {
             && (interest === 'all' || item.interest === interest));
     }, [searchableRegistrations, query, status, program, interest]);
     const schoolGroups = useMemo(() => attendeeSchoolGroups(filtered), [filtered]);
+    const activeAttendanceGroup = attendanceGroup ? (schoolGroups.find((group) => group.key === attendanceGroup.key) || attendanceGroup) : null;
     const pages = Math.max(1, Math.ceil(schoolGroups.length / perPage));
     const visibleGroups = schoolGroups.slice((page - 1) * perPage, page * perPage);
     const visible = visibleGroups.flatMap((group) => group.registrations);
@@ -8833,12 +8840,12 @@ function UniversityAttendeesSection({ csrf, registrations = [], events = [] }) {
         window.location.href = `/dashboard/university/attendees/export${params}`;
     };
     const openAttendanceProfile = (item) => {
-        setAttendanceReturnGroup(attendanceGroup);
+        setAttendanceReturnGroup(activeAttendanceGroup);
         setAttendanceGroup(null);
         setProfile(item);
     };
     const openAttendanceEdit = (item) => {
-        setAttendanceReturnGroup(attendanceGroup);
+        setAttendanceReturnGroup(activeAttendanceGroup);
         setAttendanceGroup(null);
         setEditing(item);
     };
@@ -8856,8 +8863,38 @@ function UniversityAttendeesSection({ csrf, registrations = [], events = [] }) {
         setProfile(null);
         setAttendanceReturnGroup(null);
     };
+    const submitAttendanceAction = async (event, busyKey) => {
+        event.preventDefault();
+        const form = event.currentTarget;
+        setAttendanceBusy(busyKey || form.action);
+        setAttendanceMessage('');
 
-    if (attendanceGroup) {
+        try {
+            const response = await fetch(form.action, {
+                method: form.method || 'POST',
+                headers: {
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: new FormData(form),
+            });
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                const message = payload.message || Object.values(payload.errors || {})[0]?.[0] || 'Attendance update failed.';
+                throw new Error(message);
+            }
+            if (Array.isArray(payload.registrations)) {
+                setRosterRegistrations(payload.registrations);
+            }
+            setAttendanceMessage(payload.status || 'Attendance updated.');
+        } catch (error) {
+            setAttendanceMessage(error.message || 'Attendance update failed.');
+        } finally {
+            setAttendanceBusy('');
+        }
+    };
+
+    if (activeAttendanceGroup) {
         return (
             <div className="grid gap-4 md:gap-5">
                 <section className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:p-5 lg:flex-row lg:items-center lg:justify-between">
@@ -8867,27 +8904,31 @@ function UniversityAttendeesSection({ csrf, registrations = [], events = [] }) {
                         </button>
                         <div className="min-w-0">
                             <p className="text-xs font-black uppercase tracking-wide text-slate-500">Attendance</p>
-                            <h1 className="mt-1 truncate text-2xl font-black tracking-tight text-slate-950 md:text-3xl">{attendanceGroup.school}</h1>
-                            <p className="mt-1 text-sm font-semibold text-slate-500">{attendanceGroup.location || 'Location TBA'} · {attendanceGroup.registrations.length.toLocaleString()} booking(s)</p>
+                            <h1 className="mt-1 truncate text-2xl font-black tracking-tight text-slate-950 md:text-3xl">{activeAttendanceGroup.school}</h1>
+                            <p className="mt-1 text-sm font-semibold text-slate-500">{activeAttendanceGroup.location || 'Location TBA'} · {activeAttendanceGroup.registrations.length.toLocaleString()} booking(s)</p>
                         </div>
                     </div>
-                    <form action="/dashboard/university/attendees/bulk" method="POST" className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <form action="/dashboard/university/attendees/bulk" method="POST" onSubmit={(event) => submitAttendanceAction(event, 'group-check-in-all')} className="flex flex-col gap-2 sm:flex-row sm:items-center">
                         <input type="hidden" name="_token" value={csrf} />
                         <input type="hidden" name="action" value="check_in" />
-                        {attendanceGroup.registrations.map((item) => <input key={item.id} type="hidden" name="registration_ids[]" value={item.id} />)}
-                        <button className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#006a61] px-4 py-3 text-sm font-black text-white hover:bg-[#00544d]"><CheckCircle2 size={16} /> Check in all</button>
+                        {activeAttendanceGroup.registrations.map((item) => <input key={item.id} type="hidden" name="registration_ids[]" value={item.id} />)}
+                        <button disabled={attendanceBusy === 'group-check-in-all'} className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#006a61] px-4 py-3 text-sm font-black text-white hover:bg-[#00544d] disabled:cursor-wait disabled:opacity-60"><CheckCircle2 size={16} /> {attendanceBusy === 'group-check-in-all' ? 'Updating...' : 'Check in all'}</button>
                     </form>
                 </section>
 
+                {attendanceMessage && (
+                    <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-black text-emerald-800">{attendanceMessage}</div>
+                )}
+
                 <section className="grid grid-cols-2 gap-2 md:grid-cols-4">
-                    <MiniStat label="Expected" value={attendanceGroup.expectedStudents.toLocaleString()} />
-                    <MiniStat label="Checked in" value={attendanceGroup.checkedInStudents.toLocaleString()} />
-                    <MiniStat label="Not arrived / absent" value={(attendanceGroup.notArrivedStudents + attendanceGroup.absentStudents).toLocaleString()} />
-                    <MiniStat label="Checked out" value={attendanceGroup.checkedOutStudents.toLocaleString()} />
+                    <MiniStat label="Expected" value={activeAttendanceGroup.expectedStudents.toLocaleString()} />
+                    <MiniStat label="Checked in" value={activeAttendanceGroup.checkedInStudents.toLocaleString()} />
+                    <MiniStat label="Not arrived / absent" value={(activeAttendanceGroup.notArrivedStudents + activeAttendanceGroup.absentStudents).toLocaleString()} />
+                    <MiniStat label="Checked out" value={activeAttendanceGroup.checkedOutStudents.toLocaleString()} />
                 </section>
 
                 <section className="grid gap-4">
-                    {attendanceGroup.registrations.map((item) => {
+                    {activeAttendanceGroup.registrations.map((item) => {
                         const metrics = attendanceMetricsForRegistration(item);
                         const hasRoster = (item.students || []).length > 0;
 
@@ -8902,13 +8943,13 @@ function UniversityAttendeesSection({ csrf, registrations = [], events = [] }) {
                                         <p className="mt-1 text-sm font-semibold text-slate-500">{formatDateTime(item.eventDate)} · {item.partySize} seat(s) · {item.email}</p>
                                     </div>
                                     <div className="flex shrink-0 flex-wrap gap-2">
-                                        <form action={`/dashboard/university/attendees/${item.id}/check-in`} method="POST">
+                                        <form action={`/dashboard/university/attendees/${item.id}/check-in`} method="POST" onSubmit={(event) => submitAttendanceAction(event, `registration-${item.id}-check-in`)}>
                                             <input type="hidden" name="_token" value={csrf} />
-                                            <button className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-800">Check in all</button>
+                                            <button disabled={attendanceBusy === `registration-${item.id}-check-in`} className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-800 disabled:cursor-wait disabled:opacity-60">Check in all</button>
                                         </form>
-                                        <form action={`/dashboard/university/attendees/${item.id}/check-out`} method="POST">
+                                        <form action={`/dashboard/university/attendees/${item.id}/check-out`} method="POST" onSubmit={(event) => submitAttendanceAction(event, `registration-${item.id}-check-out`)}>
                                             <input type="hidden" name="_token" value={csrf} />
-                                            <button disabled={!item.checkedIn} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-black text-slate-700 disabled:cursor-not-allowed disabled:opacity-40">Check out all</button>
+                                            <button disabled={!item.checkedIn || attendanceBusy === `registration-${item.id}-check-out`} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-black text-slate-700 disabled:cursor-not-allowed disabled:opacity-40">Check out all</button>
                                         </form>
                                         <button type="button" onClick={() => openAttendanceProfile(item)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-black text-slate-700">Profile</button>
                                         <button type="button" onClick={() => openAttendanceEdit(item)} className="rounded-lg bg-slate-950 px-3 py-2 text-xs font-black text-white">Edit</button>
@@ -8953,7 +8994,7 @@ function UniversityAttendeesSection({ csrf, registrations = [], events = [] }) {
                                                             </span>
                                                         </button>
                                                         <div className="lg:w-[430px]">
-                                                            <StudentAttendanceControls csrf={csrf} student={student} />
+                                                            <StudentAttendanceControls csrf={csrf} student={student} onSubmit={submitAttendanceAction} busyKey={attendanceBusy} />
                                                         </div>
                                                     </div>
                                                 </article>
@@ -9469,27 +9510,28 @@ function AttendeeStatusBadge({ status, attended }) {
     );
 }
 
-function AttendanceActionForm({ csrf, action, children, disabled = false, className = '' }) {
+function AttendanceActionForm({ csrf, action, children, disabled = false, busy = false, busyKey, onSubmit, className = '' }) {
     return (
-        <form action={action} method="POST" className={className}>
+        <form action={action} method="POST" onSubmit={onSubmit ? (event) => onSubmit(event, busyKey || action) : undefined} className={className}>
             <input type="hidden" name="_token" value={csrf} />
-            <button disabled={disabled} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40">{children}</button>
+            <button disabled={disabled || busy} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40">{busy ? 'Updating...' : children}</button>
         </form>
     );
 }
 
-function StudentAttendanceControls({ csrf, student }) {
+function StudentAttendanceControls({ csrf, student, onSubmit, busyKey = '' }) {
     const canCheckIn = student.status === 'confirmed' && !student.checkedIn;
     const canCheckOut = student.checkedIn && !student.checkedOut;
     const canMarkAbsent = !student.checkedIn && !student.absent;
     const canReset = student.checkedIn || student.checkedOut || student.absent;
+    const actionKey = (action) => `student-${student.id}-${action}`;
 
     return (
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <AttendanceActionForm csrf={csrf} action={`/dashboard/university/attendee-students/${student.id}/check-in`} disabled={!canCheckIn}>Check in</AttendanceActionForm>
-            <AttendanceActionForm csrf={csrf} action={`/dashboard/university/attendee-students/${student.id}/check-out`} disabled={!canCheckOut}>Check out</AttendanceActionForm>
-            <AttendanceActionForm csrf={csrf} action={`/dashboard/university/attendee-students/${student.id}/absent`} disabled={!canMarkAbsent}>Absent</AttendanceActionForm>
-            <AttendanceActionForm csrf={csrf} action={`/dashboard/university/attendee-students/${student.id}/not-arrived`} disabled={!canReset}>Not arrived</AttendanceActionForm>
+            <AttendanceActionForm csrf={csrf} action={`/dashboard/university/attendee-students/${student.id}/check-in`} disabled={!canCheckIn} busy={busyKey === actionKey('check-in')} busyKey={actionKey('check-in')} onSubmit={onSubmit}>Check in</AttendanceActionForm>
+            <AttendanceActionForm csrf={csrf} action={`/dashboard/university/attendee-students/${student.id}/check-out`} disabled={!canCheckOut} busy={busyKey === actionKey('check-out')} busyKey={actionKey('check-out')} onSubmit={onSubmit}>Check out</AttendanceActionForm>
+            <AttendanceActionForm csrf={csrf} action={`/dashboard/university/attendee-students/${student.id}/absent`} disabled={!canMarkAbsent} busy={busyKey === actionKey('absent')} busyKey={actionKey('absent')} onSubmit={onSubmit}>Absent</AttendanceActionForm>
+            <AttendanceActionForm csrf={csrf} action={`/dashboard/university/attendee-students/${student.id}/not-arrived`} disabled={!canReset} busy={busyKey === actionKey('not-arrived')} busyKey={actionKey('not-arrived')} onSubmit={onSubmit}>Not arrived</AttendanceActionForm>
         </div>
     );
 }

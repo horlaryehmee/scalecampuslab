@@ -39,6 +39,7 @@ use App\Models\VisitTask;
 use App\Models\WaitlistSignup;
 use App\Services\AccountSessionRevoker;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -1087,7 +1088,7 @@ class DashboardController extends Controller
         return back()->with('status', 'Attendee updated.');
     }
 
-    public function checkInUniversityAttendee(Request $request, EventRegistration $registration): RedirectResponse
+    public function checkInUniversityAttendee(Request $request, EventRegistration $registration): RedirectResponse|JsonResponse
     {
         $this->authorizeUniversityRegistration($request, $registration);
 
@@ -1102,10 +1103,14 @@ class DashboardController extends Controller
         $registration->students()->whereNull('checked_in_at')->update(['checked_in_at' => now(), 'absent_at' => null]);
         $this->logUniversityActivity($request, 'attendee.checked_in', $registration, ['program' => $registration->event?->title]);
 
+        if ($request->expectsJson()) {
+            return $this->universityAttendanceJson($request, 'Attendee checked in.');
+        }
+
         return back()->with('status', 'Attendee checked in.');
     }
 
-    public function checkOutUniversityAttendee(Request $request, EventRegistration $registration): RedirectResponse
+    public function checkOutUniversityAttendee(Request $request, EventRegistration $registration): RedirectResponse|JsonResponse
     {
         $this->authorizeUniversityRegistration($request, $registration);
 
@@ -1119,10 +1124,14 @@ class DashboardController extends Controller
         $registration->students()->whereNull('checked_out_at')->update(['checked_out_at' => now()]);
         $this->logUniversityActivity($request, 'attendee.checked_out', $registration, ['program' => $registration->event?->title]);
 
+        if ($request->expectsJson()) {
+            return $this->universityAttendanceJson($request, 'Attendee checked out.');
+        }
+
         return back()->with('status', 'Attendee checked out.');
     }
 
-    public function checkInUniversityAttendeeStudent(Request $request, EventRegistrationStudent $registrationStudent): RedirectResponse
+    public function checkInUniversityAttendeeStudent(Request $request, EventRegistrationStudent $registrationStudent): RedirectResponse|JsonResponse
     {
         $registration = $this->authorizeUniversityRegistrationStudent($request, $registrationStudent);
 
@@ -1141,10 +1150,15 @@ class DashboardController extends Controller
             'program' => $registration->event?->title,
         ]);
 
-        return back()->with('status', "{$registrationStudent->name} checked in.");
+        $message = "{$registrationStudent->name} checked in.";
+        if ($request->expectsJson()) {
+            return $this->universityAttendanceJson($request, $message);
+        }
+
+        return back()->with('status', $message);
     }
 
-    public function checkOutUniversityAttendeeStudent(Request $request, EventRegistrationStudent $registrationStudent): RedirectResponse
+    public function checkOutUniversityAttendeeStudent(Request $request, EventRegistrationStudent $registrationStudent): RedirectResponse|JsonResponse
     {
         $registration = $this->authorizeUniversityRegistrationStudent($request, $registrationStudent);
 
@@ -1162,10 +1176,15 @@ class DashboardController extends Controller
             'program' => $registration->event?->title,
         ]);
 
-        return back()->with('status', "{$registrationStudent->name} checked out.");
+        $message = "{$registrationStudent->name} checked out.";
+        if ($request->expectsJson()) {
+            return $this->universityAttendanceJson($request, $message);
+        }
+
+        return back()->with('status', $message);
     }
 
-    public function markUniversityAttendeeStudentAbsent(Request $request, EventRegistrationStudent $registrationStudent): RedirectResponse
+    public function markUniversityAttendeeStudentAbsent(Request $request, EventRegistrationStudent $registrationStudent): RedirectResponse|JsonResponse
     {
         $registration = $this->authorizeUniversityRegistrationStudent($request, $registrationStudent);
 
@@ -1180,10 +1199,15 @@ class DashboardController extends Controller
             'program' => $registration->event?->title,
         ]);
 
-        return back()->with('status', "{$registrationStudent->name} marked absent.");
+        $message = "{$registrationStudent->name} marked absent.";
+        if ($request->expectsJson()) {
+            return $this->universityAttendanceJson($request, $message);
+        }
+
+        return back()->with('status', $message);
     }
 
-    public function markUniversityAttendeeStudentNotArrived(Request $request, EventRegistrationStudent $registrationStudent): RedirectResponse
+    public function markUniversityAttendeeStudentNotArrived(Request $request, EventRegistrationStudent $registrationStudent): RedirectResponse|JsonResponse
     {
         $registration = $this->authorizeUniversityRegistrationStudent($request, $registrationStudent);
 
@@ -1198,10 +1222,15 @@ class DashboardController extends Controller
             'program' => $registration->event?->title,
         ]);
 
-        return back()->with('status', "{$registrationStudent->name} marked not arrived.");
+        $message = "{$registrationStudent->name} marked not arrived.";
+        if ($request->expectsJson()) {
+            return $this->universityAttendanceJson($request, $message);
+        }
+
+        return back()->with('status', $message);
     }
 
-    public function bulkUpdateUniversityAttendees(Request $request): RedirectResponse
+    public function bulkUpdateUniversityAttendees(Request $request): RedirectResponse|JsonResponse
     {
         abort_unless($request->user()?->role === 'university', 403);
 
@@ -1276,7 +1305,12 @@ class DashboardController extends Controller
             'registration_ids' => $registrations->pluck('id')->values()->all(),
         ]);
 
-        return back()->with('status', $changed.' attendee record(s) updated.');
+        $message = $changed.' attendee record(s) updated.';
+        if ($request->expectsJson()) {
+            return $this->universityAttendanceJson($request, $message);
+        }
+
+        return back()->with('status', $message);
     }
 
     public function importUniversityAttendees(Request $request): RedirectResponse
@@ -3440,6 +3474,14 @@ class DashboardController extends Controller
         $this->authorizeUniversityRegistration($request, $registration);
 
         return $registration;
+    }
+
+    private function universityAttendanceJson(Request $request, string $message): JsonResponse
+    {
+        return response()->json([
+            'status' => $message,
+            'registrations' => $this->registrations($request->user()->id),
+        ]);
     }
 
     private function syncRegistrationAttendanceFromStudents(EventRegistration $registration): void
