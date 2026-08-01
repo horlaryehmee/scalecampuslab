@@ -18,6 +18,7 @@ use App\Models\VisitRequest;
 use App\Models\VisitTask;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 
 class DatabaseSeeder extends Seeder
 {
@@ -243,6 +244,10 @@ class DatabaseSeeder extends Seeder
                 ['International Applicant Webinar', 7, 'Online Admissions Studio', 'Virtual', 'A live online information session for international applicants and counselors.', 150, 'published', 14, 15],
                 ['Creative Arts Portfolio Review', 9, 'Arts & Design Center', 'West Campus', 'Portfolio reviews and conversations with faculty from creative disciplines.', 45, 'draft', 11, 15],
             ] as [$title, $weeks, $venue, $location, $description, $capacity, $status, $startHour, $endHour]) {
+                $existingEvent = CampusEvent::query()
+                    ->where('title', $title)
+                    ->where('university_user_id', $university->id)
+                    ->first();
                 CampusEvent::updateOrCreate(
                     ['title' => $title, 'university_user_id' => $university->id],
                     [
@@ -253,6 +258,9 @@ class DatabaseSeeder extends Seeder
                         'description' => $description,
                         'capacity' => $capacity,
                         'status' => $status,
+                        'visibility' => 'public',
+                        'guest_registration_enabled' => true,
+                        'share_slug' => $existingEvent?->share_slug ?: $this->uniqueShareSlug($title, $existingEvent?->id),
                         'is_demo' => true,
                     ]
                 );
@@ -537,5 +545,22 @@ class DatabaseSeeder extends Seeder
                 compact('category', 'description', 'status') + ['sort_order' => $index + 1]
             );
         }
+    }
+
+    private function uniqueShareSlug(string $title, ?int $ignoreId = null): string
+    {
+        $base = Str::slug($title) ?: 'program';
+        $slug = $base;
+        $suffix = 2;
+
+        while (CampusEvent::query()
+            ->where('share_slug', $slug)
+            ->when($ignoreId, fn ($query) => $query->whereKeyNot($ignoreId))
+            ->exists()) {
+            $slug = $base.'-'.$suffix;
+            $suffix++;
+        }
+
+        return $slug;
     }
 }

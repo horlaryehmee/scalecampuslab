@@ -371,6 +371,9 @@ class DashboardController extends Controller
                     'description' => 'A guided campus visit program with faculty sessions, student panels, and admissions support.',
                     'capacity' => $capacity,
                     'status' => 'published',
+                    'visibility' => 'public',
+                    'guest_registration_enabled' => true,
+                    'share_slug' => $this->uniqueDemoShareSlug($title),
                     'is_demo' => true,
                 ]);
 
@@ -456,6 +459,10 @@ class DashboardController extends Controller
 
         foreach ($programs as $programIndex => [$title, $days, $capacity, $venue, $location]) {
             $startsAt = now()->addDays($days)->setTime(10, 0);
+            $existingEvent = CampusEvent::query()
+                ->where('university_user_id', $user->id)
+                ->where('title', $title)
+                ->first();
             $event = CampusEvent::query()->updateOrCreate(
                 ['university_user_id' => $user->id, 'title' => $title],
                 [
@@ -483,6 +490,7 @@ class DashboardController extends Controller
                     'status' => 'published',
                     'visibility' => 'public',
                     'guest_registration_enabled' => true,
+                    'share_slug' => $existingEvent?->share_slug ?: $this->uniqueDemoShareSlug($title, $existingEvent?->id),
                     'lifecycle_stage' => 'open',
                     'is_demo' => true,
                 ]
@@ -543,6 +551,23 @@ class DashboardController extends Controller
                 }
             }
         }
+    }
+
+    private function uniqueDemoShareSlug(string $title, ?int $ignoreId = null): string
+    {
+        $base = Str::slug($title) ?: 'program';
+        $slug = $base;
+        $suffix = 2;
+
+        while (CampusEvent::query()
+            ->where('share_slug', $slug)
+            ->when($ignoreId, fn ($query) => $query->whereKeyNot($ignoreId))
+            ->exists()) {
+            $slug = $base.'-'.$suffix;
+            $suffix++;
+        }
+
+        return $slug;
     }
 
     public function storeAdminUniversity(Request $request): RedirectResponse
