@@ -11700,14 +11700,13 @@ function PartnerSchoolDetail({ csrf, school, archives, visitsCount, onBack, onEd
         ? (archives.reduce((total, archive) => total + Number(archive.quality || 0), 0) / archives.length).toFixed(1)
         : '0.0';
     const analyticsBars = [
-        ['Applicants', activeApplicants, 'bg-blue-600'],
-        ['Leads', leadsCaptured, 'bg-emerald-500'],
-        ['Engagement', averageEngagement, 'bg-slate-900'],
-        ['Yield', yieldRate, 'bg-sky-400'],
-        ['Priority', relationshipScore, 'bg-indigo-500'],
+        { label: 'Applicants', value: activeApplicants, color: '#2563eb' },
+        { label: 'Leads', value: leadsCaptured, color: '#059669' },
+        { label: 'Visits', value: visitsCount, color: '#0f172a' },
+        { label: 'Archives', value: archives.length, color: '#38bdf8' },
+        { label: 'Tasks', value: Number(school.taskCount || 0), color: '#6366f1' },
     ];
-    const maxAnalyticsValue = Math.max(...analyticsBars.map(([, value]) => Number(value || 0)), 1);
-    const leadingSignal = [...analyticsBars].sort((left, right) => Number(right[1] || 0) - Number(left[1] || 0))[0];
+    const leadingSignal = [...analyticsBars].sort((left, right) => Number(right.value || 0) - Number(left.value || 0))[0];
     const coordinatorName = school.coordinatorName && school.coordinatorName !== 'Coordinator pending'
         ? school.coordinatorName
         : '';
@@ -11785,7 +11784,7 @@ function PartnerSchoolDetail({ csrf, school, archives, visitsCount, onBack, onEd
                 </div>
             </section>
 
-            <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_340px] md:gap-4">
+            <div className="grid items-start gap-3 lg:grid-cols-[minmax(0,1fr)_340px] md:gap-4">
                 <div className="grid gap-3 md:gap-4">
                     <section>
                         <h2 className="mb-2 text-base font-black text-slate-950">Performance Metrics</h2>
@@ -11801,25 +11800,11 @@ function PartnerSchoolDetail({ csrf, school, archives, visitsCount, onBack, onEd
                         <div className="flex flex-wrap items-center justify-between gap-2">
                             <div>
                                 <h2 className="text-base font-black text-slate-950">Recruitment Analytics</h2>
-                                <p className="mt-0.5 text-xs font-semibold text-slate-500">Calculated from saved partner and archived visit data.</p>
+                                <p className="mt-0.5 text-xs font-semibold text-slate-500">School profile volume from the university dashboard data.</p>
                             </div>
                             <span className="rounded bg-slate-100 px-2 py-1 text-[10px] font-black uppercase text-slate-500">Quality {averageQuality}/5</span>
                         </div>
-                        <div className="relative mt-3 h-44 overflow-hidden rounded-lg border border-slate-200 bg-slate-50 p-3 md:h-52">
-                            <div className="absolute inset-x-3 bottom-3 top-3 flex items-end gap-2 opacity-90">
-                                {analyticsBars.map(([label, value, className]) => (
-                                    <div key={label} className="flex min-w-0 flex-1 flex-col items-center gap-2">
-                                        <div className={cx('w-full rounded-t-sm', className)} style={{ height: `${Math.max(8, (Number(value || 0) / maxAnalyticsValue) * 100)}%` }} />
-                                        <span className="w-full truncate text-center text-[10px] font-black text-slate-500">{label}</span>
-                                        <span className="text-[10px] font-black text-slate-900">{Number(value || 0).toLocaleString()}</span>
-                                    </div>
-                                ))}
-                            </div>
-                            <div className="absolute left-1/2 top-1/2 grid -translate-x-1/2 -translate-y-1/2 place-items-center rounded-lg border border-slate-200 bg-white/90 px-4 py-2 text-center shadow-sm backdrop-blur">
-                                <span className="text-xs font-black text-slate-950">Live Data</span>
-                                <span className="mt-1 text-[11px] font-semibold text-slate-500">{leadingSignal[0]} leading</span>
-                            </div>
-                        </div>
+                        <PartnerSchoolAnalyticsChart data={analyticsBars} leadingLabel={leadingSignal.label} />
                     </section>
 
                     <section className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm md:p-4">
@@ -11897,6 +11882,57 @@ function PartnerSchoolDetail({ csrf, school, archives, visitsCount, onBack, onEd
                 </aside>
             </div>
         </section>
+    );
+}
+
+function PartnerSchoolAnalyticsChart({ data, leadingLabel }) {
+    const chartWidth = 720;
+    const chartHeight = 220;
+    const padding = { top: 18, right: 18, bottom: 48, left: 42 };
+    const plotWidth = chartWidth - padding.left - padding.right;
+    const plotHeight = chartHeight - padding.top - padding.bottom;
+    const maxValue = Math.max(...data.map((item) => Number(item.value || 0)), 1);
+    const roundedMax = Math.ceil(maxValue / 25) * 25;
+    const barSlot = plotWidth / data.length;
+    const barWidth = Math.min(58, barSlot * 0.46);
+    const ticks = [0, 0.25, 0.5, 0.75, 1].map((ratio) => Math.round(roundedMax * ratio));
+
+    return (
+        <div className="mt-3 overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
+            <div className="flex items-center justify-between border-b border-slate-200 bg-white px-3 py-2">
+                <p className="text-[11px] font-black uppercase tracking-wide text-slate-500">Profile Analytics</p>
+                <p className="text-[11px] font-black text-slate-900">{leadingLabel} leading</p>
+            </div>
+            <div className="overflow-x-auto px-2 py-2">
+                <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} role="img" aria-label="Partner school recruitment analytics chart" className="h-[220px] min-w-[620px] w-full">
+                    <rect x="0" y="0" width={chartWidth} height={chartHeight} rx="10" fill="#f8fafc" />
+                    {ticks.map((tick) => {
+                        const y = padding.top + plotHeight - ((tick / roundedMax) * plotHeight);
+                        return (
+                            <g key={tick}>
+                                <line x1={padding.left} y1={y} x2={chartWidth - padding.right} y2={y} stroke="#e2e8f0" strokeWidth="1" />
+                                <text x={padding.left - 10} y={y + 4} textAnchor="end" fontSize="10" fontWeight="700" fill="#64748b">{tick}</text>
+                            </g>
+                        );
+                    })}
+                    <line x1={padding.left} y1={padding.top} x2={padding.left} y2={padding.top + plotHeight} stroke="#cbd5e1" strokeWidth="1" />
+                    <line x1={padding.left} y1={padding.top + plotHeight} x2={chartWidth - padding.right} y2={padding.top + plotHeight} stroke="#cbd5e1" strokeWidth="1" />
+                    {data.map((item, index) => {
+                        const value = Number(item.value || 0);
+                        const barHeight = Math.max(5, (value / roundedMax) * plotHeight);
+                        const x = padding.left + (barSlot * index) + ((barSlot - barWidth) / 2);
+                        const y = padding.top + plotHeight - barHeight;
+                        return (
+                            <g key={item.label}>
+                                <rect x={x} y={y} width={barWidth} height={barHeight} rx="5" fill={item.color} />
+                                <text x={x + (barWidth / 2)} y={Math.max(12, y - 7)} textAnchor="middle" fontSize="11" fontWeight="800" fill="#0f172a">{value.toLocaleString()}{item.suffix || ''}</text>
+                                <text x={x + (barWidth / 2)} y={padding.top + plotHeight + 22} textAnchor="middle" fontSize="10" fontWeight="800" fill="#475569">{item.label}</text>
+                            </g>
+                        );
+                    })}
+                </svg>
+            </div>
+        </div>
     );
 }
 
