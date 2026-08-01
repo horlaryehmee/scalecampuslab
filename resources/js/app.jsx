@@ -8816,7 +8816,6 @@ function UniversityAttendeesSection({ csrf, registrations = [], events = [] }) {
     const attendedSeats = filtered.filter((item) => item.attended).reduce((sum, item) => sum + Number(item.partySize || 0), 0);
     const checkedInSeats = filtered.filter((item) => item.checkedIn).reduce((sum, item) => sum + Number(item.partySize || 0), 0);
     const waitlistedSeats = filtered.filter((item) => item.status === 'waitlisted').reduce((sum, item) => sum + Number(item.partySize || 0), 0);
-    const consentPending = filtered.filter((item) => item.isMinor && item.consentStatus !== 'received' && item.consentStatus !== 'not_required').length;
     const topInterest = topByCount(filtered.map((item) => item.interest).filter(Boolean)) || 'Mixed interests';
 
     useEffect(() => {
@@ -8989,7 +8988,6 @@ function UniversityAttendeesSection({ csrf, registrations = [], events = [] }) {
                                                                 <span className="mt-0.5 block truncate text-xs font-semibold text-slate-500">{student.grade || 'Grade N/A'} · {student.interest || 'Interest N/A'}</span>
                                                                 <span className="mt-1 flex flex-wrap gap-1.5">
                                                                     <span className={cx('rounded-full px-2 py-0.5 text-[10px] font-black uppercase', attendance.className)}>{attendance.label}</span>
-                                                                    <span className={cx('rounded-full px-2 py-0.5 text-[10px] font-black uppercase', student.consentStatus === 'received' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700')}>{student.consentStatus || 'not_required'}</span>
                                                                 </span>
                                                             </span>
                                                         </button>
@@ -9099,7 +9097,7 @@ function UniversityAttendeesSection({ csrf, registrations = [], events = [] }) {
                     <div className="mt-3 grid grid-cols-3 gap-2 md:mt-4 md:gap-3">
                         <MiniStat label="Filtered seats" value={totalSeats.toLocaleString()} />
                         <MiniStat label="Checked in" value={checkedInSeats.toLocaleString()} />
-                        <MiniStat label="Consent pending" value={consentPending.toLocaleString()} />
+                        <MiniStat label="School groups" value={schoolGroups.length.toLocaleString()} />
                     </div>
                     {selected.length > 0 && (
                         <form action="/dashboard/university/attendees/bulk" method="POST" className="mt-3 flex flex-col gap-2 rounded-xl border border-[#006a61]/20 bg-emerald-50 p-3 sm:flex-row sm:items-center">
@@ -9266,15 +9264,7 @@ function UniversityAttendeesSection({ csrf, registrations = [], events = [] }) {
                                 <input type="checkbox" name="is_minor" value="1" defaultChecked={editing.isMinor} className="rounded border-slate-300 text-blue-600" />
                                 Minor attendee / student group requires guardian handling
                             </label>
-                            <label className="block">
-                                <span className="text-xs font-black uppercase tracking-wide text-slate-500">Consent</span>
-                                <select name="consent_status" defaultValue={editing.consentStatus || 'not_required'} className="mt-2 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm font-semibold">
-                                    <option value="not_required">Not required</option>
-                                    <option value="pending">Pending</option>
-                                    <option value="received">Received</option>
-                                    <option value="expired">Expired</option>
-                                </select>
-                            </label>
+                            <input type="hidden" name="consent_status" value={editing.consentStatus || 'not_required'} />
                             <LightField label="Guardian name" name="guardian_name" defaultValue={editing.guardianName || ''} />
                             <LightField label="Guardian email" name="guardian_email" type="email" defaultValue={editing.guardianEmail || ''} />
                             <LightField label="Guardian phone" name="guardian_phone" defaultValue={editing.guardianPhone || ''} />
@@ -9325,7 +9315,6 @@ function UniversityAttendeesSection({ csrf, registrations = [], events = [] }) {
                             <ProfileFact label="Check-in" value={profile.checkedInAt ? formatDateTime(profile.checkedInAt) : 'Not checked in'} />
                             <ProfileFact label="Check-out" value={profile.checkedOutAt ? formatDateTime(profile.checkedOutAt) : 'Not checked out'} />
                             {profile.isStudentProfile && <ProfileFact label="Absent" value={profile.absentAt ? formatDateTime(profile.absentAt) : 'Not marked absent'} />}
-                            <ProfileFact label="Consent" value={profile.consentStatus || 'not_required'} />
                             <ProfileFact label="Waitlist promotion" value={profile.waitlistPromotedAt ? formatDateTime(profile.waitlistPromotedAt) : 'Not promoted'} />
                             <ProfileFact label="Guardian" value={profile.guardianName || 'Not provided'} />
                             <ProfileFact label="Guardian contact" value={[profile.guardianEmail, profile.guardianPhone].filter(Boolean).join(' / ') || 'Not provided'} />
@@ -9422,7 +9411,6 @@ function UniversityAttendeesSection({ csrf, registrations = [], events = [] }) {
                                                                         <span className="mt-0.5 block truncate text-xs font-semibold text-slate-500">{student.grade || 'Grade N/A'} · {student.interest || 'Interest N/A'}</span>
                                                                         <span className="mt-1 flex flex-wrap gap-1.5">
                                                                             <span className={cx('rounded-full px-2 py-0.5 text-[10px] font-black uppercase', attendance.className)}>{attendance.label}</span>
-                                                                            <span className={cx('rounded-full px-2 py-0.5 text-[10px] font-black uppercase', student.consentStatus === 'received' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700')}>{student.consentStatus || 'not_required'}</span>
                                                                         </span>
                                                                     </span>
                                                                 </button>
@@ -9577,7 +9565,6 @@ function AttendeeRosterList({ registration, onProfile, compact = false }) {
                                 <span className="block truncate text-xs font-black text-slate-900">{student.name}</span>
                                 <span className="mt-0.5 block truncate text-[11px] font-semibold text-slate-500">{student.grade || 'Grade N/A'} • {student.interest || 'Interest N/A'}</span>
                                 <span className="mt-1 flex flex-wrap gap-1">
-                                    <span className={cx('rounded-full px-2 py-0.5 text-[9px] font-black uppercase', student.consentStatus === 'received' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700')}>{student.consentStatus || 'not_required'}</span>
                                     <span className={cx('rounded-full px-2 py-0.5 text-[9px] font-black uppercase', attendance.className)}>{attendance.label}</span>
                                 </span>
                             </span>
