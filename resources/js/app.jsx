@@ -11580,7 +11580,7 @@ function PartnerSchoolsSection({ csrf, schools, visitRequests, archives = [] }) 
                 <PartnerMetric label="Total Partnerships" value={schools.length} detail="Stored partner records" />
                 <PartnerMetric label="Active Engagements" value={engagementTotal.toLocaleString()} detail="Active applicant records" tone="green" />
                 <PartnerMetric label="Open Visit Activity" value={scheduledVisits} detail="Requested, approved, or scheduled" />
-                <section className="rounded-xl bg-emerald-600 p-3 text-white shadow-sm md:p-4"><p className="text-[10px] font-black uppercase tracking-wide text-white/70 md:text-xs">Relationship Tasks</p><p className="mt-2 text-xl font-black">{relationshipTasks.toLocaleString()}</p><p className="mt-1 text-xs text-white/80">Saved follow-up actions</p></section>
+                <section className="rounded-xl bg-emerald-600 p-3 text-white shadow-sm md:p-4"><p className="text-[10px] font-black uppercase tracking-wide text-white/70 md:text-xs">Follow-up Actions</p><p className="mt-2 text-xl font-black">{relationshipTasks.toLocaleString()}</p><p className="mt-1 text-xs text-white/80">Saved next steps</p></section>
             </div>
 
             <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -11780,20 +11780,7 @@ function PartnerSchoolDetail({ csrf, school, archives, visitsCount, onBack, onEd
                     <PartnerInfoCard label="Website / phone" value={school.website} detail={school.mainPhone} />
                 </div>
 
-                <div className="mt-4 grid gap-4 lg:grid-cols-3">
-                    <section className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                        <div className="flex items-center gap-2">
-                            <MailCheck size={16} className="text-[#006a61]" />
-                            <h4 className="text-sm font-black text-slate-950">Contacts</h4>
-                        </div>
-                        <div className="mt-3 grid gap-2">
-                            <PartnerInfoCard label="Coordinator" value={coordinatorName} detail={[school.coordinatorEmail, school.coordinatorPhone].filter(Boolean).join(' / ')} />
-                            <PartnerInfoCard label="Principal" value={school.principalName} detail={school.principalEmail} />
-                            <PartnerInfoCard label="Counselor" value={school.counselorName} detail={[school.counselorEmail, school.counselorPhone].filter(Boolean).join(' / ')} />
-                            <PartnerInfoCard label="Emergency contact" value={school.emergencyContactName} detail={[school.emergencyContactPhone, school.emergencyContactEmail].filter(Boolean).join(' / ')} />
-                        </div>
-                    </section>
-
+                <div className="mt-4 grid gap-4 lg:grid-cols-2">
                     <section className="rounded-xl border border-slate-200 bg-slate-50 p-4">
                         <div className="flex items-center gap-2">
                             <GraduationCap size={16} className="text-[#006a61]" />
@@ -11841,7 +11828,7 @@ function PartnerSchoolDetail({ csrf, school, archives, visitsCount, onBack, onEd
                             </div>
                         ))}
                     </div>
-                    <button type="button" onClick={() => document.getElementById('partner-task-title')?.focus()} className="mt-5 w-full rounded-lg border border-white/15 bg-white px-3 py-2 text-xs font-black text-slate-950">Add Relationship Task</button>
+                    <button type="button" onClick={() => document.getElementById('partner-follow-up-title')?.focus()} className="mt-5 w-full rounded-lg border border-white/15 bg-white px-3 py-2 text-xs font-black text-slate-950">Add Follow-up</button>
                 </section>
 
                 <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
@@ -11885,15 +11872,22 @@ function PartnerSchoolDetail({ csrf, school, archives, visitsCount, onBack, onEd
                 </div>
             </section>
 
-            <div className="mt-5 grid gap-4 lg:grid-cols-[320px_1fr]">
+            <div className="mt-5 grid gap-4 lg:grid-cols-[360px_1fr]">
                 <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-                    <h3 className="font-black text-slate-950">Key Contacts</h3>
+                    <h3 className="font-black text-slate-950">Contacts and Location</h3>
                     <div className="mt-4 space-y-4">
-                        <div className="flex items-center gap-3">
-                            <span className="grid h-10 w-10 place-items-center rounded-full bg-slate-100 text-xs font-black text-slate-700">{coordinatorName.split(' ').map((part) => part[0]).join('').slice(0, 2) || 'CP'}</span>
-                            <div className="min-w-0 flex-1"><p className="text-sm font-black text-slate-950">{coordinatorName}</p><p className="text-xs text-slate-500">Primary Coordinator</p></div>
-                            {school.coordinatorEmail ? <a href={`mailto:${school.coordinatorEmail}`} className="grid h-8 w-8 place-items-center rounded-lg border border-slate-200 text-blue-700" aria-label={`Email ${coordinatorName}`}><MailCheck size={14} /></a> : <span className="text-[10px] font-black uppercase text-slate-400">Email pending</span>}
-                        </div>
+                        {[
+                            ['Coordinator', coordinatorName, [school.coordinatorEmail, school.coordinatorPhone].filter(Boolean).join(' / ')],
+                            ['Principal', school.principalName, school.principalEmail],
+                            ['Counselor', school.counselorName, [school.counselorEmail, school.counselorPhone].filter(Boolean).join(' / ')],
+                            ['Emergency', school.emergencyContactName, [school.emergencyContactPhone, school.emergencyContactEmail].filter(Boolean).join(' / ')],
+                        ].filter(([, name, detail]) => name || detail).map(([label, name, detail]) => (
+                            <div key={label} className="flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50 p-3">
+                                <span className="grid h-10 w-10 place-items-center rounded-full bg-white text-xs font-black text-slate-700">{(name || label).split(' ').map((part) => part[0]).join('').slice(0, 2)}</span>
+                                <div className="min-w-0 flex-1"><p className="text-sm font-black text-slate-950">{name}</p><p className="text-xs text-slate-500">{label}{detail ? ` · ${detail}` : ''}</p></div>
+                                {detail?.includes('@') && <a href={`mailto:${detail.split(' / ')[0]}`} className="grid h-8 w-8 place-items-center rounded-lg border border-slate-200 bg-white text-blue-700" aria-label={`Email ${name || label}`}><MailCheck size={14} /></a>}
+                            </div>
+                        ))}
                     </div>
                     <div className="mt-5 border-t border-slate-100 pt-4">
                         <p className="text-[11px] font-black uppercase tracking-wide text-slate-400">Location Info</p>
@@ -11904,7 +11898,7 @@ function PartnerSchoolDetail({ csrf, school, archives, visitsCount, onBack, onEd
 
                 <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
                     <div className="flex items-center justify-between">
-                        <h3 className="font-black text-slate-950">Internal Strategic Notes</h3>
+                        <h3 className="font-black text-slate-950">Relationship Notes and Follow-up</h3>
                         {school.canManage && <button type="button" onClick={() => document.getElementById('partner-notes-input')?.focus()} className="grid h-8 w-8 place-items-center rounded-lg border border-slate-200 text-slate-500" aria-label="Edit notes"><Command size={14} /></button>}
                     </div>
                     {school.canManage && <form action={`/dashboard/university/partner-schools/${school.id}`} method="POST" className="mt-4 grid gap-3">
@@ -11925,27 +11919,27 @@ function PartnerSchoolDetail({ csrf, school, archives, visitsCount, onBack, onEd
                         <input type="hidden" name="match_score" value={school.matchScore || 0} />
                         <input type="hidden" name="active_applicants" value={school.activeApplicants || 0} />
                         <label className="grid gap-1.5 text-sm font-bold text-slate-700">Relationship tier<select name="performance_tier" defaultValue={school.tier || 'stable'} className="rounded-xl border border-slate-200 px-3 py-2.5 font-normal"><option value="elite">Elite</option><option value="high">High</option><option value="emerging">Emerging</option><option value="stable">Stable</option></select></label>
-                        <label className="grid gap-1.5 text-sm font-bold text-slate-700">Persistent internal notes<textarea id="partner-notes-input" name="notes" rows="4" defaultValue={school.notes || ''} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 font-normal outline-none focus:border-blue-300 focus:ring-4 focus:ring-blue-50" placeholder="Add internal notes..." /></label>
+                        <label className="grid gap-1.5 text-sm font-bold text-slate-700">Relationship notes<textarea id="partner-notes-input" name="notes" rows="4" defaultValue={school.notes || ''} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 font-normal outline-none focus:border-blue-300 focus:ring-4 focus:ring-blue-50" placeholder="Add visit preferences, school priorities, risks, or handover notes..." /></label>
                         <button className="rounded-xl bg-slate-950 px-4 py-3 text-sm font-black text-white">Save Relationship Notes</button>
                     </form>}
                     {!school.canManage && <p className="mt-4 rounded-xl bg-slate-50 p-3 text-sm font-semibold text-slate-600">This shared directory record is read-only. Contact and visit coordination remain available.</p>}
                     <form id="partner-contact-form" action={`/dashboard/university/partner-schools/${school.id}/contact`} method="POST" className="mt-5 grid gap-3 rounded-xl border border-slate-200 p-4">
                         <input type="hidden" name="_token" value={csrf} />
-                        <h4 className="font-black text-slate-950">Direct Contact Action</h4>
+                        <h4 className="font-black text-slate-950">Message School Contact</h4>
                         <input name="subject" required defaultValue={`Follow-up with ${school.name}`} className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-semibold" />
                         <textarea name="message" required rows="3" className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm" defaultValue={`Hi ${school.coordinatorName || 'Counselor'}, we'd like to coordinate the next visit opportunity.`} />
-                        <button className="rounded-xl bg-[#006a61] px-4 py-3 text-sm font-black text-white">Queue Contact</button>
+                        <button className="rounded-xl bg-[#006a61] px-4 py-3 text-sm font-black text-white">Save Contact Follow-up</button>
                     </form>
                     <div className="mt-5 space-y-3">
                         {school.notes && <StrategicNote body={school.notes} author="Saved relationship note" />}
-                        {(school.tasks || []).map((task) => <StrategicNote key={task.id} body={task.description || task.title} author={task.aiSuggested ? 'Saved recommendation' : 'Relationship task'} date={task.createdAt} />)}
-                        {!school.notes && !(school.tasks || []).length && <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-4 text-sm font-semibold text-slate-500">No relationship notes or tasks have been recorded yet.</p>}
+                        {(school.tasks || []).map((task) => <StrategicNote key={task.id} body={task.description || task.title} author="Follow-up action" date={task.createdAt} />)}
+                        {!school.notes && !(school.tasks || []).length && <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-4 text-sm font-semibold text-slate-500">No relationship notes or follow-up actions have been recorded yet.</p>}
                     </div>
                     <form action={`/dashboard/university/partner-schools/${school.id}/tasks`} method="POST" className="mt-4 grid gap-2">
                         <input type="hidden" name="_token" value={csrf} />
-                        <input id="partner-task-title" name="title" required placeholder="Add action task..." className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-semibold" />
-                        <textarea name="description" rows="2" placeholder="Task details..." className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm" />
-                        <button className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-black text-slate-700">Save Task</button>
+                        <input id="partner-follow-up-title" name="title" required placeholder="Follow-up title..." className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-semibold" />
+                        <textarea name="description" rows="2" placeholder="What should the team do next?" className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm" />
+                        <button className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-black text-slate-700">Save Follow-up</button>
                     </form>
                     {school.canManage && <div className="mt-5">
                         <ConfirmForm csrf={csrf} action={`/dashboard/university/partner-schools/${school.id}`} method="DELETE" title="Remove partner school?" message={`Remove ${school.name} if no visit history exists?`} confirmLabel="Remove school" className="text-xs font-black text-rose-700">
