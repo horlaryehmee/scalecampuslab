@@ -1099,7 +1099,7 @@ class DashboardController extends Controller
             'checked_in_at' => $registration->checked_in_at ?: now(),
             'attended_at' => $registration->attended_at ?: now(),
         ]);
-        $registration->students()->whereNull('checked_in_at')->update(['checked_in_at' => now()]);
+        $registration->students()->whereNull('checked_in_at')->update(['checked_in_at' => now(), 'absent_at' => null]);
         $this->logUniversityActivity($request, 'attendee.checked_in', $registration, ['program' => $registration->event?->title]);
 
         return back()->with('status', 'Attendee checked in.');
@@ -1254,7 +1254,7 @@ class DashboardController extends Controller
 
                 $registration->update($payload);
                 if ($validated['action'] === 'check_in') {
-                    $registration->students()->whereNull('checked_in_at')->update(['checked_in_at' => now()]);
+                    $registration->students()->whereNull('checked_in_at')->update(['checked_in_at' => now(), 'absent_at' => null]);
                 }
                 if ($validated['action'] === 'check_out') {
                     $registration->students()->whereNull('checked_out_at')->update(['checked_out_at' => now()]);

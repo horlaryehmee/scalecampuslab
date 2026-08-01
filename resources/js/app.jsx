@@ -9,6 +9,7 @@ import {
     Bell,
     Blocks,
     Bold,
+    BookOpen,
     Brain,
     CalendarDays,
     CheckCircle2,
@@ -7088,6 +7089,50 @@ function SchoolProfileFact({ label, value, detail }) {
     );
 }
 
+function SchoolProfileSummaryCard({ icon: Icon, label, value, detail }) {
+    return (
+        <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-start gap-3">
+                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-[#e5eeff] text-[#0b1c30]">
+                    <Icon size={17} />
+                </span>
+                <span className="min-w-0">
+                    <span className="block text-[10px] font-black uppercase tracking-wide text-slate-400">{label}</span>
+                    <span className="mt-1 block truncate text-sm font-black text-slate-950">{value || 'Not set'}</span>
+                    {detail && <span className="mt-0.5 block truncate text-xs font-semibold text-slate-500">{detail}</span>}
+                </span>
+            </div>
+        </article>
+    );
+}
+
+function schoolProfileCompletion(profile = {}) {
+    const fields = [
+        profile.name,
+        profile.schoolCode,
+        profile.location,
+        profile.website,
+        profile.mainPhone,
+        profile.coordinatorName,
+        profile.coordinatorEmail,
+        profile.principalName,
+        profile.counselorName,
+        profile.gradeRange,
+        profile.studentCount,
+        profile.curriculum,
+        profile.transportationNotes,
+        profile.studentSupportServices,
+        profile.emergencyContactPhone,
+    ];
+    const completed = fields.filter((value) => value !== null && value !== undefined && String(value).trim() !== '').length;
+
+    return {
+        completed,
+        total: fields.length,
+        percent: Math.round((completed / fields.length) * 100),
+    };
+}
+
 function schoolOverviewUpcomingVisits(registrations, visitRequests, events) {
     const fromRegistrations = registrations.map((registration) => {
         const event = events.find((item) => Number(item.id) === Number(registration.eventId)) || {};
@@ -8378,13 +8423,40 @@ function SchoolSettingsSection({ csrf, profile, errors, old }) {
         if (old[key] !== undefined) return old[key] === '1' || old[key] === 1 || old[key] === true;
         return profile[key] ?? fallback;
     };
+    const completion = schoolProfileCompletion(profile);
 
     return (
         <div className="grid gap-6">
-            <div>
-                <h1 className="text-3xl font-black text-slate-950">School Profile</h1>
-                <p className="mt-1 text-sm text-slate-500">Manage your school identity, contacts, academics, visit logistics, and notification preference.</p>
-            </div>
+            <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                <div className="grid gap-5 p-5 lg:grid-cols-[1fr_280px] lg:items-center">
+                    <div className="flex min-w-0 items-start gap-4">
+                        <div className="grid h-16 w-16 shrink-0 place-items-center rounded-xl border border-slate-200 bg-slate-50 text-[#006a61]">
+                            {profile.logoUrl ? <img src={profile.logoUrl} alt="" className="h-full w-full rounded-xl object-cover" /> : <School size={30} />}
+                        </div>
+                        <div className="min-w-0">
+                            <p className="text-xs font-black uppercase tracking-wide text-slate-500">School Profile</p>
+                            <h1 className="mt-1 truncate text-2xl font-black tracking-tight text-slate-950 md:text-3xl">{profile.name || 'School profile'}</h1>
+                            <p className="mt-1 text-sm font-semibold leading-6 text-slate-500">{profile.location || 'Location not set'} · {profile.schoolType || 'School type not set'} · {profile.institutionLevel || 'Level not set'}</p>
+                        </div>
+                    </div>
+                    <div className="rounded-xl border border-[#006a61]/20 bg-emerald-50 p-4">
+                        <div className="flex items-center justify-between gap-3">
+                            <p className="text-xs font-black uppercase tracking-wide text-[#006a61]">Profile readiness</p>
+                            <span className="text-lg font-black text-[#006a61]">{completion.percent}%</span>
+                        </div>
+                        <div className="mt-3 h-2 rounded-full bg-white">
+                            <div className="h-2 rounded-full bg-[#006a61]" style={{ width: `${completion.percent}%` }} />
+                        </div>
+                        <p className="mt-2 text-xs font-bold text-emerald-800">{completion.completed} of {completion.total} key details completed.</p>
+                    </div>
+                </div>
+                <div className="grid gap-3 border-t border-slate-100 bg-slate-50 p-4 md:grid-cols-2 xl:grid-cols-4">
+                    <SchoolProfileSummaryCard icon={UserPlus} label="Primary coordinator" value={profile.coordinatorName} detail={profile.coordinatorEmail} />
+                    <SchoolProfileSummaryCard icon={GraduationCap} label="Students" value={profile.studentCount ? Number(profile.studentCount).toLocaleString() : 'Not set'} detail={profile.gradeRange || 'Grade range not set'} />
+                    <SchoolProfileSummaryCard icon={BookOpen} label="Academic profile" value={profile.curriculum || 'Curriculum not set'} detail={profile.accreditation || 'Accreditation not set'} />
+                    <SchoolProfileSummaryCard icon={RouteIcon} label="Visit logistics" value={profile.transportationNotes ? 'Transportation added' : 'Transportation pending'} detail={profile.emergencyContactPhone || 'Emergency phone pending'} />
+                </div>
+            </section>
 
             <form action="/dashboard/school/settings" method="POST" className="grid gap-6 xl:grid-cols-[1fr_320px]">
                 <input type="hidden" name="_token" value={csrf} />
@@ -8785,6 +8857,167 @@ function UniversityAttendeesSection({ csrf, registrations = [], events = [] }) {
         setAttendanceReturnGroup(null);
     };
 
+    if (attendanceGroup) {
+        return (
+            <div className="grid gap-4 md:gap-5">
+                <section className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:p-5 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="flex min-w-0 items-start gap-3">
+                        <button type="button" onClick={() => setAttendanceGroup(null)} className="mt-1 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50" aria-label="Back to attendees">
+                            <ArrowRight size={16} className="rotate-180" />
+                        </button>
+                        <div className="min-w-0">
+                            <p className="text-xs font-black uppercase tracking-wide text-slate-500">Attendance</p>
+                            <h1 className="mt-1 truncate text-2xl font-black tracking-tight text-slate-950 md:text-3xl">{attendanceGroup.school}</h1>
+                            <p className="mt-1 text-sm font-semibold text-slate-500">{attendanceGroup.location || 'Location TBA'} · {attendanceGroup.registrations.length.toLocaleString()} booking(s)</p>
+                        </div>
+                    </div>
+                    <form action="/dashboard/university/attendees/bulk" method="POST" className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                        <input type="hidden" name="_token" value={csrf} />
+                        <input type="hidden" name="action" value="check_in" />
+                        {attendanceGroup.registrations.map((item) => <input key={item.id} type="hidden" name="registration_ids[]" value={item.id} />)}
+                        <button className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#006a61] px-4 py-3 text-sm font-black text-white hover:bg-[#00544d]"><CheckCircle2 size={16} /> Check in all</button>
+                    </form>
+                </section>
+
+                <section className="grid grid-cols-2 gap-2 md:grid-cols-4">
+                    <MiniStat label="Expected" value={attendanceGroup.expectedStudents.toLocaleString()} />
+                    <MiniStat label="Checked in" value={attendanceGroup.checkedInStudents.toLocaleString()} />
+                    <MiniStat label="Not arrived / absent" value={(attendanceGroup.notArrivedStudents + attendanceGroup.absentStudents).toLocaleString()} />
+                    <MiniStat label="Checked out" value={attendanceGroup.checkedOutStudents.toLocaleString()} />
+                </section>
+
+                <section className="grid gap-4">
+                    {attendanceGroup.registrations.map((item) => {
+                        const metrics = attendanceMetricsForRegistration(item);
+                        const hasRoster = (item.students || []).length > 0;
+
+                        return (
+                            <article key={item.id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:p-5">
+                                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                                    <div className="min-w-0">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <h2 className="truncate text-base font-black text-slate-950">{item.event || item.name}</h2>
+                                            <AttendeeStatusBadge status={item.status} attended={item.attended} />
+                                        </div>
+                                        <p className="mt-1 text-sm font-semibold text-slate-500">{formatDateTime(item.eventDate)} · {item.partySize} seat(s) · {item.email}</p>
+                                    </div>
+                                    <div className="flex shrink-0 flex-wrap gap-2">
+                                        <form action={`/dashboard/university/attendees/${item.id}/check-in`} method="POST">
+                                            <input type="hidden" name="_token" value={csrf} />
+                                            <button className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-800">Check in all</button>
+                                        </form>
+                                        <form action={`/dashboard/university/attendees/${item.id}/check-out`} method="POST">
+                                            <input type="hidden" name="_token" value={csrf} />
+                                            <button disabled={!item.checkedIn} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-black text-slate-700 disabled:cursor-not-allowed disabled:opacity-40">Check out all</button>
+                                        </form>
+                                        <button type="button" onClick={() => openAttendanceProfile(item)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-black text-slate-700">Profile</button>
+                                        <button type="button" onClick={() => openAttendanceEdit(item)} className="rounded-lg bg-slate-950 px-3 py-2 text-xs font-black text-white">Edit</button>
+                                    </div>
+                                </div>
+                                <div className="mt-4 grid grid-cols-2 gap-2 md:grid-cols-4">
+                                    <MiniStat label="Expected" value={metrics.expected.toLocaleString()} />
+                                    <MiniStat label="Checked in" value={metrics.checkedIn.toLocaleString()} />
+                                    <MiniStat label="Absent" value={metrics.absent.toLocaleString()} />
+                                    <MiniStat label="Checked out" value={metrics.checkedOut.toLocaleString()} />
+                                </div>
+                                {hasRoster ? (
+                                    <div className="mt-4 grid gap-2">
+                                        {item.students.map((student) => {
+                                            const attendance = studentAttendanceState(student);
+                                            const studentProfile = {
+                                                ...student,
+                                                isStudentProfile: true,
+                                                parentName: item.name,
+                                                parentEmail: item.email,
+                                                school: item.school,
+                                                schoolLocation: item.schoolLocation,
+                                                event: item.event,
+                                                eventDate: item.eventDate,
+                                                partySize: 1,
+                                                attended: student.checkedIn,
+                                                waitlistPromotedAt: item.waitlistPromotedAt,
+                                            };
+
+                                            return (
+                                                <article key={student.id || student.email || student.name} className="rounded-xl border border-slate-200 bg-white p-3">
+                                                    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                                                        <button type="button" onClick={() => openAttendanceProfile(studentProfile)} className="flex min-w-0 items-start gap-3 text-left">
+                                                            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#e5eeff] text-[11px] font-black text-[#0b1c30]">{initials(student.name)}</span>
+                                                            <span className="min-w-0">
+                                                                <span className="block truncate text-sm font-black text-slate-950">{student.name}</span>
+                                                                <span className="mt-0.5 block truncate text-xs font-semibold text-slate-500">{student.grade || 'Grade N/A'} · {student.interest || 'Interest N/A'}</span>
+                                                                <span className="mt-1 flex flex-wrap gap-1.5">
+                                                                    <span className={cx('rounded-full px-2 py-0.5 text-[10px] font-black uppercase', attendance.className)}>{attendance.label}</span>
+                                                                    <span className={cx('rounded-full px-2 py-0.5 text-[10px] font-black uppercase', student.consentStatus === 'received' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700')}>{student.consentStatus || 'not_required'}</span>
+                                                                </span>
+                                                            </span>
+                                                        </button>
+                                                        <div className="lg:w-[430px]">
+                                                            <StudentAttendanceControls csrf={csrf} student={student} />
+                                                        </div>
+                                                    </div>
+                                                </article>
+                                            );
+                                        })}
+                                    </div>
+                                ) : (
+                                    <AttendeeRosterList registration={item} onProfile={openAttendanceProfile} compact />
+                                )}
+                            </article>
+                        );
+                    })}
+                </section>
+
+                {editing && (
+                    <StudentModal title="Edit Attendee" onClose={closeEditing}>
+                        <form action={`/dashboard/university/attendees/${editing.id}`} method="POST" className="space-y-4">
+                            <input type="hidden" name="_token" value={csrf} />
+                            <input type="hidden" name="_method" value="PUT" />
+                            <button type="button" onClick={returnToAttendance} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50">
+                                <ArrowRight size={14} className="rotate-180" /> Back to attendance
+                            </button>
+                            <LightField label="Name" name="registrant_name" defaultValue={editing.name || ''} />
+                            <LightField label="Email" name="registrant_email" type="email" defaultValue={editing.email || ''} />
+                            <div className="grid gap-4 md:grid-cols-2">
+                                <label className="block"><span className="text-xs font-black uppercase tracking-wide text-slate-500">Type</span><select name="registrant_type" defaultValue={editing.type || 'student'} className="mt-2 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm font-semibold"><option value="student">Student</option><option value="school_group">School Group</option></select></label>
+                                <LightField label="Seats" name="party_size" type="number" min="1" defaultValue={editing.partySize || 1} />
+                                <label className="block"><span className="text-xs font-black uppercase tracking-wide text-slate-500">Status</span><select name="status" defaultValue={editing.status || 'confirmed'} className="mt-2 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm font-semibold"><option value="confirmed">Confirmed</option><option value="waitlisted">Waitlisted</option><option value="cancelled">Cancelled</option></select></label>
+                                <input type="hidden" name="consent_status" value={editing.consentStatus || 'not_required'} />
+                            </div>
+                            <div className="flex justify-end gap-3">
+                                <button type="button" onClick={closeEditing} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-black text-slate-600">Cancel</button>
+                                <button className="rounded-lg bg-slate-950 px-4 py-2 text-sm font-black text-white">Save Changes</button>
+                            </div>
+                        </form>
+                    </StudentModal>
+                )}
+                {profile && (
+                    <StudentModal title="Attendee Profile" onClose={closeProfile}>
+                        <div className="space-y-4">
+                            <button type="button" onClick={returnToAttendance} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50">
+                                <ArrowRight size={14} className="rotate-180" /> Back to attendance
+                            </button>
+                            <div className="rounded-2xl bg-slate-950 p-5 text-white">
+                                <h3 className="truncate text-xl font-black">{profile.name}</h3>
+                                <p className="mt-1 text-sm text-white/60">{profile.isStudentProfile ? `${profile.school || profile.parentName || 'School group'} student` : profile.email}</p>
+                            </div>
+                            <div className="grid gap-3 md:grid-cols-2">
+                                <ProfileFact label="Program" value={profile.event || 'Program TBA'} />
+                                <ProfileFact label="School" value={profile.school || 'Direct student'} />
+                                {profile.isStudentProfile && <ProfileFact label="Attendance status" value={studentAttendanceState(profile).label} />}
+                                <ProfileFact label="Check-in" value={profile.checkedInAt ? formatDateTime(profile.checkedInAt) : 'Not checked in'} />
+                                <ProfileFact label="Check-out" value={profile.checkedOutAt ? formatDateTime(profile.checkedOutAt) : 'Not checked out'} />
+                                {profile.isStudentProfile && <ProfileFact label="Absent" value={profile.absentAt ? formatDateTime(profile.absentAt) : 'Not marked absent'} />}
+                                <ProfileFact label="Guardian" value={profile.guardianName || 'Not provided'} />
+                                <ProfileFact label="Emergency phone" value={profile.emergencyContactPhone || 'Not provided'} />
+                            </div>
+                        </div>
+                    </StudentModal>
+                )}
+            </div>
+        );
+    }
+
     return (
         <div className="grid gap-4 md:gap-5">
             <section className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
@@ -9065,7 +9298,7 @@ function UniversityAttendeesSection({ csrf, registrations = [], events = [] }) {
                         {!profile.isStudentProfile && <AttendeeRosterList registration={profile} onProfile={setProfile} />}
                         <div className="grid grid-cols-2 gap-2">
                             {!profile.isStudentProfile && (profile.students || []).length > 0 && (
-                                <div className="col-span-2 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-bold text-blue-800">Use the Attendance popup to check in, check out, or mark individual students absent.</div>
+                                <div className="col-span-2 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-bold text-blue-800">Use the Attendance page to check in, check out, or mark individual students absent.</div>
                             )}
                             {!profile.isStudentProfile && (profile.students || []).length === 0 && <form action={`/dashboard/university/attendees/${profile.id}/${profile.checkedIn ? 'check-out' : 'check-in'}`} method="POST">
                                 <input type="hidden" name="_token" value={csrf} />
