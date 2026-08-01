@@ -11630,11 +11630,15 @@ function PartnerMetric({ label, value, detail, tone = 'blue' }) {
 }
 
 function PartnerInfoCard({ label, value, detail }) {
+    const hasValue = value !== null && value !== undefined && String(value).trim() !== '';
+    const hasDetail = detail !== null && detail !== undefined && String(detail).trim() !== '';
+    if (!hasValue && !hasDetail) return null;
+
     return (
         <article className="rounded-xl border border-slate-200 bg-white p-4">
             <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">{label}</p>
-            <p className="mt-2 break-words text-sm font-black text-slate-950">{value || 'Not recorded'}</p>
-            {detail && <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">{detail}</p>}
+            {hasValue && <p className="mt-2 break-words text-sm font-black text-slate-950">{value}</p>}
+            {hasDetail && <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">{detail}</p>}
         </article>
     );
 }
@@ -11699,7 +11703,7 @@ function PartnerSchoolDetail({ csrf, school, archives, visitsCount, onBack, onEd
     ];
     const coordinatorName = school.coordinatorName && school.coordinatorName !== 'Coordinator pending'
         ? school.coordinatorName
-        : 'Coordinator pending';
+        : '';
     const hasExactCoordinates = school.latitude !== null && school.latitude !== undefined && school.latitude !== ''
         && school.longitude !== null && school.longitude !== undefined && school.longitude !== ''
         && Number.isFinite(Number(school.latitude)) && Number.isFinite(Number(school.longitude));
@@ -11771,9 +11775,9 @@ function PartnerSchoolDetail({ csrf, school, archives, visitsCount, onBack, onEd
 
                 <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                     <PartnerInfoCard label="School code" value={school.code} detail={school.status ? titleCase(school.status) : null} />
-                    <PartnerInfoCard label="School type" value={school.type ? titleCase(school.type.replace('_', ' ')) : 'Partner school'} detail={school.institutionLevel ? titleCase(school.institutionLevel.replace('_', ' ')) : school.ownership} />
-                    <PartnerInfoCard label="Student body" value={school.studentCount ? Number(school.studentCount).toLocaleString() : 'Not recorded'} detail={school.gradeRange || 'Grade range not recorded'} />
-                    <PartnerInfoCard label="Website / phone" value={school.website || 'Website not recorded'} detail={school.mainPhone || 'Main phone not recorded'} />
+                    <PartnerInfoCard label="School type" value={school.type ? titleCase(school.type.replace('_', ' ')) : ''} detail={school.institutionLevel ? titleCase(school.institutionLevel.replace('_', ' ')) : school.ownership} />
+                    <PartnerInfoCard label="Student body" value={school.studentCount ? Number(school.studentCount).toLocaleString() : ''} detail={school.gradeRange} />
+                    <PartnerInfoCard label="Website / phone" value={school.website} detail={school.mainPhone} />
                 </div>
 
                 <div className="mt-4 grid gap-4 lg:grid-cols-3">
