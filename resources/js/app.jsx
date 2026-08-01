@@ -11626,7 +11626,7 @@ function PartnerSchoolsSection({ csrf, schools, visitRequests, archives = [] }) 
 }
 
 function PartnerMetric({ label, value, detail, tone = 'blue' }) {
-    return <section className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm md:p-4"><p className="text-[10px] font-black uppercase tracking-wide text-slate-400 md:text-[11px]">{label}</p><p className="mt-2 text-xl font-black text-slate-950 md:text-2xl">{value}</p><p className={cx('mt-1 text-[11px] font-bold md:text-xs', tone === 'green' ? 'text-emerald-600' : 'text-blue-600')}>{detail}</p></section>;
+    return <section className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm"><p className="text-[10px] font-black uppercase tracking-wide text-slate-400">{label}</p><p className="mt-1.5 text-xl font-black leading-tight text-slate-950 md:text-2xl">{value}</p><p className={cx('mt-1 text-[11px] font-bold leading-4', tone === 'green' ? 'text-emerald-600' : 'text-blue-600')}>{detail}</p></section>;
 }
 
 function PartnerInfoCard({ label, value, detail }) {
@@ -11691,6 +11691,23 @@ function PartnerSchoolDetail({ csrf, school, archives, visitsCount, onBack, onEd
     const [showAllHistory, setShowAllHistory] = useState(false);
     const leadsCaptured = archives.reduce((total, archive) => total + Number(archive.leads || 0), 0);
     const relationshipScore = Number(school.matchScore || 0);
+    const activeApplicants = Number(school.activeApplicants || 0);
+    const yieldRate = Number(school.yieldRate || 0);
+    const averageEngagement = archives.length
+        ? Math.round(archives.reduce((total, archive) => total + Number(archive.engagement || 0), 0) / archives.length)
+        : 0;
+    const averageQuality = archives.length
+        ? (archives.reduce((total, archive) => total + Number(archive.quality || 0), 0) / archives.length).toFixed(1)
+        : '0.0';
+    const analyticsBars = [
+        ['Applicants', activeApplicants, 'bg-blue-600'],
+        ['Leads', leadsCaptured, 'bg-emerald-500'],
+        ['Engagement', averageEngagement, 'bg-slate-900'],
+        ['Yield', yieldRate, 'bg-sky-400'],
+        ['Priority', relationshipScore, 'bg-indigo-500'],
+    ];
+    const maxAnalyticsValue = Math.max(...analyticsBars.map(([, value]) => Number(value || 0)), 1);
+    const leadingSignal = [...analyticsBars].sort((left, right) => Number(right[1] || 0) - Number(left[1] || 0))[0];
     const coordinatorName = school.coordinatorName && school.coordinatorName !== 'Coordinator pending'
         ? school.coordinatorName
         : '';
@@ -11718,19 +11735,14 @@ function PartnerSchoolDetail({ csrf, school, archives, visitsCount, onBack, onEd
             title: task.title,
             body: task.description,
         })),
-    ].slice(0, showAllHistory ? undefined : 5);
-    const interestBars = [
-        ['STEM', Math.min(92, Math.max(45, relationshipScore || 75)), 'bg-blue-600'],
-        ['Business', Math.min(76, Math.max(28, Number(school.yieldRate || 0) * 12)), 'bg-sky-300'],
-        ['Health', Math.min(68, Math.max(22, Number(school.activeApplicants || 0) * 2)), 'bg-slate-800'],
-        ['Arts', Math.min(58, Math.max(18, archives.length * 14)), 'bg-slate-400'],
-        ['Social Sci.', Math.min(50, Math.max(16, visitsCount * 12)), 'bg-emerald-400'],
-    ];
-    const topInterest = [...interestBars].sort((left, right) => right[1] - left[1])[0];
-    const averageGpa = (3 + (relationshipScore / 120)).toFixed(2);
+    ].sort((left, right) => {
+        const leftDate = left.date ? new Date(left.date).getTime() : 0;
+        const rightDate = right.date ? new Date(right.date).getTime() : 0;
+        return rightDate - leftDate;
+    }).slice(0, showAllHistory ? undefined : 5);
 
     return (
-        <section className="grid gap-4">
+        <section className="grid gap-3 md:gap-4">
             <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
                 <button type="button" onClick={onBack} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-2 font-black text-slate-700">
                     <ChevronRight size={14} className="rotate-180" /> Directory
@@ -11739,18 +11751,18 @@ function PartnerSchoolDetail({ csrf, school, archives, visitsCount, onBack, onEd
                 <span className="truncate text-slate-900">{school.name}</span>
             </div>
 
-            <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-                <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-center">
-                    <div className="flex min-w-0 flex-col gap-4 md:flex-row md:items-center">
-                        <span className="grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50 text-2xl font-black text-blue-700 md:h-24 md:w-24">
+            <section className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm md:p-4">
+                <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+                    <div className="flex min-w-0 gap-3 md:items-center">
+                        <span className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50 text-xl font-black text-blue-700 md:h-20 md:w-20">
                         {school.logoUrl ? <img src={school.logoUrl} alt="" className="h-full w-full object-cover" /> : school.name.slice(0, 1)}
                         </span>
                         <div className="min-w-0">
                             <div className="flex flex-wrap items-center gap-2">
-                                <h1 className="truncate text-2xl font-black tracking-tight text-slate-950 md:text-3xl">{school.name}</h1>
+                                <h1 className="min-w-0 text-xl font-black tracking-tight text-slate-950 md:text-2xl">{school.name}</h1>
                                 <span className="rounded bg-emerald-50 px-2 py-1 text-[10px] font-black uppercase tracking-wide text-emerald-700">{titleCase(school.tier || 'partner')}</span>
                             </div>
-                            <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm font-semibold text-slate-500">
+                            <p className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-xs font-semibold text-slate-500 md:text-sm">
                                 <span className="inline-flex items-center gap-1"><MapPin size={15} /> {[school.city, school.region, school.country].filter(Boolean).join(', ')}</span>
                                 {school.studentCount && <span className="inline-flex items-center gap-1"><UsersRound size={15} /> {Number(school.studentCount).toLocaleString()} students</span>}
                                 {school.type && <span className="inline-flex items-center gap-1"><School size={15} /> {titleCase(school.type.replace('_', ' '))}</span>}
@@ -11765,11 +11777,7 @@ function PartnerSchoolDetail({ csrf, school, archives, visitsCount, onBack, onEd
                                     <CalendarDays size={16} /> Schedule Visit
                                 </button>
                             </form>
-                        ) : (
-                            <span className="inline-flex items-center justify-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm font-black text-amber-800">
-                                <CalendarDays size={16} /> Link Account
-                            </span>
-                        )}
+                        ) : null}
                         <button type="button" onClick={() => document.getElementById('partner-contact-form')?.scrollIntoView({ behavior: 'smooth', block: 'center' })} className="inline-flex items-center justify-center gap-2 rounded-lg border border-blue-200 bg-white px-4 py-2.5 text-sm font-black text-blue-700">
                             <MailCheck size={16} /> Message
                         </button>
@@ -11777,48 +11785,52 @@ function PartnerSchoolDetail({ csrf, school, archives, visitsCount, onBack, onEd
                 </div>
             </section>
 
-            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
-                <div className="grid gap-4">
+            <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_340px] md:gap-4">
+                <div className="grid gap-3 md:gap-4">
                     <section>
-                        <h2 className="mb-3 text-lg font-black text-slate-950">Performance Metrics</h2>
-                        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-                            <PartnerMetric label="Total Applicants" value={Number(school.activeApplicants || 0).toLocaleString()} detail="+12% YoY" tone="green" />
-                            <PartnerMetric label="Acceptance Rate" value={`${relationshipScore || 0}%`} detail="Stable" />
-                            <PartnerMetric label="Enrollment Yield" value={`${Number(school.yieldRate || 0)}%`} detail="+5% YoY" tone="green" />
-                            <PartnerMetric label="Average GPA" value={averageGpa} detail="+0.1 YoY" tone="green" />
+                        <h2 className="mb-2 text-base font-black text-slate-950">Performance Metrics</h2>
+                        <div className="grid grid-cols-2 gap-2 md:grid-cols-4 md:gap-3">
+                            <PartnerMetric label="Active Applicants" value={activeApplicants.toLocaleString()} detail="From school record" tone="green" />
+                            <PartnerMetric label="Enrollment Yield" value={`${yieldRate}%`} detail="Stored yield rate" />
+                            <PartnerMetric label="Average SAT" value={Number(school.sat || 0).toLocaleString()} detail="Academic profile" />
+                            <PartnerMetric label="Engagement" value={`${averageEngagement}%`} detail={`${archives.length} archived event(s)`} tone="green" />
                         </div>
                     </section>
 
-                    <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-                        <div className="flex items-center justify-between gap-3">
-                            <h2 className="text-lg font-black text-slate-950">Academic Interests</h2>
-                            <button type="button" className="inline-flex items-center gap-1 text-xs font-black text-blue-700">View Full Report <ArrowRight size={14} /></button>
+                    <section className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm md:p-4">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div>
+                                <h2 className="text-base font-black text-slate-950">Recruitment Analytics</h2>
+                                <p className="mt-0.5 text-xs font-semibold text-slate-500">Calculated from saved partner and archived visit data.</p>
+                            </div>
+                            <span className="rounded bg-slate-100 px-2 py-1 text-[10px] font-black uppercase text-slate-500">Quality {averageQuality}/5</span>
                         </div>
-                        <div className="relative mt-4 h-56 overflow-hidden rounded-lg border border-slate-200 bg-slate-50 p-4">
-                            <div className="absolute inset-x-4 bottom-4 top-4 flex items-end gap-2 opacity-80">
-                                {interestBars.map(([label, value, className]) => (
+                        <div className="relative mt-3 h-44 overflow-hidden rounded-lg border border-slate-200 bg-slate-50 p-3 md:h-52">
+                            <div className="absolute inset-x-3 bottom-3 top-3 flex items-end gap-2 opacity-90">
+                                {analyticsBars.map(([label, value, className]) => (
                                     <div key={label} className="flex min-w-0 flex-1 flex-col items-center gap-2">
-                                        <div className={cx('w-full rounded-t-sm', className)} style={{ height: `${value}%` }} />
+                                        <div className={cx('w-full rounded-t-sm', className)} style={{ height: `${Math.max(8, (Number(value || 0) / maxAnalyticsValue) * 100)}%` }} />
                                         <span className="w-full truncate text-center text-[10px] font-black text-slate-500">{label}</span>
+                                        <span className="text-[10px] font-black text-slate-900">{Number(value || 0).toLocaleString()}</span>
                                     </div>
                                 ))}
                             </div>
                             <div className="absolute left-1/2 top-1/2 grid -translate-x-1/2 -translate-y-1/2 place-items-center rounded-lg border border-slate-200 bg-white/90 px-4 py-2 text-center shadow-sm backdrop-blur">
-                                <span className="text-xs font-black text-slate-950">Data Visualization</span>
-                                <span className="mt-1 text-[11px] font-semibold text-slate-500">{topInterest[0]} ({Math.round(topInterest[1])}%) leading</span>
+                                <span className="text-xs font-black text-slate-950">Live Data</span>
+                                <span className="mt-1 text-[11px] font-semibold text-slate-500">{leadingSignal[0]} leading</span>
                             </div>
                         </div>
                     </section>
 
-                    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <section className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm md:p-4">
                         <div className="flex items-center justify-between gap-3">
-                            <h2 className="text-lg font-black text-slate-950">Engagement Timeline</h2>
+                            <h2 className="text-base font-black text-slate-950">Engagement Timeline</h2>
                             {(archives.length + (school.tasks || []).length) > 5 && <button type="button" onClick={() => setShowAllHistory((current) => !current)} className="text-xs font-black text-blue-700">{showAllHistory ? 'Show less' : 'View all'}</button>}
                         </div>
-                        <div className="mt-5 space-y-5 border-l-2 border-slate-200 pl-5">
+                        <div className="mt-4 space-y-4 border-l-2 border-slate-200 pl-4">
                             {timeline.map((item) => (
                                 <article key={item.id} className="relative">
-                                    <span className="absolute -left-[29px] top-1 h-4 w-4 rounded-full border-4 border-white bg-blue-600" />
+                                    <span className="absolute -left-[25px] top-1 h-4 w-4 rounded-full border-4 border-white bg-blue-600" />
                                     <div className="flex flex-wrap items-center gap-2">
                                         <span className="rounded bg-blue-50 px-2 py-1 text-[10px] font-black uppercase text-blue-700">{item.label}</span>
                                         <span className="text-xs font-semibold text-slate-500">{formatShortDate(item.date)}</span>
@@ -11832,13 +11844,13 @@ function PartnerSchoolDetail({ csrf, school, archives, visitsCount, onBack, onEd
                     </section>
                 </div>
 
-                <aside className="grid h-fit gap-5">
-                    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-                        <h2 className="text-lg font-black text-slate-950">Key Contacts</h2>
-                        <div className="mt-4 grid gap-3">
+                <aside className="grid h-fit gap-3 md:gap-4">
+                    <section className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm md:p-4">
+                        <h2 className="text-base font-black text-slate-950">Key Contacts</h2>
+                        <div className="mt-3 grid gap-2">
                             {contacts.map(([label, name, email, phone]) => (
-                                <div key={label} className="flex items-center gap-3 rounded-lg border border-slate-100 bg-slate-50 p-3">
-                                    <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-slate-950 text-xs font-black text-white">{(name || label).split(' ').map((part) => part[0]).join('').slice(0, 2)}</span>
+                                <div key={label} className="flex items-center gap-2 rounded-lg border border-slate-100 bg-slate-50 p-2.5">
+                                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-slate-950 text-xs font-black text-white">{(name || label).split(' ').map((part) => part[0]).join('').slice(0, 2)}</span>
                                     <div className="min-w-0 flex-1">
                                         <p className="truncate text-sm font-black text-slate-950">{name}</p>
                                         <p className="truncate text-xs font-semibold text-slate-500">{label}{phone ? ` · ${phone}` : ''}</p>
@@ -11852,16 +11864,16 @@ function PartnerSchoolDetail({ csrf, school, archives, visitsCount, onBack, onEd
                         </div>
                     </section>
 
-                    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <section className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm md:p-4">
                         <div className="flex items-center justify-between">
-                            <h2 className="text-lg font-black text-slate-950">Internal Notes</h2>
+                            <h2 className="text-base font-black text-slate-950">Internal Notes</h2>
                             <button type="button" onClick={() => document.getElementById('partner-follow-up-title')?.focus()} className="rounded-lg border border-slate-200 px-2 py-1 text-xs font-black text-slate-600">Add</button>
                         </div>
-                        <div className="mt-4 space-y-3">
+                        <div className="mt-3 space-y-2">
                             {school.notes && <StrategicNote body={school.notes} author="Saved note" />}
                             {(school.tasks || []).slice(0, 3).map((task) => <StrategicNote key={task.id} body={task.description || task.title} author="Follow-up" date={task.createdAt} />)}
                         </div>
-                        <form action={`/dashboard/university/partner-schools/${school.id}/tasks`} method="POST" className="mt-4 grid gap-2">
+                        <form action={`/dashboard/university/partner-schools/${school.id}/tasks`} method="POST" className="mt-3 grid gap-2">
                             <input type="hidden" name="_token" value={csrf} />
                             <input id="partner-follow-up-title" name="title" required placeholder="Follow-up title..." className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold" />
                             <textarea name="description" rows="2" placeholder="What should happen next?" className="rounded-lg border border-slate-200 px-3 py-2 text-sm" />
@@ -11869,15 +11881,15 @@ function PartnerSchoolDetail({ csrf, school, archives, visitsCount, onBack, onEd
                         </form>
                     </section>
 
-                    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-                        <h2 className="text-lg font-black text-slate-950">Map</h2>
+                    <section className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm md:p-4">
+                        <h2 className="text-base font-black text-slate-950">Map</h2>
                         {hasExactCoordinates ? <div className="mt-3"><OpenStreetMapEmbed location={`${school.name}, ${school.city}, ${school.country}`} points={[{ label: school.name, location: `${school.city}, ${school.country}`, latitude: school.latitude, longitude: school.longitude, meta: `${visitsCount} visit record(s) • ${relationshipScore}/100 priority` }]} title={`${school.name} location on OpenStreetMap`} className="h-36" /></div> : <div className="mt-3 grid h-36 place-items-center rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-center text-xs font-semibold text-slate-500">Exact map coordinates have not been recorded for this school.</div>}
                         <OpenStreetMapLink location={`${school.name}, ${school.city}, ${school.country}`} className="mt-2 inline-flex items-center gap-1 text-xs font-black text-blue-700"><MapIcon size={13} /> Open in OpenStreetMap</OpenStreetMapLink>
                     </section>
 
-                    <form id="partner-contact-form" action={`/dashboard/university/partner-schools/${school.id}/contact`} method="POST" className="grid gap-3 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <form id="partner-contact-form" action={`/dashboard/university/partner-schools/${school.id}/contact`} method="POST" className="grid gap-2 rounded-lg border border-slate-200 bg-white p-3 shadow-sm md:p-4">
                         <input type="hidden" name="_token" value={csrf} />
-                        <h2 className="text-lg font-black text-slate-950">Message</h2>
+                        <h2 className="text-base font-black text-slate-950">Message</h2>
                         <input name="subject" required defaultValue={`Follow-up with ${school.name}`} className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold" />
                         <textarea name="message" required rows="3" className="rounded-lg border border-slate-200 px-3 py-2 text-sm" defaultValue={`Hi ${school.coordinatorName || 'Counselor'}, we'd like to coordinate the next visit opportunity.`} />
                         <button className="rounded-lg bg-[#006a61] px-3 py-2 text-sm font-black text-white">Send Message</button>
