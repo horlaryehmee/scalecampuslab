@@ -11688,105 +11688,109 @@ function PartnerSchoolEditor({ csrf, school, onClose }) {
 }
 
 function PartnerSchoolDetail({ csrf, school, archives, visitsCount, onBack, onEdit }) {
-    const [trendPeriod, setTrendPeriod] = useState('yearly');
     const [showAllHistory, setShowAllHistory] = useState(false);
     const leadsCaptured = archives.reduce((total, archive) => total + Number(archive.leads || 0), 0);
     const relationshipYear = school.createdAt && !Number.isNaN(new Date(school.createdAt).getTime())
         ? new Date(school.createdAt).getFullYear()
         : null;
-    const historyRows = showAllHistory ? archives : archives.slice(0, 4);
+    const historyRows = showAllHistory ? archives : archives.slice(0, 5);
     const relationshipScore = Number(school.matchScore || 0);
-    const recordedSignals = [
-        `${Number(school.activeApplicants || 0).toLocaleString()} active applicant record(s)`,
-        `${archives.length.toLocaleString()} archived campus engagement(s)`,
-        `${Number(school.taskCount || 0).toLocaleString()} saved relationship task(s)`,
-    ];
     const coordinatorName = school.coordinatorName && school.coordinatorName !== 'Coordinator pending'
         ? school.coordinatorName
         : '';
     const hasExactCoordinates = school.latitude !== null && school.latitude !== undefined && school.latitude !== ''
         && school.longitude !== null && school.longitude !== undefined && school.longitude !== ''
         && Number.isFinite(Number(school.latitude)) && Number.isFinite(Number(school.longitude));
+    const contacts = [
+        ['Coordinator', coordinatorName, school.coordinatorEmail, school.coordinatorPhone],
+        ['Principal', school.principalName, school.principalEmail, ''],
+        ['Counselor', school.counselorName, school.counselorEmail, school.counselorPhone],
+        ['Emergency', school.emergencyContactName, school.emergencyContactEmail, school.emergencyContactPhone],
+    ].filter(([, name, email, phone]) => name || email || phone);
+    const timeline = [
+        ...archives.map((archive) => ({
+            id: `archive-${archive.id}`,
+            label: archive.status?.replace('_', ' ') || 'completed',
+            date: archive.visitedOn,
+            title: archive.type || 'Campus engagement',
+            body: archive.summary || `${Number(archive.leads || 0)} lead(s) captured.`,
+        })),
+        ...(school.tasks || []).map((task) => ({
+            id: `task-${task.id}`,
+            label: task.status || 'open',
+            date: task.createdAt,
+            title: task.title,
+            body: task.description,
+        })),
+    ].slice(0, showAllHistory ? undefined : 5);
 
     return (
-        <section className="rounded-xl border border-slate-200 bg-slate-50 p-4 shadow-sm lg:p-5">
-            <button type="button" onClick={onBack} className="mb-5 inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-600 shadow-sm hover:border-blue-200 hover:text-blue-700">
-                <ChevronRight size={14} className="rotate-180" /> Back to Schools
-            </button>
-            <div className="flex flex-col gap-4 border-b border-slate-200 pb-5 lg:flex-row lg:items-start lg:justify-between">
-                <div className="flex gap-3">
-                    <span className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-lg border border-slate-200 bg-white text-sm font-black text-blue-700 shadow-sm">
+        <section className="grid gap-5">
+            <div className="flex items-center gap-2 text-sm font-semibold text-slate-500">
+                <button type="button" onClick={onBack} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700">
+                    <ChevronRight size={14} className="rotate-180" /> Directory
+                </button>
+                <span>/</span>
+                <span className="truncate text-slate-900">{school.name}</span>
+            </div>
+
+            <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-center">
+                    <div className="flex min-w-0 flex-col gap-4 md:flex-row md:items-center">
+                        <span className="grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50 text-2xl font-black text-blue-700">
                         {school.logoUrl ? <img src={school.logoUrl} alt="" className="h-full w-full object-cover" /> : school.name.slice(0, 1)}
-                    </span>
-                    <div>
-                        <h2 className="text-2xl font-black tracking-tight text-slate-950">{school.name}</h2>
-                        <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-semibold text-slate-500">
-                            <span className="inline-flex items-center gap-1"><MapPin size={13} /> {school.city}, {school.country}</span>
-                            <span>{school.type?.replace('_', ' ') || 'Partner school'}</span>
-                            <span>{school.region}</span>
-                        </p>
-                    </div>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                    <span className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700">
-                        <Sparkles size={14} /> {relationshipScore}/100 priority score
-                    </span>
-                    <button type="button" onClick={() => document.getElementById('partner-contact-form')?.scrollIntoView({ behavior: 'smooth', block: 'center' })} className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-black text-blue-700">
-                        <MailCheck size={14} /> Message Counselor
-                    </button>
-                    {school.canManage && <button type="button" onClick={onEdit} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700">
-                        <Edit3 size={14} /> Edit Relationship
-                    </button>}
-                    {school.canScheduleVisit ? (
-                        <form action={`/partner-schools/${school.id}/schedule-visit`} method="POST">
-                            <input type="hidden" name="_token" value={csrf} />
-                            <button className="inline-flex items-center gap-2 rounded-lg bg-slate-950 px-3 py-2 text-xs font-black text-white">
-                                <CalendarDays size={14} /> Schedule New Visit
-                            </button>
-                        </form>
-                    ) : (
-                        <span className="inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-black text-amber-800" title="Create or link a registered School account with an active coordinator before scheduling a visit.">
-                            <CalendarDays size={14} /> Link School Account
                         </span>
-                    )}
-                    <button type="button" onClick={onBack} className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 bg-white text-slate-500" aria-label="Back to schools"><X size={15} /></button>
-                </div>
-            </div>
-
-            <div className="mt-5 grid gap-4 md:grid-cols-3">
-                <PartnerMetric label="Partnership Since" value={relationshipYear || 'Not recorded'} detail="Relationship record created" tone="green" />
-                <PartnerMetric label="Leads Captured" value={leadsCaptured.toLocaleString()} detail={`Across ${archives.length} archived engagement(s)`} tone="green" />
-                <PartnerMetric label="Visit Activity" value={visitsCount} detail={`${Number(school.visitRequests || 0)} request(s) · ${archives.length} archived`} />
-            </div>
-
-            <section className="mt-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:p-5">
-                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                    <div>
-                        <p className="text-xs font-black uppercase tracking-wide text-[#006a61]">School Profile</p>
-                        <h3 className="mt-1 text-xl font-black text-slate-950">Institution Details</h3>
-                        <p className="mt-1 max-w-3xl text-sm font-semibold leading-6 text-slate-500">Core identity, contacts, academics, and visit-readiness information for this partner school.</p>
-                    </div>
-                    {school.linkedSchoolId ? (
-                        <span className="inline-flex w-fit items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700"><CheckCircle2 size={14} /> Registered school account</span>
-                    ) : (
-                        <span className="inline-flex w-fit items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-black text-amber-800"><School size={14} /> Directory profile only</span>
-                    )}
-                </div>
-
-                <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                    <PartnerInfoCard label="School code" value={school.code} detail={school.status ? titleCase(school.status) : null} />
-                    <PartnerInfoCard label="School type" value={school.type ? titleCase(school.type.replace('_', ' ')) : ''} detail={school.institutionLevel ? titleCase(school.institutionLevel.replace('_', ' ')) : school.ownership} />
-                    <PartnerInfoCard label="Student body" value={school.studentCount ? Number(school.studentCount).toLocaleString() : ''} detail={school.gradeRange} />
-                    <PartnerInfoCard label="Website / phone" value={school.website} detail={school.mainPhone} />
-                </div>
-
-                <div className="mt-4 grid gap-4 lg:grid-cols-2">
-                    <section className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                        <div className="flex items-center gap-2">
-                            <GraduationCap size={16} className="text-[#006a61]" />
-                            <h4 className="text-sm font-black text-slate-950">Academics</h4>
+                        <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <h1 className="truncate text-2xl font-black tracking-tight text-slate-950 md:text-3xl">{school.name}</h1>
+                                <span className="rounded bg-emerald-50 px-2 py-1 text-[10px] font-black uppercase tracking-wide text-emerald-700">{titleCase(school.tier || 'partner')}</span>
+                            </div>
+                            <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm font-semibold text-slate-500">
+                                <span className="inline-flex items-center gap-1"><MapPin size={15} /> {[school.city, school.region, school.country].filter(Boolean).join(', ')}</span>
+                                {school.studentCount && <span className="inline-flex items-center gap-1"><UsersRound size={15} /> {Number(school.studentCount).toLocaleString()} students</span>}
+                                {school.type && <span className="inline-flex items-center gap-1"><School size={15} /> {titleCase(school.type.replace('_', ' '))}</span>}
+                            </p>
                         </div>
-                        <div className="mt-3 grid gap-2">
+                    </div>
+                    <div className="grid gap-2 sm:grid-cols-2 lg:flex">
+                        {school.canScheduleVisit ? (
+                            <form action={`/partner-schools/${school.id}/schedule-visit`} method="POST">
+                                <input type="hidden" name="_token" value={csrf} />
+                                <button className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-black text-white">
+                                    <CalendarDays size={16} /> Schedule Visit
+                                </button>
+                            </form>
+                        ) : (
+                            <span className="inline-flex items-center justify-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm font-black text-amber-800">
+                                <CalendarDays size={16} /> Link Account
+                            </span>
+                        )}
+                        <button type="button" onClick={() => document.getElementById('partner-contact-form')?.scrollIntoView({ behavior: 'smooth', block: 'center' })} className="inline-flex items-center justify-center gap-2 rounded-lg border border-blue-200 bg-white px-4 py-2.5 text-sm font-black text-blue-700">
+                            <MailCheck size={16} /> Message
+                        </button>
+                        {school.canManage && <button type="button" onClick={onEdit} className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-700">
+                            <Edit3 size={16} /> Edit
+                        </button>}
+                    </div>
+                </div>
+            </section>
+
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                <PartnerMetric label="Active Applicants" value={Number(school.activeApplicants || 0).toLocaleString()} detail={`${relationshipScore}/100 priority`} />
+                <PartnerMetric label="Yield Rate" value={`${Number(school.yieldRate || 0)}%`} detail={school.tier ? titleCase(school.tier) : 'Partner'} tone="green" />
+                <PartnerMetric label="Visit Activity" value={visitsCount} detail={`${Number(school.visitRequests || 0)} request(s)`} />
+                <PartnerMetric label="Leads Captured" value={leadsCaptured.toLocaleString()} detail={`${archives.length} archived`} tone="green" />
+            </div>
+
+            <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
+                <div className="grid gap-5">
+                    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                        <h2 className="text-lg font-black text-slate-950">School Details</h2>
+                        <div className="mt-4 grid gap-3 md:grid-cols-2">
+                            <PartnerInfoCard label="School code" value={school.code} detail={school.status ? titleCase(school.status) : null} />
+                            <PartnerInfoCard label="School type" value={school.type ? titleCase(school.type.replace('_', ' ')) : ''} detail={school.institutionLevel ? titleCase(school.institutionLevel.replace('_', ' ')) : school.ownership} />
+                            <PartnerInfoCard label="Website / phone" value={school.website} detail={school.mainPhone} />
+                            <PartnerInfoCard label="Student body" value={school.studentCount ? Number(school.studentCount).toLocaleString() : ''} detail={school.gradeRange} />
                             <PartnerInfoCard label="Curriculum" value={school.curriculum} detail={school.accreditation} />
                             <PartnerInfoCard label="Academic calendar" value={school.academicCalendar} />
                             <PartnerInfoCard label="Average class size" value={school.averageClassSize} detail={school.graduationRate ? `${school.graduationRate}% graduation rate` : null} />
@@ -11794,159 +11798,89 @@ function PartnerSchoolDetail({ csrf, school, archives, visitsCount, onBack, onEd
                         </div>
                     </section>
 
-                    <section className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                        <div className="flex items-center gap-2">
-                            <RouteIcon size={16} className="text-[#006a61]" />
-                            <h4 className="text-sm font-black text-slate-950">Visit Readiness</h4>
-                        </div>
-                        <div className="mt-3 grid gap-2">
+                    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                        <h2 className="text-lg font-black text-slate-950">Visit Readiness</h2>
+                        <div className="mt-4 grid gap-3 md:grid-cols-2">
                             <PartnerInfoCard label="Address" value={school.address || [school.city, school.region, school.country].filter(Boolean).join(', ')} detail={school.district ? `District: ${school.district}` : null} />
                             <PartnerInfoCard label="Transportation" value={school.transportationNotes} />
                             <PartnerInfoCard label="Visit policy" value={school.visitPolicy} />
                             <PartnerInfoCard label="Safety policy" value={school.safetyPolicyUrl} />
                         </div>
                     </section>
-                </div>
-            </section>
 
-            <div className="mt-5 grid gap-4 xl:grid-cols-[310px_1fr]">
-                <section className="rounded-lg bg-slate-950 p-5 text-white shadow-sm">
-                    <div className="inline-flex items-center gap-2 rounded-full bg-emerald-500/15 px-3 py-1 text-[11px] font-black uppercase text-emerald-200">
-                        <Brain size={14} /> Relationship Snapshot
-                    </div>
-                    <p className="mt-5 text-xs font-black uppercase tracking-wide text-white/50">Saved Priority Score</p>
-                    <div className="mt-2 flex items-end gap-2">
-                        <span className="text-4xl font-black">{relationshipScore}</span>
-                        <span className="mb-1 rounded-full bg-emerald-400 px-2 py-1 text-[10px] font-black text-slate-950">{titleCase(school.tier || 'unrated')}</span>
-                    </div>
-                    <p className="mt-5 text-xs font-black uppercase tracking-wide text-white/50">Recorded Signals</p>
-                    <div className="mt-3 space-y-3">
-                        {recordedSignals.map((signal) => (
-                            <div key={signal} className="flex gap-2 text-xs leading-5 text-white/80">
-                                <CheckCircle2 size={14} className="mt-0.5 shrink-0 text-emerald-300" />
-                                <span>{signal}</span>
-                            </div>
-                        ))}
-                    </div>
-                    <button type="button" onClick={() => document.getElementById('partner-follow-up-title')?.focus()} className="mt-5 w-full rounded-lg border border-white/15 bg-white px-3 py-2 text-xs font-black text-slate-950">Add Follow-up</button>
-                </section>
-
-                <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                            <h3 className="font-black text-slate-950">Engagement Trends</h3>
-                            <p className="mt-1 text-xs font-semibold text-slate-500">Leads captured and engagement from archived visit records.</p>
+                    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                        <div className="flex items-center justify-between gap-3">
+                            <h2 className="text-lg font-black text-slate-950">Engagement Timeline</h2>
+                            {(archives.length + (school.tasks || []).length) > 5 && <button type="button" onClick={() => setShowAllHistory((current) => !current)} className="text-xs font-black text-blue-700">{showAllHistory ? 'Show less' : 'View all'}</button>}
                         </div>
-                        <div className="flex rounded-lg border border-slate-200 bg-slate-50 p-1">
-                            <button type="button" onClick={() => setTrendPeriod('yearly')} className={cx('rounded-md px-3 py-1.5 text-xs font-black', trendPeriod === 'yearly' ? 'bg-white text-slate-700 shadow-sm' : 'text-slate-400')}>Yearly</button>
-                            <button type="button" onClick={() => setTrendPeriod('quarterly')} className={cx('rounded-md px-3 py-1.5 text-xs font-black', trendPeriod === 'quarterly' ? 'bg-white text-slate-700 shadow-sm' : 'text-slate-400')}>Quarterly</button>
-                        </div>
-                    </div>
-                    <PartnerTrendChart archives={archives} period={trendPeriod} />
-                </section>
-            </div>
-
-            <section className="mt-5 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-                <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
-                    <h3 className="font-black text-slate-950">Recent Campus Engagements</h3>
-                    {archives.length > 4 ? <button type="button" onClick={() => setShowAllHistory((current) => !current)} className="text-xs font-black text-blue-700">{showAllHistory ? 'Show Recent' : 'View All History'}</button> : <span className="text-xs font-black text-slate-400">{archives.length} record(s)</span>}
-                </div>
-                <div className="overflow-x-auto">
-                    <table className="w-full min-w-[760px] text-left text-sm">
-                        <thead className="bg-slate-50 text-[11px] font-black uppercase tracking-wide text-slate-500">
-                            <tr><th className="px-5 py-3">Event Name</th><th className="px-5 py-3">Date</th><th className="px-5 py-3">Engagement</th><th className="px-5 py-3">Quality</th><th className="px-5 py-3">Status</th></tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-200">
-                            {historyRows.map((archive) => (
-                                <tr key={archive.id}>
-                                    <td className="px-5 py-4"><p className="font-black text-slate-950">{archive.type}</p><p className="text-xs text-slate-400">{archive.summary}</p></td>
-                                    <td className="px-5 py-4 font-semibold text-slate-600">{formatShortDate(archive.visitedOn)}</td>
-                                    <td className="px-5 py-4"><div className="h-1.5 w-28 rounded-full bg-slate-100"><div className="h-full rounded-full bg-blue-600" style={{ width: `${Math.min(100, Math.max(0, Number(archive.engagement || 0)))}%` }} /></div><p className="mt-1 text-xs font-bold text-slate-500">{Number(archive.engagement || 0)}% · {Number(archive.leads || 0)} lead(s)</p></td>
-                                    <td className="px-5 py-4 font-semibold text-slate-600">{Number(archive.quality || 0).toFixed(1)}/5</td>
-                                    <td className="px-5 py-4"><span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-black uppercase text-emerald-700">{archive.status?.replace('_', ' ') || 'completed'}</span></td>
-                                </tr>
+                        <div className="mt-5 space-y-5 border-l-2 border-slate-200 pl-5">
+                            {timeline.map((item) => (
+                                <article key={item.id} className="relative">
+                                    <span className="absolute -left-[29px] top-1 h-4 w-4 rounded-full border-4 border-white bg-blue-600" />
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <span className="rounded bg-blue-50 px-2 py-1 text-[10px] font-black uppercase text-blue-700">{item.label}</span>
+                                        <span className="text-xs font-semibold text-slate-500">{formatShortDate(item.date)}</span>
+                                    </div>
+                                    <h3 className="mt-2 text-sm font-black text-slate-950">{item.title}</h3>
+                                    {item.body && <p className="mt-1 text-sm leading-6 text-slate-600">{item.body}</p>}
+                                </article>
                             ))}
-                            {historyRows.length === 0 && <tr><td colSpan="5" className="px-5 py-12 text-center text-sm font-semibold text-slate-500">No archived campus engagements have been recorded for this school.</td></tr>}
-                        </tbody>
-                    </table>
+                            {timeline.length === 0 && <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-5 text-sm font-semibold text-slate-500">No engagement timeline has been recorded yet.</p>}
+                        </div>
+                    </section>
                 </div>
-            </section>
 
-            <div className="mt-5 grid gap-4 lg:grid-cols-[360px_1fr]">
-                <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-                    <h3 className="font-black text-slate-950">Contacts and Location</h3>
-                    <div className="mt-4 space-y-4">
-                        {[
-                            ['Coordinator', coordinatorName, [school.coordinatorEmail, school.coordinatorPhone].filter(Boolean).join(' / ')],
-                            ['Principal', school.principalName, school.principalEmail],
-                            ['Counselor', school.counselorName, [school.counselorEmail, school.counselorPhone].filter(Boolean).join(' / ')],
-                            ['Emergency', school.emergencyContactName, [school.emergencyContactPhone, school.emergencyContactEmail].filter(Boolean).join(' / ')],
-                        ].filter(([, name, detail]) => name || detail).map(([label, name, detail]) => (
-                            <div key={label} className="flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50 p-3">
-                                <span className="grid h-10 w-10 place-items-center rounded-full bg-white text-xs font-black text-slate-700">{(name || label).split(' ').map((part) => part[0]).join('').slice(0, 2)}</span>
-                                <div className="min-w-0 flex-1"><p className="text-sm font-black text-slate-950">{name}</p><p className="text-xs text-slate-500">{label}{detail ? ` · ${detail}` : ''}</p></div>
-                                {detail?.includes('@') && <a href={`mailto:${detail.split(' / ')[0]}`} className="grid h-8 w-8 place-items-center rounded-lg border border-slate-200 bg-white text-blue-700" aria-label={`Email ${name || label}`}><MailCheck size={14} /></a>}
-                            </div>
-                        ))}
-                    </div>
-                    <div className="mt-5 border-t border-slate-100 pt-4">
-                        <p className="text-[11px] font-black uppercase tracking-wide text-slate-400">Location Info</p>
+                <aside className="grid h-fit gap-5">
+                    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                        <h2 className="text-lg font-black text-slate-950">Key Contacts</h2>
+                        <div className="mt-4 grid gap-3">
+                            {contacts.map(([label, name, email, phone]) => (
+                                <div key={label} className="flex items-center gap-3 rounded-lg border border-slate-100 bg-slate-50 p-3">
+                                    <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-slate-950 text-xs font-black text-white">{(name || label).split(' ').map((part) => part[0]).join('').slice(0, 2)}</span>
+                                    <div className="min-w-0 flex-1">
+                                        <p className="truncate text-sm font-black text-slate-950">{name}</p>
+                                        <p className="truncate text-xs font-semibold text-slate-500">{label}{phone ? ` · ${phone}` : ''}</p>
+                                    </div>
+                                    <div className="flex shrink-0 gap-1">
+                                        {email && <a href={`mailto:${email}`} className="grid h-8 w-8 place-items-center rounded-full text-blue-700 hover:bg-blue-50" aria-label={`Email ${name}`}><MailCheck size={16} /></a>}
+                                        {phone && <a href={`tel:${phone}`} className="grid h-8 w-8 place-items-center rounded-full text-blue-700 hover:bg-blue-50" aria-label={`Call ${name}`}><Smartphone size={16} /></a>}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </section>
+
+                    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                        <h2 className="text-lg font-black text-slate-950">Map</h2>
                         {hasExactCoordinates ? <div className="mt-3"><OpenStreetMapEmbed location={`${school.name}, ${school.city}, ${school.country}`} points={[{ label: school.name, location: `${school.city}, ${school.country}`, latitude: school.latitude, longitude: school.longitude, meta: `${visitsCount} visit record(s) • ${relationshipScore}/100 priority` }]} title={`${school.name} location on OpenStreetMap`} className="h-36" /></div> : <div className="mt-3 grid h-36 place-items-center rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-center text-xs font-semibold text-slate-500">Exact map coordinates have not been recorded for this school.</div>}
                         <OpenStreetMapLink location={`${school.name}, ${school.city}, ${school.country}`} className="mt-2 inline-flex items-center gap-1 text-xs font-black text-blue-700"><MapIcon size={13} /> Open in OpenStreetMap</OpenStreetMapLink>
-                    </div>
-                </section>
+                    </section>
 
-                <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-                    <div className="flex items-center justify-between">
-                        <h3 className="font-black text-slate-950">Relationship Notes and Follow-up</h3>
-                        {school.canManage && <button type="button" onClick={() => document.getElementById('partner-notes-input')?.focus()} className="grid h-8 w-8 place-items-center rounded-lg border border-slate-200 text-slate-500" aria-label="Edit notes"><Command size={14} /></button>}
-                    </div>
-                    {school.canManage && <form action={`/dashboard/university/partner-schools/${school.id}`} method="POST" className="mt-4 grid gap-3">
+                    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                        <div className="flex items-center justify-between">
+                            <h2 className="text-lg font-black text-slate-950">Notes</h2>
+                            <button type="button" onClick={() => document.getElementById('partner-follow-up-title')?.focus()} className="rounded-lg border border-slate-200 px-2 py-1 text-xs font-black text-slate-600">Add</button>
+                        </div>
+                        <div className="mt-4 space-y-3">
+                            {school.notes && <StrategicNote body={school.notes} author="Saved note" />}
+                            {(school.tasks || []).slice(0, 3).map((task) => <StrategicNote key={task.id} body={task.description || task.title} author="Follow-up" date={task.createdAt} />)}
+                        </div>
+                        <form action={`/dashboard/university/partner-schools/${school.id}/tasks`} method="POST" className="mt-4 grid gap-2">
+                            <input type="hidden" name="_token" value={csrf} />
+                            <input id="partner-follow-up-title" name="title" required placeholder="Follow-up title..." className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold" />
+                            <textarea name="description" rows="2" placeholder="What should happen next?" className="rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+                            <button className="rounded-lg bg-slate-950 px-3 py-2 text-sm font-black text-white">Save Follow-up</button>
+                        </form>
+                    </section>
+
+                    <form id="partner-contact-form" action={`/dashboard/university/partner-schools/${school.id}/contact`} method="POST" className="grid gap-3 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
                         <input type="hidden" name="_token" value={csrf} />
-                        <input type="hidden" name="_method" value="PUT" />
-                        <input type="hidden" name="school_code" value={school.code || ''} />
-                        <input type="hidden" name="name" value={school.name || ''} />
-                        <input type="hidden" name="city" value={school.city || ''} />
-                        <input type="hidden" name="region" value={school.region || ''} />
-                        <input type="hidden" name="country" value={school.country || 'United States'} />
-                        <input type="hidden" name="district" value={school.district || ''} />
-                        <input type="hidden" name="coordinator_name" value={school.coordinatorName || ''} />
-                        <input type="hidden" name="coordinator_email" value={school.coordinatorEmail || ''} />
-                        <input type="hidden" name="status" value={school.status || 'verified'} />
-                        <input type="hidden" name="school_type" value={school.type || 'private'} />
-                        <input type="hidden" name="average_sat" value={school.sat || ''} />
-                        <input type="hidden" name="yield_rate" value={school.yieldRate || 0} />
-                        <input type="hidden" name="match_score" value={school.matchScore || 0} />
-                        <input type="hidden" name="active_applicants" value={school.activeApplicants || 0} />
-                        <label className="grid gap-1.5 text-sm font-bold text-slate-700">Relationship tier<select name="performance_tier" defaultValue={school.tier || 'stable'} className="rounded-xl border border-slate-200 px-3 py-2.5 font-normal"><option value="elite">Elite</option><option value="high">High</option><option value="emerging">Emerging</option><option value="stable">Stable</option></select></label>
-                        <label className="grid gap-1.5 text-sm font-bold text-slate-700">Relationship notes<textarea id="partner-notes-input" name="notes" rows="4" defaultValue={school.notes || ''} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 font-normal outline-none focus:border-blue-300 focus:ring-4 focus:ring-blue-50" placeholder="Add visit preferences, school priorities, risks, or handover notes..." /></label>
-                        <button className="rounded-xl bg-slate-950 px-4 py-3 text-sm font-black text-white">Save Relationship Notes</button>
-                    </form>}
-                    {!school.canManage && <p className="mt-4 rounded-xl bg-slate-50 p-3 text-sm font-semibold text-slate-600">This shared directory record is read-only. Contact and visit coordination remain available.</p>}
-                    <form id="partner-contact-form" action={`/dashboard/university/partner-schools/${school.id}/contact`} method="POST" className="mt-5 grid gap-3 rounded-xl border border-slate-200 p-4">
-                        <input type="hidden" name="_token" value={csrf} />
-                        <h4 className="font-black text-slate-950">Message School Contact</h4>
-                        <input name="subject" required defaultValue={`Follow-up with ${school.name}`} className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-semibold" />
-                        <textarea name="message" required rows="3" className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm" defaultValue={`Hi ${school.coordinatorName || 'Counselor'}, we'd like to coordinate the next visit opportunity.`} />
-                        <button className="rounded-xl bg-[#006a61] px-4 py-3 text-sm font-black text-white">Save Contact Follow-up</button>
+                        <h2 className="text-lg font-black text-slate-950">Message</h2>
+                        <input name="subject" required defaultValue={`Follow-up with ${school.name}`} className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold" />
+                        <textarea name="message" required rows="3" className="rounded-lg border border-slate-200 px-3 py-2 text-sm" defaultValue={`Hi ${school.coordinatorName || 'Counselor'}, we'd like to coordinate the next visit opportunity.`} />
+                        <button className="rounded-lg bg-[#006a61] px-3 py-2 text-sm font-black text-white">Send Message</button>
                     </form>
-                    <div className="mt-5 space-y-3">
-                        {school.notes && <StrategicNote body={school.notes} author="Saved relationship note" />}
-                        {(school.tasks || []).map((task) => <StrategicNote key={task.id} body={task.description || task.title} author="Follow-up action" date={task.createdAt} />)}
-                        {!school.notes && !(school.tasks || []).length && <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-4 text-sm font-semibold text-slate-500">No relationship notes or follow-up actions have been recorded yet.</p>}
-                    </div>
-                    <form action={`/dashboard/university/partner-schools/${school.id}/tasks`} method="POST" className="mt-4 grid gap-2">
-                        <input type="hidden" name="_token" value={csrf} />
-                        <input id="partner-follow-up-title" name="title" required placeholder="Follow-up title..." className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-semibold" />
-                        <textarea name="description" rows="2" placeholder="What should the team do next?" className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm" />
-                        <button className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-black text-slate-700">Save Follow-up</button>
-                    </form>
-                    {school.canManage && <div className="mt-5">
-                        <ConfirmForm csrf={csrf} action={`/dashboard/university/partner-schools/${school.id}`} method="DELETE" title="Remove partner school?" message={`Remove ${school.name} if no visit history exists?`} confirmLabel="Remove school" className="text-xs font-black text-rose-700">
-                            Remove school if no history exists
-                        </ConfirmForm>
-                    </div>}
-                </section>
+                </aside>
             </div>
         </section>
     );
