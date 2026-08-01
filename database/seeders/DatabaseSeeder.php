@@ -74,6 +74,7 @@ class DatabaseSeeder extends Seeder
                 'instagram_url' => 'https://instagram.com/lincolnhighdemo',
                 'visit_notes' => 'Prefers Wednesday or Friday campus visits. Senior students need accessible transportation and lunch timing confirmed at least one week before travel.',
                 'email_notifications' => true,
+                'is_demo' => true,
             ]
         );
 

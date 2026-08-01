@@ -54,6 +54,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'instagram_url',
     'visit_notes',
     'email_notifications',
+    'is_demo',
 ])]
 class School extends Model
 {
@@ -64,6 +65,7 @@ class School extends Model
             'boarding_available' => 'boolean',
             'international_students' => 'boolean',
             'graduation_rate' => 'decimal:2',
+            'is_demo' => 'boolean',
         ];
     }
 

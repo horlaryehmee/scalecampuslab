@@ -11,6 +11,7 @@ use App\Models\CampusEvent;
 use App\Models\ComplianceRequest;
 use App\Models\Conversation;
 use App\Models\ConversationMessage;
+use App\Models\ConversationParticipant;
 use App\Models\EmailTemplate;
 use App\Models\EventItineraryItem;
 use App\Models\EventRegistration;
@@ -124,6 +125,11 @@ class DashboardController extends Controller
             '--force' => true,
         ]);
 
+        $university = User::query()->where('email', 'university@scalecampuslab.test')->first();
+        if ($university) {
+            $this->populateUniversityDemoProgramRecords($university);
+        }
+
         SystemLog::create([
             'user_id' => $request->user()->id,
             'action' => 'demo_data.populated',
@@ -143,6 +149,17 @@ class DashboardController extends Controller
                 ->whereKeyNot($request->user()->id)
                 ->pluck('id');
 
+            $demoSchoolIds = School::query()
+                ->where('is_demo', true)
+                ->orWhere('school_code', 'LHS-DEMO')
+                ->orWhere('coordinator_email', 'demo-school@scalecampuslab.test')
+                ->orWhere('coordinator_email', 'jane.doe@lincolnhigh.edu')
+                ->pluck('id');
+
+            $demoTargetSchoolIds = TargetSchool::query()
+                ->where('is_demo', true)
+                ->pluck('id');
+
             $demoEventIds = CampusEvent::query()
                 ->where('is_demo', true)
                 ->orWhereIn('university_user_id', $demoUserIds)
@@ -154,12 +171,83 @@ class DashboardController extends Controller
                 ->orWhereIn('user_id', $demoUserIds)
                 ->pluck('id');
 
+            $demoVisitRequestIds = VisitRequest::query()
+                ->where('is_demo', true)
+                ->orWhereIn('campus_event_id', $demoEventIds)
+                ->orWhereIn('school_id', $demoSchoolIds)
+                ->orWhereIn('target_school_id', $demoTargetSchoolIds)
+                ->orWhereIn('requested_by_user_id', $demoUserIds)
+                ->orWhereIn('responded_by_user_id', $demoUserIds)
+                ->pluck('id');
+
+            $demoInstitutionProgramIds = InstitutionProgram::query()
+                ->whereIn('university_user_id', $demoUserIds)
+                ->orWhereIn('school_id', $demoSchoolIds)
+                ->pluck('id');
+
+            $demoAdmissionApplicationIds = AdmissionApplication::query()
+                ->whereIn('student_user_id', $demoUserIds)
+                ->orWhereIn('institution_program_id', $demoInstitutionProgramIds)
+                ->orWhereIn('reviewed_by_user_id', $demoUserIds)
+                ->pluck('id');
+
+            $demoStudentDocumentIds = StudentDocument::query()
+                ->whereIn('student_user_id', $demoUserIds)
+                ->orWhereIn('admission_application_id', $demoAdmissionApplicationIds)
+                ->orWhereIn('reviewed_by_user_id', $demoUserIds)
+                ->pluck('id');
+
+            $demoConversationIds = Conversation::query()
+                ->whereIn('created_by_user_id', $demoUserIds)
+                ->orWhereIn('admission_application_id', $demoAdmissionApplicationIds)
+                ->orWhereIn('id', ConversationParticipant::query()
+                    ->whereIn('user_id', $demoUserIds)
+                    ->select('conversation_id'))
+                ->orWhereIn('id', ConversationMessage::query()
+                    ->whereIn('sender_user_id', $demoUserIds)
+                    ->select('conversation_id'))
+                ->pluck('id');
+
             $counts = [
+                'application_payments' => ApplicationPayment::query()
+                    ->whereIn('admission_application_id', $demoAdmissionApplicationIds)
+                    ->orWhereIn('student_user_id', $demoUserIds)
+                    ->delete(),
+                'conversation_messages' => ConversationMessage::query()
+                    ->whereIn('conversation_id', $demoConversationIds)
+                    ->orWhereIn('sender_user_id', $demoUserIds)
+                    ->orWhereIn('student_document_id', $demoStudentDocumentIds)
+                    ->delete(),
+                'conversation_participants' => ConversationParticipant::query()
+                    ->whereIn('conversation_id', $demoConversationIds)
+                    ->orWhereIn('user_id', $demoUserIds)
+                    ->delete(),
+                'conversations' => Conversation::query()
+                    ->whereIn('id', $demoConversationIds)
+                    ->delete(),
+                'student_documents' => StudentDocument::query()
+                    ->whereIn('id', $demoStudentDocumentIds)
+                    ->delete(),
+                'admission_applications' => AdmissionApplication::query()
+                    ->whereIn('id', $demoAdmissionApplicationIds)
+                    ->delete(),
+                'student_academic_records' => StudentAcademicRecord::query()
+                    ->whereIn('student_user_id', $demoUserIds)
+                    ->delete(),
+                'institution_programs' => InstitutionProgram::query()
+                    ->whereIn('id', $demoInstitutionProgramIds)
+                    ->delete(),
                 'registration_students' => EventRegistrationStudent::query()
                     ->whereIn('event_registration_id', $demoRegistrationIds)
+                    ->orWhereIn('user_id', $demoUserIds)
                     ->delete(),
                 'itinerary_items' => EventItineraryItem::query()
                     ->whereIn('campus_event_id', $demoEventIds)
+                    ->delete(),
+                'school_itinerary_items' => SchoolItineraryItem::query()
+                    ->whereIn('user_id', $demoUserIds)
+                    ->orWhereIn('campus_event_id', $demoEventIds)
+                    ->orWhereIn('visit_request_id', $demoVisitRequestIds)
                     ->delete(),
                 'notifications' => PlatformNotification::query()
                     ->where(function ($query) use ($demoUserIds, $demoEventIds): void {
@@ -173,10 +261,7 @@ class DashboardController extends Controller
                     ->whereIn('id', $demoRegistrationIds)
                     ->delete(),
                 'visit_requests' => VisitRequest::query()
-                    ->where('is_demo', true)
-                    ->orWhereIn('campus_event_id', $demoEventIds)
-                    ->orWhereIn('requested_by_user_id', $demoUserIds)
-                    ->orWhereIn('responded_by_user_id', $demoUserIds)
+                    ->whereIn('id', $demoVisitRequestIds)
                     ->delete(),
                 'events' => CampusEvent::query()
                     ->whereIn('id', $demoEventIds)
@@ -190,21 +275,20 @@ class DashboardController extends Controller
                     ->delete(),
                 'visit_tasks' => VisitTask::query()
                     ->whereIn('visit_archive_id', VisitArchive::query()
-                        ->whereIn('target_school_id', TargetSchool::query()->where('is_demo', true)->select('id'))
+                        ->whereIn('target_school_id', $demoTargetSchoolIds)
                         ->select('id'))
                     ->delete(),
                 'visit_archives' => VisitArchive::query()
-                    ->whereIn('target_school_id', TargetSchool::query()->where('is_demo', true)->select('id'))
+                    ->whereIn('target_school_id', $demoTargetSchoolIds)
                     ->delete(),
                 'target_schools' => TargetSchool::query()
-                    ->where('is_demo', true)
+                    ->whereIn('id', $demoTargetSchoolIds)
                     ->delete(),
                 'users' => User::query()
                     ->whereIn('id', $demoUserIds)
                     ->delete(),
                 'schools' => School::query()
-                    ->where('coordinator_email', 'demo-school@scalecampuslab.test')
-                    ->orWhere('coordinator_email', 'jane.doe@lincolnhigh.edu')
+                    ->whereIn('id', $demoSchoolIds)
                     ->delete(),
             ];
 
@@ -357,6 +441,108 @@ class DashboardController extends Controller
             ->delete();
 
         return back()->with('status', $deleted.' demo visit program(s) cleared. Real data was not changed.');
+    }
+
+    private function populateUniversityDemoProgramRecords(User $user): void
+    {
+        $programs = [
+            ['Engineering Discovery Day', 12, 180, 'Innovation Centre', 'Lagos, Nigeria'],
+            ['Business & Leadership Preview', 24, 140, 'Main Auditorium', 'Lagos, Nigeria'],
+            ['Health Sciences Experience', 38, 120, 'Clinical Skills Centre', 'Lagos, Nigeria'],
+            ['Creative Arts Portfolio Day', 52, 100, 'Arts Pavilion', 'Lagos, Nigeria'],
+            ['Computing & AI Campus Tour', 66, 160, 'Technology Hub', 'Lagos, Nigeria'],
+            ['Admissions Open House', 82, 220, 'University Welcome Centre', 'Lagos, Nigeria'],
+        ];
+
+        foreach ($programs as $programIndex => [$title, $days, $capacity, $venue, $location]) {
+            $startsAt = now()->addDays($days)->setTime(10, 0);
+            $event = CampusEvent::query()->updateOrCreate(
+                ['university_user_id' => $user->id, 'title' => $title],
+                [
+                    'starts_at' => $startsAt,
+                    'ends_at' => $startsAt->copy()->addHours(3),
+                    'venue' => $venue,
+                    'location' => $location,
+                    'description' => 'A guided campus visit programme with faculty sessions, student panels, and admissions support.',
+                    'about' => 'Schools can bring student groups for a structured campus experience focused on '.$title.'.',
+                    'detailed_description' => '<p>This demo programme includes a welcome session, faculty-led academic preview, student ambassador panel, campus tour, and admissions guidance for school coordinators.</p>',
+                    'audience' => '<p>Senior secondary students, counselors, school leaders, and prospective applicants exploring university pathways.</p>',
+                    'agenda' => '<ul><li>Arrival and check-in</li><li>Academic showcase</li><li>Student panel</li><li>Campus tour</li><li>Admissions and next steps</li></ul>',
+                    'requirements' => '<p>Schools should submit expected group size, chaperone contact, accessibility needs, and dietary notes before arrival.</p>',
+                    'contact_name' => 'Noah Rivera',
+                    'contact_title' => 'Visit Logistics Manager',
+                    'contact_email' => 'outreach@scale-state.scalecampuslab.test',
+                    'contact_phone' => '+1 555 0145',
+                    'contact_office' => 'Scale State University Outreach Office',
+                    'contact_website' => 'https://scale-state.scalecampuslab.test',
+                    'video_url' => 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+                    'video_title' => $title.' overview',
+                    'capacity' => $capacity,
+                    'per_school_capacity' => min(45, $capacity),
+                    'per_group_capacity' => min(35, $capacity),
+                    'status' => 'published',
+                    'visibility' => 'public',
+                    'guest_registration_enabled' => true,
+                    'lifecycle_stage' => 'open',
+                    'is_demo' => true,
+                ]
+            );
+
+            foreach ([18, 22, 14, 27, 19] as $groupIndex => $partySize) {
+                $schoolName = ['Lincoln High School', 'Westview Preparatory', 'St. Jude Academy', 'Greenfield College', 'Oakridge School'][$groupIndex];
+                $registration = EventRegistration::query()->updateOrCreate(
+                    [
+                        'campus_event_id' => $event->id,
+                        'registrant_email' => 'demo-'.$event->id.'-'.$groupIndex.'@school.scalecampuslab.test',
+                    ],
+                    [
+                        'registrant_name' => $schoolName,
+                        'registrant_type' => 'school_group',
+                        'party_size' => $partySize + ($programIndex * 2),
+                        'status' => $groupIndex === 4 && $programIndex % 2 ? 'waitlisted' : 'confirmed',
+                        'consent_status' => $groupIndex === 1 ? 'pending' : 'received',
+                        'is_minor' => true,
+                        'guardian_name' => ['Amina Roberts', 'David Chen', 'Maria Okafor', 'Grace Miller', 'Thomas Blake'][$groupIndex],
+                        'guardian_email' => 'guardian-'.$event->id.'-'.$groupIndex.'@school.scalecampuslab.test',
+                        'guardian_phone' => '+1 555 010 '.str_pad((string) ($groupIndex + 1), 2, '0', STR_PAD_LEFT),
+                        'emergency_contact_name' => ['Amina Roberts', 'David Chen', 'Maria Okafor', 'Grace Miller', 'Thomas Blake'][$groupIndex],
+                        'emergency_contact_phone' => '+1 555 019 '.str_pad((string) ($groupIndex + 1), 2, '0', STR_PAD_LEFT),
+                        'medical_notes' => $groupIndex === 2 ? 'One attendee requires nut-free meal handling.' : null,
+                        'attended_at' => $programIndex === 0 && $groupIndex < 3 ? now()->subDays(2) : null,
+                        'checked_in_at' => $programIndex === 0 && $groupIndex < 3 ? now()->subDays(2)->setTime(9, 45) : null,
+                        'checked_out_at' => $programIndex === 0 && $groupIndex < 2 ? now()->subDays(2)->setTime(13, 10) : null,
+                        'is_demo' => true,
+                    ]
+                );
+
+                foreach (range(1, min(8, (int) $registration->party_size)) as $studentIndex) {
+                    $studentName = ['Sarah Jenkins', 'Marcus Chen', 'Elena Rodriguez', 'Aisha Johnson', 'Noah Williams', 'Priya Patel', 'Daniel Brooks', 'Fatima Bello'][$studentIndex - 1];
+                    EventRegistrationStudent::query()->updateOrCreate(
+                        [
+                            'event_registration_id' => $registration->id,
+                            'email' => Str::slug($studentName).'.'.$event->id.'.'.$groupIndex.'@student.scalecampuslab.test',
+                        ],
+                        [
+                            'name' => $studentName,
+                            'student_identifier' => 'SC-'.$event->id.$groupIndex.str_pad((string) $studentIndex, 2, '0', STR_PAD_LEFT),
+                            'grade_level' => $studentIndex % 3 === 0 ? '11th' : '12th',
+                            'interest_major' => ['Computer Science', 'Business Admin', 'Pre-Med / Biology', 'Engineering', 'Design / Creative Arts'][$studentIndex % 5],
+                            'status' => $registration->status,
+                            'consent_status' => $studentIndex === 2 ? 'pending' : 'received',
+                            'is_minor' => true,
+                            'guardian_name' => $registration->guardian_name,
+                            'guardian_email' => 'guardian-'.$event->id.'-'.$groupIndex.'-'.$studentIndex.'@school.scalecampuslab.test',
+                            'guardian_phone' => '+1 555 020 '.str_pad((string) $studentIndex, 2, '0', STR_PAD_LEFT),
+                            'emergency_contact_name' => $registration->emergency_contact_name,
+                            'emergency_contact_phone' => '+1 555 029 '.str_pad((string) $studentIndex, 2, '0', STR_PAD_LEFT),
+                            'medical_notes' => $studentIndex === 3 ? 'Nut-free meal required.' : null,
+                            'checked_in_at' => $registration->checked_in_at,
+                            'checked_out_at' => $studentIndex < 3 ? $registration->checked_out_at : null,
+                        ]
+                    );
+                }
+            }
+        }
     }
 
     public function storeAdminUniversity(Request $request): RedirectResponse
