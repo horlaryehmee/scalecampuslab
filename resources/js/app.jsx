@@ -8711,21 +8711,22 @@ function UniversityAttendeesSection({ csrf, registrations = [], events = [] }) {
     const [importOpen, setImportOpen] = useState(false);
     const [bulkAction, setBulkAction] = useState('check_in');
     const [page, setPage] = useState(1);
-    const perPage = 10;
-    const programs = [...new Set(registrations.map((item) => item.event).filter(Boolean))].sort();
-    const interests = [...new Set(registrations.map((item) => item.interest).filter(Boolean))].sort();
-    const filtered = registrations.filter((item) => {
-        const studentText = (item.students || []).map((student) => `${student.name} ${student.email} ${student.grade} ${student.interest}`).join(' ');
-        const haystack = `${item.name} ${item.email} ${item.school} ${item.schoolLocation} ${item.event} ${item.interest} ${studentText}`.toLowerCase();
-        return haystack.includes(query.toLowerCase())
+    const [perPage, setPerPage] = useState(50);
+    const searchableRegistrations = useMemo(() => registrations.map((item) => ({
+        ...item,
+        searchText: `${item.name || ''} ${item.email || ''} ${item.school || ''} ${item.schoolLocation || ''} ${item.event || ''} ${item.interest || ''} ${(item.students || []).map((student) => `${student.name || ''} ${student.email || ''} ${student.grade || ''} ${student.interest || ''}`).join(' ')}`.toLowerCase(),
+    })), [registrations]);
+    const programs = useMemo(() => [...new Set(registrations.map((item) => item.event).filter(Boolean))].sort(), [registrations]);
+    const interests = useMemo(() => [...new Set(registrations.map((item) => item.interest).filter(Boolean))].sort(), [registrations]);
+    const filtered = useMemo(() => {
+        const needle = query.toLowerCase().trim();
+        return searchableRegistrations.filter((item) => (!needle || item.searchText.includes(needle))
             && (status === 'all' || item.status === status)
             && (program === 'all' || item.event === program)
-            && (interest === 'all' || item.interest === interest);
-    });
-    const schoolGroups = attendeeSchoolGroups(filtered);
-    const pages = Math.max(1, Math.ceil(schoolGroups.length / perPage));
-    const visibleGroups = schoolGroups.slice((page - 1) * perPage, page * perPage);
-    const visible = visibleGroups.flatMap((group) => group.registrations);
+            && (interest === 'all' || item.interest === interest));
+    }, [searchableRegistrations, query, status, program, interest]);
+    const pages = Math.max(1, Math.ceil(filtered.length / perPage));
+    const visible = filtered.slice((page - 1) * perPage, page * perPage);
     const selectedVisible = visible.length > 0 && visible.every((item) => selected.includes(item.id));
     const totalSeats = filtered.reduce((sum, item) => sum + Number(item.partySize || 0), 0);
     const confirmedSeats = filtered.filter((item) => item.status === 'confirmed').reduce((sum, item) => sum + Number(item.partySize || 0), 0);
@@ -8738,7 +8739,7 @@ function UniversityAttendeesSection({ csrf, registrations = [], events = [] }) {
     useEffect(() => {
         setPage(1);
         setSelected((current) => current.filter((id) => filtered.some((item) => item.id === id)));
-    }, [query, status, program, interest, registrations]);
+    }, [filtered, perPage]);
 
     const toggleOne = (id) => {
         setSelected((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
@@ -8826,38 +8827,28 @@ function UniversityAttendeesSection({ csrf, registrations = [], events = [] }) {
 
             <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
                 <div className="grid gap-2 p-3 md:hidden">
-                    {visibleGroups.map((group) => (
-                        <article key={group.key} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+                    {visible.map((item) => (
+                        <article key={item.id} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
                             <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0">
-                                    <p className="truncate text-sm font-black text-slate-950">{group.school}</p>
-                                    <p className="mt-1 text-[11px] font-semibold text-slate-500">{group.registrations.length} booking record(s) • {group.seats} seat(s) • {group.studentCount} student profile(s)</p>
+                                    <p className="truncate text-sm font-black text-slate-950">{item.name}</p>
+                                    <p className="mt-1 truncate text-[11px] font-semibold text-slate-500">{item.school || 'Direct student'} • {item.partySize} seat(s) • {(item.students || []).length} profile(s)</p>
                                 </div>
-                                <span className="rounded-full bg-[#e5eeff] px-2.5 py-1 text-[10px] font-black text-[#0b1c30]">{group.confirmedSeats} confirmed</span>
+                                <AttendeeStatusBadge status={item.status} attended={item.attended} />
                             </div>
-                            <div className="mt-3 space-y-2">
-                                {group.registrations.map((item) => (
-                                    <details key={item.id} className="rounded-lg border border-slate-100 bg-slate-50 p-2">
-                                        <summary className="cursor-pointer list-none">
-                                            <div className="flex items-center justify-between gap-2">
-                                                <span className="min-w-0">
-                                                    <span className="block truncate text-[12px] font-black text-slate-800">{item.event || 'Program TBA'}</span>
-                                                    <span className="block truncate text-[11px] font-semibold text-slate-500">{item.name} • {item.partySize} seat(s)</span>
-                                                </span>
-                                                <AttendeeStatusBadge status={item.status} attended={item.attended} />
-                                            </div>
-                                        </summary>
-                                        <AttendeeRosterList registration={item} onProfile={setProfile} />
-                                        <div className="mt-2 flex gap-2">
-                                            <button type="button" onClick={() => setProfile(item)} className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12px] font-black text-slate-700">Group Profile</button>
-                                            <button type="button" onClick={() => setEditing(item)} className="flex-1 rounded-lg bg-slate-950 px-3 py-2 text-[12px] font-black text-white">Edit</button>
-                                        </div>
-                                    </details>
-                                ))}
+                            <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] font-semibold text-slate-500">
+                                <span className="truncate rounded-lg bg-slate-50 px-2.5 py-2">{item.event || 'Program TBA'}</span>
+                                <span className="truncate rounded-lg bg-slate-50 px-2.5 py-2">{formatShortDate(item.eventDate)}</span>
+                                <span className="truncate rounded-lg bg-slate-50 px-2.5 py-2">{item.interest || 'Mixed interests'}</span>
+                                <span className="truncate rounded-lg bg-slate-50 px-2.5 py-2">{item.consentStatus || 'not_required'}</span>
+                            </div>
+                            <div className="mt-3 flex gap-2">
+                                <button type="button" onClick={() => setProfile(item)} className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12px] font-black text-slate-700">View</button>
+                                <button type="button" onClick={() => setEditing(item)} className="flex-1 rounded-lg bg-slate-950 px-3 py-2 text-[12px] font-black text-white">Edit</button>
                             </div>
                         </article>
                     ))}
-                    {visibleGroups.length === 0 && <div className="rounded-xl border border-dashed border-slate-200 p-8 text-center text-sm font-semibold text-slate-500">No attendees match the current filters.</div>}
+                    {visible.length === 0 && <div className="rounded-xl border border-dashed border-slate-200 p-8 text-center text-sm font-semibold text-slate-500">No attendees match the current filters.</div>}
                 </div>
                 <div className="hidden overflow-x-auto md:block">
                     <table className="w-full min-w-[980px] text-left">
@@ -8873,84 +8864,62 @@ function UniversityAttendeesSection({ csrf, registrations = [], events = [] }) {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                            {visibleGroups.map((group) => (
-                                <React.Fragment key={group.key}>
-                                    <tr className="bg-slate-100/80">
-                                        <td colSpan="7" className="px-5 py-3">
-                                            <div className="flex items-center justify-between gap-4">
-                                                <div>
-                                                    <p className="text-sm font-black text-slate-950">{group.school}</p>
-                                                    <p className="mt-0.5 text-xs font-semibold text-slate-500">{group.location || 'Location TBA'} • {group.registrations.length} booking(s) • {group.studentCount} individual student profile(s)</p>
-                                                </div>
-                                                <div className="flex gap-2 text-xs font-black">
-                                                    <span className="rounded-full bg-white px-3 py-1 text-slate-700">{group.seats} seats</span>
-                                                    <span className="rounded-full bg-emerald-50 px-3 py-1 text-emerald-700">{group.confirmedSeats} confirmed</span>
-                                                </div>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                    {group.registrations.map((item) => (
-                                        <React.Fragment key={item.id}>
-                                            <tr className="group hover:bg-slate-50">
-                                                <td className="px-5 py-4"><input type="checkbox" checked={selected.includes(item.id)} onChange={() => toggleOne(item.id)} className="rounded border-slate-300 text-blue-600" /></td>
-                                                <td className="px-5 py-4">
-                                                    <div className="flex items-center gap-3">
-                                                        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-blue-100 text-xs font-black text-blue-800">{initials(item.name)}</span>
-                                                        <span className="min-w-0">
-                                                            <span className="block truncate text-sm font-black text-slate-950">{item.name}</span>
-                                                            <span className="mt-1 block truncate text-xs text-slate-500">{item.email}</span>
-                                                        </span>
-                                                    </div>
-                                                </td>
-                                                <td className="px-5 py-4">
-                                                    <p className="text-sm font-semibold text-slate-800">{item.school || 'Direct student'}</p>
-                                                    <p className="mt-1 text-xs text-slate-500">{item.schoolLocation || item.eventLocation || 'Location TBA'}</p>
-                                                </td>
-                                                <td className="px-5 py-4"><span className="inline-flex rounded-md bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-700">{item.interest || 'Mixed interests'}</span></td>
-                                                <td className="px-5 py-4">
-                                                    <p className="text-sm font-semibold text-slate-800">{item.event || 'Program TBA'}</p>
-                                                    <p className="mt-1 text-xs text-slate-500">{formatDateTime(item.eventDate)} · {item.partySize} seat{Number(item.partySize) === 1 ? '' : 's'}</p>
-                                                </td>
-                                                <td className="px-5 py-4 text-center"><AttendeeStatusBadge status={item.status} attended={item.attended} /></td>
-                                                <td className="px-5 py-4">
-                                                    <div className="flex justify-end gap-2">
-                                                        <button type="button" onClick={() => setProfile(item)} title="View group profile" className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-600 hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700"><UsersRound size={16} /></button>
-                                                        <form action={`/dashboard/university/attendees/${item.id}/${item.checkedIn ? 'check-out' : 'check-in'}`} method="POST">
-                                                            <input type="hidden" name="_token" value={csrf} />
-                                                            <button title={item.checkedIn ? 'Check out group' : 'Check in group'} className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-600 hover:border-[#006a61]/30 hover:bg-emerald-50 hover:text-[#006a61]">{item.checkedIn ? <Clock size={16} /> : <CheckCircle2 size={16} />}</button>
-                                                        </form>
-                                                        <button type="button" onClick={() => setEditing(item)} title="Edit group booking" className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-600 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"><Edit3 size={16} /></button>
-                                                        <form action={`/dashboard/university/attendees/${item.id}`} method="POST">
-                                                            <input type="hidden" name="_token" value={csrf} />
-                                                            <input type="hidden" name="_method" value="DELETE" />
-                                                            <button title="Remove group booking" className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-600 hover:border-red-200 hover:bg-red-50 hover:text-red-700"><Trash2 size={16} /></button>
-                                                        </form>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                            {(item.students || []).length > 0 && (
-                                                <tr>
-                                                    <td />
-                                                    <td colSpan="6" className="px-5 pb-4">
-                                                        <AttendeeRosterList registration={item} onProfile={setProfile} compact />
-                                                    </td>
-                                                </tr>
-                                            )}
-                                        </React.Fragment>
-                                    ))}
-                                </React.Fragment>
+                            {visible.map((item) => (
+                                <tr key={item.id} className="group hover:bg-slate-50">
+                                    <td className="px-5 py-3"><input type="checkbox" checked={selected.includes(item.id)} onChange={() => toggleOne(item.id)} className="rounded border-slate-300 text-blue-600" /></td>
+                                    <td className="px-5 py-3">
+                                        <div className="flex items-center gap-3">
+                                            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-blue-100 text-xs font-black text-blue-800">{initials(item.name)}</span>
+                                            <span className="min-w-0">
+                                                <span className="block max-w-[220px] truncate text-sm font-black text-slate-950">{item.name}</span>
+                                                <span className="mt-0.5 block max-w-[220px] truncate text-xs text-slate-500">{item.email}</span>
+                                            </span>
+                                        </div>
+                                    </td>
+                                    <td className="px-5 py-3">
+                                        <p className="max-w-[220px] truncate text-sm font-semibold text-slate-800">{item.school || 'Direct student'}</p>
+                                        <p className="mt-0.5 max-w-[220px] truncate text-xs text-slate-500">{item.schoolLocation || item.eventLocation || 'Location TBA'}</p>
+                                    </td>
+                                    <td className="px-5 py-3"><span className="inline-flex max-w-[160px] truncate rounded-md bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-700">{item.interest || 'Mixed interests'}</span></td>
+                                    <td className="px-5 py-3">
+                                        <p className="max-w-[240px] truncate text-sm font-semibold text-slate-800">{item.event || 'Program TBA'}</p>
+                                        <p className="mt-0.5 text-xs text-slate-500">{formatShortDate(item.eventDate)} · {item.partySize} seat{Number(item.partySize) === 1 ? '' : 's'} · {(item.students || []).length} profile(s)</p>
+                                    </td>
+                                    <td className="px-5 py-3 text-center"><AttendeeStatusBadge status={item.status} attended={item.attended} /></td>
+                                    <td className="px-5 py-3">
+                                        <div className="flex justify-end gap-2">
+                                            <button type="button" onClick={() => setProfile(item)} title="View group profile" className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-600 hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700"><UsersRound size={16} /></button>
+                                            <form action={`/dashboard/university/attendees/${item.id}/${item.checkedIn ? 'check-out' : 'check-in'}`} method="POST">
+                                                <input type="hidden" name="_token" value={csrf} />
+                                                <button title={item.checkedIn ? 'Check out group' : 'Check in group'} className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-600 hover:border-[#006a61]/30 hover:bg-emerald-50 hover:text-[#006a61]">{item.checkedIn ? <Clock size={16} /> : <CheckCircle2 size={16} />}</button>
+                                            </form>
+                                            <button type="button" onClick={() => setEditing(item)} title="Edit group booking" className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-600 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"><Edit3 size={16} /></button>
+                                            <form action={`/dashboard/university/attendees/${item.id}`} method="POST">
+                                                <input type="hidden" name="_token" value={csrf} />
+                                                <input type="hidden" name="_method" value="DELETE" />
+                                                <button title="Remove group booking" className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-600 hover:border-red-200 hover:bg-red-50 hover:text-red-700"><Trash2 size={16} /></button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
                             ))}
-                            {visibleGroups.length === 0 && (
+                            {visible.length === 0 && (
                                 <tr><td colSpan="7" className="px-5 py-12 text-center text-sm font-semibold text-slate-500">No attendees match the current filters.</td></tr>
                             )}
                         </tbody>
                     </table>
                 </div>
                 <div className="flex flex-col gap-3 border-t border-slate-100 bg-white px-3 py-3 sm:flex-row sm:items-center sm:justify-between md:px-5 md:py-4">
-                    <p className="text-sm text-slate-500">Showing {visible.length ? (page - 1) * perPage + 1 : 0} to {Math.min(page * perPage, filtered.length)} of {filtered.length} attendees</p>
-                    <div className="flex items-center gap-2">
+                    <p className="text-sm text-slate-500">Showing {visible.length ? (page - 1) * perPage + 1 : 0} to {Math.min(page * perPage, filtered.length)} of {filtered.length} attendee records loaded</p>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <select value={perPage} onChange={(event) => setPerPage(Number(event.target.value))} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-black text-slate-600">
+                            <option value="25">25 / page</option>
+                            <option value="50">50 / page</option>
+                            <option value="100">100 / page</option>
+                            <option value="200">200 / page</option>
+                        </select>
                         <button type="button" onClick={() => setPage(Math.max(1, page - 1))} disabled={page === 1} className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-black text-slate-600 disabled:opacity-40">Prev</button>
-                        <span className="rounded-lg bg-slate-950 px-3 py-2 text-sm font-black text-white">{page}</span>
+                        <span className="rounded-lg bg-slate-950 px-3 py-2 text-sm font-black text-white">{page} / {pages}</span>
                         <button type="button" onClick={() => setPage(Math.min(pages, page + 1))} disabled={page === pages} className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-black text-slate-600 disabled:opacity-40">Next</button>
                     </div>
                 </div>
@@ -9194,33 +9163,6 @@ function ProfileFact({ label, value }) {
             <p className="mt-2 break-words text-sm font-black text-slate-800">{value || 'Not provided'}</p>
         </div>
     );
-}
-
-function attendeeSchoolGroups(items = []) {
-    const grouped = items.reduce((groups, item) => {
-        const school = item.school || item.name || 'Direct students';
-        const key = school.toLowerCase();
-        if (!groups[key]) {
-            groups[key] = {
-                key,
-                school,
-                location: item.schoolLocation || item.eventLocation || '',
-                registrations: [],
-                seats: 0,
-                confirmedSeats: 0,
-                studentCount: 0,
-            };
-        }
-
-        groups[key].registrations.push(item);
-        groups[key].seats += Number(item.partySize || 0);
-        groups[key].confirmedSeats += item.status === 'confirmed' ? Number(item.partySize || 0) : 0;
-        groups[key].studentCount += (item.students || []).length;
-
-        return groups;
-    }, {});
-
-    return Object.values(grouped).sort((left, right) => right.seats - left.seats || left.school.localeCompare(right.school));
 }
 
 function topByCount(values) {

@@ -3245,7 +3245,7 @@ class DashboardController extends Controller
             ])
             ->when($universityUserId, fn ($query) => $query->whereHas('event', fn ($eventQuery) => $eventQuery->where('university_user_id', $universityUserId)))
             ->latest()
-            ->limit(250)
+            ->limit(5000)
             ->get()
             ->map(fn (EventRegistration $registration) => [
                 'id' => $registration->id,
