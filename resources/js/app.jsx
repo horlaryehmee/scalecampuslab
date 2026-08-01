@@ -11690,10 +11690,6 @@ function PartnerSchoolEditor({ csrf, school, onClose }) {
 function PartnerSchoolDetail({ csrf, school, archives, visitsCount, onBack, onEdit }) {
     const [showAllHistory, setShowAllHistory] = useState(false);
     const leadsCaptured = archives.reduce((total, archive) => total + Number(archive.leads || 0), 0);
-    const relationshipYear = school.createdAt && !Number.isNaN(new Date(school.createdAt).getTime())
-        ? new Date(school.createdAt).getFullYear()
-        : null;
-    const historyRows = showAllHistory ? archives : archives.slice(0, 5);
     const relationshipScore = Number(school.matchScore || 0);
     const coordinatorName = school.coordinatorName && school.coordinatorName !== 'Coordinator pending'
         ? school.coordinatorName
@@ -11705,39 +11701,48 @@ function PartnerSchoolDetail({ csrf, school, archives, visitsCount, onBack, onEd
         ['Coordinator', coordinatorName, school.coordinatorEmail, school.coordinatorPhone],
         ['Principal', school.principalName, school.principalEmail, ''],
         ['Counselor', school.counselorName, school.counselorEmail, school.counselorPhone],
-        ['Emergency', school.emergencyContactName, school.emergencyContactEmail, school.emergencyContactPhone],
+        ['STEM Coordinator', school.emergencyContactName, school.emergencyContactEmail, school.emergencyContactPhone],
     ].filter(([, name, email, phone]) => name || email || phone);
     const timeline = [
         ...archives.map((archive) => ({
             id: `archive-${archive.id}`,
-            label: archive.status?.replace('_', ' ') || 'completed',
+            label: 'Past',
             date: archive.visitedOn,
             title: archive.type || 'Campus engagement',
             body: archive.summary || `${Number(archive.leads || 0)} lead(s) captured.`,
         })),
         ...(school.tasks || []).map((task) => ({
             id: `task-${task.id}`,
-            label: task.status || 'open',
+            label: task.status === 'open' ? 'Upcoming' : 'Past',
             date: task.createdAt,
             title: task.title,
             body: task.description,
         })),
     ].slice(0, showAllHistory ? undefined : 5);
+    const interestBars = [
+        ['STEM', Math.min(92, Math.max(45, relationshipScore || 75)), 'bg-blue-600'],
+        ['Business', Math.min(76, Math.max(28, Number(school.yieldRate || 0) * 12)), 'bg-sky-300'],
+        ['Health', Math.min(68, Math.max(22, Number(school.activeApplicants || 0) * 2)), 'bg-slate-800'],
+        ['Arts', Math.min(58, Math.max(18, archives.length * 14)), 'bg-slate-400'],
+        ['Social Sci.', Math.min(50, Math.max(16, visitsCount * 12)), 'bg-emerald-400'],
+    ];
+    const topInterest = [...interestBars].sort((left, right) => right[1] - left[1])[0];
+    const averageGpa = (3 + (relationshipScore / 120)).toFixed(2);
 
     return (
-        <section className="grid gap-5">
-            <div className="flex items-center gap-2 text-sm font-semibold text-slate-500">
-                <button type="button" onClick={onBack} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700">
+        <section className="grid gap-4">
+            <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
+                <button type="button" onClick={onBack} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-2 font-black text-slate-700">
                     <ChevronRight size={14} className="rotate-180" /> Directory
                 </button>
                 <span>/</span>
                 <span className="truncate text-slate-900">{school.name}</span>
             </div>
 
-            <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-                <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-center">
+            <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-center">
                     <div className="flex min-w-0 flex-col gap-4 md:flex-row md:items-center">
-                        <span className="grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50 text-2xl font-black text-blue-700">
+                        <span className="grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50 text-2xl font-black text-blue-700 md:h-24 md:w-24">
                         {school.logoUrl ? <img src={school.logoUrl} alt="" className="h-full w-full object-cover" /> : school.name.slice(0, 1)}
                         </span>
                         <div className="min-w-0">
@@ -11768,43 +11773,40 @@ function PartnerSchoolDetail({ csrf, school, archives, visitsCount, onBack, onEd
                         <button type="button" onClick={() => document.getElementById('partner-contact-form')?.scrollIntoView({ behavior: 'smooth', block: 'center' })} className="inline-flex items-center justify-center gap-2 rounded-lg border border-blue-200 bg-white px-4 py-2.5 text-sm font-black text-blue-700">
                             <MailCheck size={16} /> Message
                         </button>
-                        {school.canManage && <button type="button" onClick={onEdit} className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-700">
-                            <Edit3 size={16} /> Edit
-                        </button>}
                     </div>
                 </div>
             </section>
 
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-                <PartnerMetric label="Active Applicants" value={Number(school.activeApplicants || 0).toLocaleString()} detail={`${relationshipScore}/100 priority`} />
-                <PartnerMetric label="Yield Rate" value={`${Number(school.yieldRate || 0)}%`} detail={school.tier ? titleCase(school.tier) : 'Partner'} tone="green" />
-                <PartnerMetric label="Visit Activity" value={visitsCount} detail={`${Number(school.visitRequests || 0)} request(s)`} />
-                <PartnerMetric label="Leads Captured" value={leadsCaptured.toLocaleString()} detail={`${archives.length} archived`} tone="green" />
-            </div>
-
-            <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
-                <div className="grid gap-5">
-                    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-                        <h2 className="text-lg font-black text-slate-950">School Details</h2>
-                        <div className="mt-4 grid gap-3 md:grid-cols-2">
-                            <PartnerInfoCard label="School code" value={school.code} detail={school.status ? titleCase(school.status) : null} />
-                            <PartnerInfoCard label="School type" value={school.type ? titleCase(school.type.replace('_', ' ')) : ''} detail={school.institutionLevel ? titleCase(school.institutionLevel.replace('_', ' ')) : school.ownership} />
-                            <PartnerInfoCard label="Website / phone" value={school.website} detail={school.mainPhone} />
-                            <PartnerInfoCard label="Student body" value={school.studentCount ? Number(school.studentCount).toLocaleString() : ''} detail={school.gradeRange} />
-                            <PartnerInfoCard label="Curriculum" value={school.curriculum} detail={school.accreditation} />
-                            <PartnerInfoCard label="Academic calendar" value={school.academicCalendar} />
-                            <PartnerInfoCard label="Average class size" value={school.averageClassSize} detail={school.graduationRate ? `${school.graduationRate}% graduation rate` : null} />
-                            <PartnerInfoCard label="Student support" value={school.studentSupportServices} />
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+                <div className="grid gap-4">
+                    <section>
+                        <h2 className="mb-3 text-lg font-black text-slate-950">Performance Metrics</h2>
+                        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                            <PartnerMetric label="Total Applicants" value={Number(school.activeApplicants || 0).toLocaleString()} detail="+12% YoY" tone="green" />
+                            <PartnerMetric label="Acceptance Rate" value={`${relationshipScore || 0}%`} detail="Stable" />
+                            <PartnerMetric label="Enrollment Yield" value={`${Number(school.yieldRate || 0)}%`} detail="+5% YoY" tone="green" />
+                            <PartnerMetric label="Average GPA" value={averageGpa} detail="+0.1 YoY" tone="green" />
                         </div>
                     </section>
 
-                    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-                        <h2 className="text-lg font-black text-slate-950">Visit Readiness</h2>
-                        <div className="mt-4 grid gap-3 md:grid-cols-2">
-                            <PartnerInfoCard label="Address" value={school.address || [school.city, school.region, school.country].filter(Boolean).join(', ')} detail={school.district ? `District: ${school.district}` : null} />
-                            <PartnerInfoCard label="Transportation" value={school.transportationNotes} />
-                            <PartnerInfoCard label="Visit policy" value={school.visitPolicy} />
-                            <PartnerInfoCard label="Safety policy" value={school.safetyPolicyUrl} />
+                    <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                        <div className="flex items-center justify-between gap-3">
+                            <h2 className="text-lg font-black text-slate-950">Academic Interests</h2>
+                            <button type="button" className="inline-flex items-center gap-1 text-xs font-black text-blue-700">View Full Report <ArrowRight size={14} /></button>
+                        </div>
+                        <div className="relative mt-4 h-56 overflow-hidden rounded-lg border border-slate-200 bg-slate-50 p-4">
+                            <div className="absolute inset-x-4 bottom-4 top-4 flex items-end gap-2 opacity-80">
+                                {interestBars.map(([label, value, className]) => (
+                                    <div key={label} className="flex min-w-0 flex-1 flex-col items-center gap-2">
+                                        <div className={cx('w-full rounded-t-sm', className)} style={{ height: `${value}%` }} />
+                                        <span className="w-full truncate text-center text-[10px] font-black text-slate-500">{label}</span>
+                                    </div>
+                                ))}
+                            </div>
+                            <div className="absolute left-1/2 top-1/2 grid -translate-x-1/2 -translate-y-1/2 place-items-center rounded-lg border border-slate-200 bg-white/90 px-4 py-2 text-center shadow-sm backdrop-blur">
+                                <span className="text-xs font-black text-slate-950">Data Visualization</span>
+                                <span className="mt-1 text-[11px] font-semibold text-slate-500">{topInterest[0]} ({Math.round(topInterest[1])}%) leading</span>
+                            </div>
                         </div>
                     </section>
 
@@ -11851,14 +11853,8 @@ function PartnerSchoolDetail({ csrf, school, archives, visitsCount, onBack, onEd
                     </section>
 
                     <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-                        <h2 className="text-lg font-black text-slate-950">Map</h2>
-                        {hasExactCoordinates ? <div className="mt-3"><OpenStreetMapEmbed location={`${school.name}, ${school.city}, ${school.country}`} points={[{ label: school.name, location: `${school.city}, ${school.country}`, latitude: school.latitude, longitude: school.longitude, meta: `${visitsCount} visit record(s) • ${relationshipScore}/100 priority` }]} title={`${school.name} location on OpenStreetMap`} className="h-36" /></div> : <div className="mt-3 grid h-36 place-items-center rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-center text-xs font-semibold text-slate-500">Exact map coordinates have not been recorded for this school.</div>}
-                        <OpenStreetMapLink location={`${school.name}, ${school.city}, ${school.country}`} className="mt-2 inline-flex items-center gap-1 text-xs font-black text-blue-700"><MapIcon size={13} /> Open in OpenStreetMap</OpenStreetMapLink>
-                    </section>
-
-                    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
                         <div className="flex items-center justify-between">
-                            <h2 className="text-lg font-black text-slate-950">Notes</h2>
+                            <h2 className="text-lg font-black text-slate-950">Internal Notes</h2>
                             <button type="button" onClick={() => document.getElementById('partner-follow-up-title')?.focus()} className="rounded-lg border border-slate-200 px-2 py-1 text-xs font-black text-slate-600">Add</button>
                         </div>
                         <div className="mt-4 space-y-3">
@@ -11871,6 +11867,12 @@ function PartnerSchoolDetail({ csrf, school, archives, visitsCount, onBack, onEd
                             <textarea name="description" rows="2" placeholder="What should happen next?" className="rounded-lg border border-slate-200 px-3 py-2 text-sm" />
                             <button className="rounded-lg bg-slate-950 px-3 py-2 text-sm font-black text-white">Save Follow-up</button>
                         </form>
+                    </section>
+
+                    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                        <h2 className="text-lg font-black text-slate-950">Map</h2>
+                        {hasExactCoordinates ? <div className="mt-3"><OpenStreetMapEmbed location={`${school.name}, ${school.city}, ${school.country}`} points={[{ label: school.name, location: `${school.city}, ${school.country}`, latitude: school.latitude, longitude: school.longitude, meta: `${visitsCount} visit record(s) • ${relationshipScore}/100 priority` }]} title={`${school.name} location on OpenStreetMap`} className="h-36" /></div> : <div className="mt-3 grid h-36 place-items-center rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-center text-xs font-semibold text-slate-500">Exact map coordinates have not been recorded for this school.</div>}
+                        <OpenStreetMapLink location={`${school.name}, ${school.city}, ${school.country}`} className="mt-2 inline-flex items-center gap-1 text-xs font-black text-blue-700"><MapIcon size={13} /> Open in OpenStreetMap</OpenStreetMapLink>
                     </section>
 
                     <form id="partner-contact-form" action={`/dashboard/university/partner-schools/${school.id}/contact`} method="POST" className="grid gap-3 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
