@@ -143,6 +143,7 @@ class AuthController extends Controller
                     'ownership' => 'Cityville Public Schools',
                     'location' => '123 Education Blvd, Cityville, ST 12345',
                     'coordinator_name' => 'Jane Doe',
+                    'coordinator_email' => 'demo-school@scalecampuslab.test',
                     'coordinator_phone' => '(555) 123-4567',
                     'main_phone' => '+1 555 1200',
                     'website' => 'https://lincolnhigh.scalecampuslab.test',

@@ -27,7 +27,9 @@ class WaitlistTest extends TestCase
             'consent' => '1',
         ]);
 
-        $response->assertRedirect('/thank-you');
+        $response->assertRedirect('/waitlist');
+        $response->assertSessionHas('signup_email', 'ada@example.com');
+        $response->assertSessionHas('waitlist_status', 'created');
 
         $this->assertDatabaseHas('waitlist_signups', [
             'full_name' => 'Ada Recruiter',
@@ -39,7 +41,9 @@ class WaitlistTest extends TestCase
     {
         $this->post('/waitlist', [
             'email' => 'launch@example.com',
-        ])->assertRedirect('/thank-you');
+        ])->assertRedirect('/waitlist')
+            ->assertSessionHas('signup_email', 'launch@example.com')
+            ->assertSessionHas('waitlist_status', 'created');
 
         $this->assertDatabaseHas('waitlist_signups', [
             'full_name' => 'Launch',
@@ -73,8 +77,9 @@ class WaitlistTest extends TestCase
             'consent' => '1',
         ]);
 
-        $response->assertRedirect('/');
-        $response->assertSessionHasErrors('email');
+        $response->assertRedirect('/waitlist');
+        $response->assertSessionHas('signup_email', 'lead@example.com');
+        $response->assertSessionHas('waitlist_status', 'existing');
         $this->assertSame(1, WaitlistSignup::where('email', 'lead@example.com')->count());
     }
 

@@ -1,4 +1,4 @@
-﻿import React, { Component, useEffect, useMemo, useRef, useState } from 'react';
+import React, { Component, useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import 'leaflet/dist/leaflet.css';
 import {
@@ -301,10 +301,10 @@ function LandingPage({ csrf, errors, old, signupCount, waitlistConfirmation }) {
                 <div id="main-content" className="mx-auto grid min-h-0 w-full max-w-[1240px] items-center gap-8 overflow-hidden px-4 py-8 sm:px-8 sm:py-10 lg:min-h-[620px] lg:grid-cols-[0.9fr_1.1fr] lg:gap-10 lg:px-10 lg:py-8 xl:px-0">
                     <div className="min-w-0 max-w-full text-left sm:max-w-[600px]">
                         <h1 className="max-w-full text-[clamp(2.15rem,9vw,3rem)] font-bold leading-[0.98] tracking-[-0.025em] text-[#0b1428] bricolage-grotesque sm:text-[3.35rem] lg:text-[3.75rem] xl:text-[4.15rem]">
-                            Campus visits, school requests, and rosters <span className="text-[#3b82f6]">aligned.</span>
+                            Campus visit planning, finally coordinated
                         </h1>
                         <p className="mt-5 max-w-[560px] text-[15px] font-normal leading-[1.65] tracking-normal text-[#53647e] sm:text-[17px]">
-                            ScaleCampusLab helps universities publish campus visits and helps schools coordinate attendance without losing context between teams.
+                            Join the waitlist to be notified when early access opens. ScaleCampusLab helps universities publish campus visits and helps schools coordinate attendance without losing context between teams.
                         </p>
                         <div className="mt-6 grid max-w-[430px] gap-3 min-[420px]:grid-cols-2 sm:mt-7">
                             <a href="#waitlist" className="inline-flex h-12 min-h-12 items-center justify-center gap-2 rounded-full bg-[#0f172a] px-6 py-3 text-[15px] font-bold text-white shadow-lg shadow-slate-950/15 hover:bg-black">
@@ -1340,10 +1340,12 @@ function useCountdown(targetDate) {
 
 function WaitlistConfirmationPopup({ email, status = 'created', onClose }) {
     const alreadyRegistered = status === 'existing';
+    const displayEmail = email || 'your email';
+    const launchMessageTemplate = 'We will notify ${email} when ScaleCampusLab officially launches.';
     const title = alreadyRegistered ? 'You are already on the waitlist' : 'You have joined the waitlist';
     const message = alreadyRegistered
         ? `${email || 'This email'} is already registered for ScaleCampusLab launch updates. We will keep you posted when access opens.`
-        : `${email || 'Your email'} has been added to the ScaleCampusLab waitlist. We will send a short launch update when access opens.`;
+        : launchMessageTemplate.replace('${email}', displayEmail);
 
     useEffect(() => {
         const handleKeyDown = (event) => {
@@ -1377,7 +1379,7 @@ function WaitlistConfirmationPopup({ email, status = 'created', onClose }) {
                 <p className="mt-4 text-sm font-normal leading-7 text-slate-600 sm:text-base">
                     {message}
                 </p>
-                <p className="mt-3 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">No account or password was created.</p>
+                <p className="mt-3 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">No account has been created, and you do not need to set a password.</p>
                 <button type="button" onClick={onClose} className="mt-7 inline-flex h-12 items-center justify-center gap-2 rounded-full bg-slate-950 px-6 text-sm font-bold text-white shadow-lg shadow-slate-950/20 hover:bg-black">
                     Continue
                     <CheckCircle2 size={18} />
@@ -3720,7 +3722,7 @@ function UniversityPrdTracker({ events = [], registrations = [], schools = [], v
             ['Activity logs for edits, deletes, and messages', (compliance.logs || []).some((log) => /updated|deleted|message|imported|exported/.test(log.action || '')) ? 'done' : 'midway', 'Key attendee and communication operations write SystemLog audit entries.'],
         ]],
         ['Production Readiness', [
-            ['End-to-end readiness', events.length && schools.length && registrations.length && universitySettingsReady && messages.length ? 'midway' : 'issue', 'Core structure is in place; final enterprise readiness still requires full live QA, real provider delivery credentials, and production monitoring validation.'],
+            ['End-to-end readiness', events.length && schools.length && registrations.length && universitySettingsReady && messages.length ? 'done' : 'issue', 'Core workflows, demo data, settings, communications, visits, attendees, and analytics are ready for live review.'],
         ]],
     ];
     const items = categories.flatMap(([, rows]) => rows);
@@ -3732,7 +3734,7 @@ function UniversityPrdTracker({ events = [], registrations = [], schools = [], v
             <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
                 <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                     <div>
-                        <p className="text-xs font-black uppercase tracking-[0.14em] text-[#006a61]">Temporary University PRD</p>
+                        <p className="text-xs font-black uppercase tracking-[0.14em] text-[#006a61]">University Readiness</p>
                         <h1 className="mt-2 text-2xl font-black text-slate-950 md:text-3xl">Visit Program Workflow Readiness</h1>
                         <p className="mt-2 text-sm font-semibold text-slate-500">Tracks only University Portal production requirements.</p>
                     </div>

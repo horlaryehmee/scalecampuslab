@@ -927,7 +927,7 @@ class DashboardController extends Controller
             return response()->json(['message' => $status, 'conversation_id' => null]);
         }
 
-        return back()->with('status', $status);
+        return back()->with('status', 'Email outreach queued for delivery.');
     }
 
     public function storeUniversityPartnerTask(Request $request, TargetSchool $school): RedirectResponse

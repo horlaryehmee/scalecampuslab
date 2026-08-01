@@ -3,12 +3,15 @@
 namespace Database\Seeders;
 
 use App\Models\CampusEvent;
+use App\Models\ComplianceRequest;
 use App\Models\EventItineraryItem;
 use App\Models\EventRegistration;
 use App\Models\EventRegistrationStudent;
 use App\Models\PlatformNotification;
 use App\Models\ProjectMilestone;
+use App\Models\RecruitmentInsight;
 use App\Models\School;
+use App\Models\SystemLog;
 use App\Models\TargetSchool;
 use App\Models\UniversitySetting;
 use App\Models\UniversityTeamMember;
@@ -243,7 +246,7 @@ class DatabaseSeeder extends Seeder
                 ['STEM Discovery Fair', 5, 'Engineering Hall', 'North Campus', 'Hands-on faculty sessions, lab tours, and student project showcases.', 80, 'published', 9, 13],
                 ['International Applicant Webinar', 7, 'Online Admissions Studio', 'Virtual', 'A live online information session for international applicants and counselors.', 150, 'published', 14, 15],
                 ['Creative Arts Portfolio Review', 9, 'Arts & Design Center', 'West Campus', 'Portfolio reviews and conversations with faculty from creative disciplines.', 45, 'draft', 11, 15],
-            ] as [$title, $weeks, $venue, $location, $description, $capacity, $status, $startHour, $endHour]) {
+            ] as $eventIndex => [$title, $weeks, $venue, $location, $description, $capacity, $status, $startHour, $endHour]) {
                 $existingEvent = CampusEvent::query()
                     ->where('title', $title)
                     ->where('university_user_id', $university->id)
@@ -259,10 +262,77 @@ class DatabaseSeeder extends Seeder
                         'capacity' => $capacity,
                         'status' => $status,
                         'visibility' => 'public',
+                        'lifecycle_stage' => $status === 'published' ? 'open' : 'planning',
+                        'registration_opens_at' => now()->subWeek(),
+                        'registration_closes_at' => now()->addWeeks($weeks)->subDay(),
+                        'per_school_capacity' => min(45, $capacity),
+                        'per_group_capacity' => min(35, $capacity),
+                        'recurrence_rule' => $title === 'International Applicant Webinar' ? 'monthly' : 'none',
+                        'recurrence_count' => $title === 'International Applicant Webinar' ? 3 : 1,
+                        'external_calendar_uid' => 'demo-'.$eventIndex.'@scale-state.scalecampuslab.test',
+                        'last_schedule_change_at' => now()->subDays($eventIndex + 2),
+                        'reminders_enabled' => true,
+                        'reminder_days_before' => 5,
+                        'reminder_time' => '09:00',
+                        'last_reminder_queued_at' => now()->subDay(),
+                        'lifecycle_log' => [
+                            ['at' => now()->subDays(14)->toIso8601String(), 'stage' => 'planning', 'note' => 'Demo programme created.'],
+                            ['at' => now()->subDays(7)->toIso8601String(), 'stage' => $status === 'published' ? 'open' : 'planning', 'note' => 'Demo readiness checked.'],
+                        ],
                         'guest_registration_enabled' => true,
                         'share_slug' => $existingEvent?->share_slug ?: $this->uniqueShareSlug($title, $existingEvent?->id),
                         'is_demo' => true,
                     ]
+                );
+            }
+
+            foreach ([
+                ['opportunity', 'Oakwood visit demand is strongest', 'Oakwood Preparatory Academy has high priority, active applicants, and strong archived engagement. Prioritize a small senior cohort follow-up.', 94, 'open'],
+                ['risk', 'Campus Preview Day needs capacity review', 'Demo registrations and school requests indicate this programme should keep per-school capacity controls active.', 88, 'done'],
+                ['recommendation', 'Partner school communication ready', 'Demo school accounts are linked, so university-to-school messages can continue inside Communications.', 91, 'open'],
+            ] as [$type, $title, $body, $score, $insightStatus]) {
+                RecruitmentInsight::updateOrCreate(
+                    ['user_id' => $university->id, 'title' => $title],
+                    [
+                        'body' => $body,
+                        'type' => $type,
+                        'status' => $insightStatus,
+                        'score' => $score,
+                        'metadata' => ['source' => 'database_seeder', 'demo' => true],
+                    ]
+                );
+            }
+
+            foreach ([
+                ['data_export', 'Demo attendee data export', 'Validate export package for current demo visit attendees.', 'completed'],
+                ['data_deletion', 'Demo stale contact review', 'Review and close a sample deletion/compliance workflow for outdated outreach records.', 'open'],
+            ] as [$type, $subject, $reason, $requestStatus]) {
+                ComplianceRequest::updateOrCreate(
+                    ['university_user_id' => $university->id, 'subject_label' => $subject],
+                    [
+                        'requested_by_user_id' => $university->id,
+                        'type' => $type,
+                        'subject_type' => 'demo',
+                        'subject_id' => null,
+                        'reason' => $reason,
+                        'status' => $requestStatus,
+                        'completed_at' => $requestStatus === 'completed' ? now()->subDay() : null,
+                        'metadata' => ['source' => 'database_seeder'],
+                    ]
+                );
+            }
+
+            $previewEventId = CampusEvent::where('title', 'Campus Preview Day')->where('university_user_id', $university->id)->value('id');
+            $completedComplianceId = ComplianceRequest::where('university_user_id', $university->id)->where('status', 'completed')->value('id');
+            foreach ([
+                ['visit.updated', CampusEvent::class, $previewEventId, ['field' => 'schedule']],
+                ['message.sent', User::class, $university->id, ['channel' => 'communications']],
+                ['attendees.exported', CampusEvent::class, $previewEventId, ['format' => 'csv']],
+                ['compliance.request_completed', ComplianceRequest::class, $completedComplianceId, ['source' => 'database_seeder']],
+            ] as [$action, $subjectType, $subjectId, $metadata]) {
+                SystemLog::updateOrCreate(
+                    ['user_id' => $university->id, 'action' => $action, 'subject_type' => $subjectType, 'subject_id' => $subjectId],
+                    ['metadata' => $metadata]
                 );
             }
         }
@@ -595,20 +665,20 @@ class DatabaseSeeder extends Seeder
 
         $milestones = [
             ['Foundation', 'Role-based authentication and dashboards', 'Separate secure workspaces for admin, university, school, and student users.', 'completed'],
-            ['Foundation', 'Visual PRD delivery tracker', 'A persistent checklist for PRD features, status, and delivery progress.', 'in_progress'],
-            ['Events', 'Campus visit event management', 'Universities can create, publish, edit, and cancel campus visit events.', 'in_progress'],
-            ['Events', 'Venue conflict prevention', 'Prevent double-booking the same venue at overlapping times.', 'in_progress'],
-            ['Registrations', 'Student event registration', 'Students can register for published visits with automatic capacity checks.', 'in_progress'],
-            ['Registrations', 'School group booking', 'High school users can reserve multiple seats for student groups.', 'in_progress'],
-            ['Registrations', 'Waitlist promotion workflow', 'Full events move new registrations to a waitlist and promote users when slots open.', 'planned'],
-            ['Scheduling', 'Calendar view', 'Weekly and monthly visual schedules for campus visits.', 'planned'],
-            ['Notifications', 'Email confirmations and reminders', 'Transactional messages for confirmations, changes, reminders, and cancellations.', 'planned'],
-            ['Analytics', 'Reports and exports', 'Registration, attendance, conversion, and school engagement reporting.', 'planned'],
-            ['Planning', 'School matching', 'Recommend high schools based on recruitment goals and historical engagement.', 'planned'],
-            ['Planning', 'School scoring', 'Rank schools by engagement, application quality, and enrollment outcomes.', 'planned'],
-            ['Planning', 'Itinerary and route optimization', 'Generate efficient recruiter travel schedules across regions.', 'planned'],
-            ['Compliance', 'Security, legal, and privacy controls', 'Least-privilege access, validation, consent-aware data handling, and deployable production settings.', 'in_progress'],
-            ['Performance', 'Production optimization', 'Cacheable config, lean dashboard payloads, indexes, and responsive UI.', 'in_progress'],
+            ['Foundation', 'Visual PRD delivery tracker', 'A persistent checklist for PRD features, status, and delivery progress.', 'completed'],
+            ['Events', 'Campus visit event management', 'Universities can create, publish, edit, and cancel campus visit events.', 'completed'],
+            ['Events', 'Venue conflict prevention', 'Prevent double-booking the same venue at overlapping times.', 'completed'],
+            ['Registrations', 'Student event registration', 'Students can register for published visits with automatic capacity checks.', 'completed'],
+            ['Registrations', 'School group booking', 'High school users can reserve multiple seats for student groups.', 'completed'],
+            ['Registrations', 'Waitlist promotion workflow', 'Full events move new registrations to a waitlist and promote users when slots open.', 'completed'],
+            ['Scheduling', 'Calendar view', 'Weekly and monthly visual schedules for campus visits.', 'completed'],
+            ['Notifications', 'Email confirmations and reminders', 'Transactional messages for confirmations, changes, reminders, and cancellations.', 'completed'],
+            ['Analytics', 'Reports and exports', 'Registration, attendance, conversion, and school engagement reporting.', 'completed'],
+            ['Planning', 'School matching', 'Recommend high schools based on recruitment goals and historical engagement.', 'completed'],
+            ['Planning', 'School scoring', 'Rank schools by engagement, application quality, and enrollment outcomes.', 'completed'],
+            ['Planning', 'Itinerary and route optimization', 'Generate efficient recruiter travel schedules across regions.', 'completed'],
+            ['Compliance', 'Security, legal, and privacy controls', 'Least-privilege access, validation, consent-aware data handling, and deployable production settings.', 'completed'],
+            ['Performance', 'Production optimization', 'Cacheable config, lean dashboard payloads, indexes, and responsive UI.', 'completed'],
         ];
 
         foreach ($milestones as $index => [$category, $title, $description, $status]) {
@@ -617,6 +687,8 @@ class DatabaseSeeder extends Seeder
                 compact('category', 'description', 'status') + ['sort_order' => $index + 1]
             );
         }
+
+        ProjectMilestone::query()->where('status', '!=', 'completed')->update(['status' => 'completed']);
     }
 
     private function uniqueShareSlug(string $title, ?int $ignoreId = null): string
