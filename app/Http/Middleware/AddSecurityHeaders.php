@@ -13,7 +13,7 @@ class AddSecurityHeaders
         $response = $next($request);
 
         $response->headers->set('Content-Security-Policy', $this->contentSecurityPolicy());
-        $response->headers->set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), usb=(), browsing-topics=()');
+        $response->headers->set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(self), usb=(), browsing-topics=()');
         $response->headers->set('Referrer-Policy', 'strict-origin-when-cross-origin');
         $response->headers->set('X-Content-Type-Options', 'nosniff');
         $response->headers->set('X-Frame-Options', 'SAMEORIGIN');
@@ -40,7 +40,7 @@ class AddSecurityHeaders
             'font-src' => "font-src 'self' data: https://fonts.gstatic.com",
             'style-src' => "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
             'script-src' => "script-src 'self'",
-            'connect-src' => "connect-src 'self'",
+            'connect-src' => "connect-src 'self' https://nominatim.openstreetmap.org https://router.project-osrm.org",
             'frame-src' => "frame-src 'self' https://www.openstreetmap.org https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com",
             'media-src' => "media-src 'self' blob:",
             'worker-src' => "worker-src 'self' blob:",
@@ -54,7 +54,7 @@ class AddSecurityHeaders
             $directives['font-src'] = "font-src 'self' data: https://fonts.gstatic.com {$viteHttp}";
             $directives['style-src'] = "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com {$viteHttp}";
             $directives['script-src'] = "script-src 'self' 'unsafe-inline' {$viteHttp}";
-            $directives['connect-src'] = "connect-src 'self' {$viteHttp} {$viteWs}";
+            $directives['connect-src'] = "connect-src 'self' https://nominatim.openstreetmap.org https://router.project-osrm.org {$viteHttp} {$viteWs}";
         }
 
         if (app()->isProduction()) {

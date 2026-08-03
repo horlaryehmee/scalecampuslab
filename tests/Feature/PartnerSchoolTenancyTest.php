@@ -6,8 +6,10 @@ use App\Jobs\DeliverPlatformNotification;
 use App\Models\CampusEvent;
 use App\Models\PartnerSchoolTask;
 use App\Models\PlatformNotification;
+use App\Models\School;
 use App\Models\TargetSchool;
 use App\Models\User;
+use App\Models\VisitRequest;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
@@ -164,6 +166,67 @@ class PartnerSchoolTenancyTest extends TestCase
             'target_school_id' => $school->id,
             'campus_event_id' => $event->id,
         ]);
+    }
+
+    public function test_partner_school_invitation_requires_and_uses_selected_visit_program(): void
+    {
+        $university = User::factory()->create(['role' => 'university']);
+        $schoolAccount = School::create(['name' => 'Selectable Program School', 'location' => 'Lagos']);
+        User::factory()->create([
+            'role' => 'school',
+            'school_id' => $schoolAccount->id,
+            'access_status' => 'active',
+            'email_verified_at' => now(),
+        ]);
+
+        $this->actingAs($university);
+        $partnerSchool = TargetSchool::create($this->schoolPayload('Selectable Program School', 'SEL-001'));
+        $firstEvent = CampusEvent::create([
+            'university_user_id' => $university->id,
+            'title' => 'Engineering Open Day',
+            'starts_at' => now()->addWeeks(2),
+            'ends_at' => now()->addWeeks(2)->addHours(2),
+            'venue' => 'Engineering Hall',
+            'location' => 'Main Campus',
+            'capacity' => 80,
+            'status' => 'published',
+        ]);
+        $secondEvent = CampusEvent::create([
+            'university_user_id' => $university->id,
+            'title' => 'Health Sciences Fair',
+            'starts_at' => now()->addWeeks(3),
+            'ends_at' => now()->addWeeks(3)->addHours(2),
+            'venue' => 'Science Hall',
+            'location' => 'Main Campus',
+            'capacity' => 80,
+            'status' => 'published',
+        ]);
+
+        $this->post("/partner-schools/{$partnerSchool->id}/schedule-visit")
+            ->assertSessionHasErrors('campus_event_id');
+
+        $this->post("/partner-schools/{$partnerSchool->id}/schedule-visit", [
+            'campus_event_id' => $secondEvent->id,
+            'group_size' => 40,
+            'priority' => 4,
+            'notes' => 'Invite the science cohort.',
+        ])->assertRedirect()
+            ->assertSessionHas('status', 'Visit invitation sent to Selectable Program School.');
+
+        $this->assertDatabaseMissing('visit_requests', [
+            'campus_event_id' => $firstEvent->id,
+            'school_id' => $schoolAccount->id,
+        ]);
+        $this->assertDatabaseHas('visit_requests', [
+            'campus_event_id' => $secondEvent->id,
+            'school_id' => $schoolAccount->id,
+            'requested_by_user_id' => $university->id,
+            'group_size' => 40,
+            'priority' => 4,
+            'notes' => 'Invite the science cohort.',
+            'status' => 'requested',
+        ]);
+        $this->assertSame(1, VisitRequest::count());
     }
 
     public function test_partner_school_tasks_are_scoped_to_the_current_university(): void

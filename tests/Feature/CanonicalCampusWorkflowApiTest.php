@@ -102,6 +102,12 @@ class CanonicalCampusWorkflowApiTest extends TestCase
             ->assertJsonPath('data.0.event.id', $eventId)
             ->assertJsonPath('data.0.visit_request_id', $visitId)
             ->assertJsonPath('data.0.itinerary.0.id', $itineraryId);
+        $this->postJson("/api/v1/student/visits/school-assignment/{$studentRecordId}/confirm")
+            ->assertOk()
+            ->assertJsonPath('data.participation_type', 'school_assignment')
+            ->assertJsonPath('data.participation_id', $studentRecordId)
+            ->assertJsonPath('data.consent_status', 'not_required');
+        $this->assertNotNull(EventRegistrationStudent::findOrFail($studentRecordId)->student_confirmed_at);
 
         Sanctum::actingAs($university);
         $this->travelTo(now()->addWeeks(2)->setTime(9, 30));
@@ -185,6 +191,41 @@ class CanonicalCampusWorkflowApiTest extends TestCase
         $this->postJson('/api/v1/attendance/registrations/1/check-in')->assertForbidden();
 
         $this->assertSame('Secure Visit', $event->fresh()->title);
+    }
+
+    public function test_api_visit_requests_can_be_reopened_and_redecided(): void
+    {
+        $school = School::create(['name' => 'API Change School', 'location' => 'Lagos']);
+        $university = $this->user('university', 'api-change-university@example.test');
+        $coordinator = $this->user('school', 'api-change-school@example.test', $school->id);
+        $event = $this->event($university, 'API Changeable Visit');
+        $declinedVisit = $this->visit($event, $school, $university, 'declined');
+
+        Sanctum::actingAs($university);
+        $this->postJson('/api/v1/visits', [
+            'campus_event_id' => $event->id,
+            'school_id' => $school->id,
+            'group_size' => 18,
+            'notes' => 'Reopen the previous request.',
+        ])->assertCreated()
+            ->assertJsonPath('data.id', $declinedVisit->id)
+            ->assertJsonPath('data.status', 'requested');
+
+        Sanctum::actingAs($coordinator);
+        $this->postJson("/api/v1/visits/{$declinedVisit->id}/decision", [
+            'decision' => 'approved',
+        ])->assertOk()
+            ->assertJsonPath('data.status', 'approved');
+
+        $this->postJson("/api/v1/visits/{$declinedVisit->id}/decision", [
+            'decision' => 'declined',
+        ])->assertOk()
+            ->assertJsonPath('data.status', 'declined');
+
+        $this->postJson("/api/v1/visits/{$declinedVisit->id}/decision", [
+            'decision' => 'approved',
+        ])->assertOk()
+            ->assertJsonPath('data.status', 'approved');
     }
 
     public function test_canonical_workflow_rejects_orphan_recipients_and_dependent_event_deletion(): void

@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['user_id', 'campus_event_id', 'visit_request_id', 'position', 'planned_start_at', 'notes'])]
+#[Fillable(['user_id', 'campus_event_id', 'visit_request_id', 'stop_type', 'title', 'location', 'latitude', 'longitude', 'position', 'planned_start_at', 'notes'])]
 class SchoolItineraryItem extends Model
 {
     protected function casts(): array
@@ -14,6 +14,8 @@ class SchoolItineraryItem extends Model
         return [
             'position' => 'integer',
             'planned_start_at' => 'datetime',
+            'latitude' => 'decimal:7',
+            'longitude' => 'decimal:7',
         ];
     }
 

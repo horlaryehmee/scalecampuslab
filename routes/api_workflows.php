@@ -80,6 +80,7 @@ Route::prefix('v1')
         Route::post('/visits/{visitRequest}/participation/assign', [ParticipationController::class, 'assign'])->name('participation.assign');
         Route::get('/student/visits/upcoming', [StudentVisitController::class, 'upcoming'])->name('student.upcoming');
         Route::get('/student/visits/history', [StudentVisitController::class, 'history'])->name('student.history');
+        Route::post('/student/visits/{type}/{id}/confirm', [StudentVisitController::class, 'confirm'])->whereNumber('id')->name('student.visits.confirm');
 
         Route::post('/attendance/registrations/{registration}/check-in', [AttendanceController::class, 'checkInRegistration'])->name('attendance.registration.check-in');
         Route::post('/attendance/registrations/{registration}/check-out', [AttendanceController::class, 'checkOutRegistration'])->name('attendance.registration.check-out');

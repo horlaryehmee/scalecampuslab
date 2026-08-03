@@ -536,14 +536,14 @@ class CampusWorkflowService
     public function studentParticipations(User $student): Collection
     {
         $direct = EventRegistration::query()
-            ->with('event')
+            ->with(['event', 'user.school', 'visitRequest.recipientSchool'])
             ->where('user_id', $student->id)
             ->where('registrant_type', 'student')
             ->whereNotNull('visit_request_id')
             ->get();
 
         $assigned = EventRegistrationStudent::query()
-            ->with('registration.event')
+            ->with(['user.school', 'registration.event', 'registration.user.school', 'registration.visitRequest.recipientSchool'])
             ->where('user_id', $student->id)
             ->get()
             ->filter(fn (EventRegistrationStudent $record) => $record->registration?->visit_request_id);
@@ -713,9 +713,12 @@ class CampusWorkflowService
             'registration_student_id' => null,
             'visit_request_id' => $registration->visit_request_id,
             'status' => $registration->status,
+            'consent_status' => $registration->consent_status,
+            'student_confirmed_at' => $registration->student_confirmed_at?->toIso8601String(),
             'checked_in_at' => $registration->checked_in_at?->toIso8601String(),
             'checked_out_at' => $registration->checked_out_at?->toIso8601String(),
             'event' => $event ? $eventPayload : null,
+            'school' => $this->schoolPayload($registration->visitRequest?->recipientSchool ?? $registration->user?->school),
             'itinerary' => $event ? $itinerary : [],
             'updated_at' => $registration->updated_at?->toIso8601String(),
         ];
@@ -733,11 +736,35 @@ class CampusWorkflowService
             'registration_student_id' => $record->id,
             'visit_request_id' => $registration?->visit_request_id,
             'status' => $record->status,
+            'consent_status' => $record->consent_status,
+            'student_confirmed_at' => $record->student_confirmed_at?->toIso8601String(),
             'checked_in_at' => $record->checked_in_at?->toIso8601String(),
             'checked_out_at' => $record->checked_out_at?->toIso8601String(),
             'event' => $event ? $eventPayload : null,
+            'school' => $this->schoolPayload($registration?->visitRequest?->recipientSchool ?? $record->user?->school ?? $registration?->user?->school),
             'itinerary' => $event ? $itinerary : [],
             'updated_at' => $record->updated_at?->toIso8601String(),
+        ];
+    }
+
+    private function schoolPayload(?School $school): ?array
+    {
+        if (! $school) {
+            return null;
+        }
+
+        $location = collect([$school->address, $school->city, $school->state, $school->country])
+            ->filter()
+            ->implode(', ');
+
+        return [
+            'id' => $school->id,
+            'name' => $school->name,
+            'location' => $location ?: $school->location,
+            'address' => $school->address,
+            'city' => $school->city,
+            'state' => $school->state,
+            'country' => $school->country,
         ];
     }
 

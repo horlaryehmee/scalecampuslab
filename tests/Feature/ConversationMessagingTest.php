@@ -42,16 +42,14 @@ class ConversationMessagingTest extends TestCase
         $university = $this->user('university', 'university@example.test');
         $outsider = $this->user('student', 'outsider@example.test');
 
-        Sanctum::actingAs($student);
+        Sanctum::actingAs($university);
         $created = $this->postJson('/api/_test-conversations', [
-            'recipient_user_id' => $university->id,
+            'recipient_user_id' => $student->id,
             'subject' => 'Admissions question',
-            'body' => 'Can you confirm the transcript requirement?',
+            'body' => 'Please confirm the transcript requirement.',
         ])->assertCreated()
             ->assertJsonPath('data.subject', 'Admissions question')
-            ->assertJsonPath('data.participants.0.id', $student->id)
-            ->assertJsonPath('data.participants.1.id', $university->id)
-            ->assertJsonPath('data.latest_message.body', 'Can you confirm the transcript requirement?');
+            ->assertJsonPath('data.latest_message.body', 'Please confirm the transcript requirement.');
 
         $conversationId = $created->json('data.id');
         $this->assertDatabaseHas('conversation_participants', [
@@ -60,11 +58,11 @@ class ConversationMessagingTest extends TestCase
         ]);
         $this->assertDatabaseHas('conversation_participants', [
             'conversation_id' => $conversationId,
-            'user_id' => $university->id,
+            'user_id' => $student->id,
             'last_read_at' => null,
         ]);
         $notification = PlatformNotification::query()
-            ->where('user_id', $university->id)
+            ->where('user_id', $student->id)
             ->where('notification_type', 'message.received')
             ->firstOrFail();
         $this->assertSame($conversationId, $notification->metadata['conversation_id']);
@@ -79,7 +77,7 @@ class ConversationMessagingTest extends TestCase
             'body' => 'I should not be able to join this thread.',
         ])->assertForbidden();
 
-        Sanctum::actingAs($university);
+        Sanctum::actingAs($student);
         $this->getJson('/api/_test-conversations')
             ->assertOk()
             ->assertJsonPath('meta.total', 1)
@@ -93,15 +91,15 @@ class ConversationMessagingTest extends TestCase
 
         $this->travel(1)->seconds();
         $this->postJson("/api/_test-conversations/{$conversationId}/messages", [
-            'body' => 'Yes. Please attach an official transcript.',
+            'body' => 'I will attach an official transcript.',
         ])->assertCreated()
-            ->assertJsonPath('data.sender.id', $university->id);
+            ->assertJsonPath('data.sender.id', $student->id);
 
-        Sanctum::actingAs($student);
+        Sanctum::actingAs($university);
         $this->getJson('/api/_test-conversations')
             ->assertOk()
             ->assertJsonPath('data.0.unread_count', 1)
-            ->assertJsonPath('data.0.latest_message.body', 'Yes. Please attach an official transcript.');
+            ->assertJsonPath('data.0.latest_message.body', 'I will attach an official transcript.');
         $this->getJson("/api/_test-conversations/{$conversationId}")
             ->assertOk()
             ->assertJsonPath('meta.message_order', 'newest_first')
@@ -120,6 +118,12 @@ class ConversationMessagingTest extends TestCase
 
         Sanctum::actingAs($student);
         $this->postJson('/api/_test-conversations', [
+            'recipient_user_id' => $university->id,
+            'subject' => 'Not allowed',
+            'body' => 'Students can only reply to existing conversations.',
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors('recipient_user_id');
+        $this->postJson('/api/_test-conversations', [
             'recipient_user_id' => $anotherStudent->id,
             'subject' => 'Not allowed',
             'body' => 'Students cannot start direct conversations with students.',
@@ -133,12 +137,19 @@ class ConversationMessagingTest extends TestCase
             ->assertJsonValidationErrors('recipient_user_id');
         $this->getJson('/api/_test-conversations/recipients')
             ->assertOk()
-            ->assertJsonFragment(['id' => $university->id, 'role' => 'university'])
-            ->assertJsonFragment(['id' => $admin->id, 'role' => 'admin'])
+            ->assertJsonPath('meta.total', 0)
+            ->assertJsonMissing(['id' => $university->id])
+            ->assertJsonMissing(['id' => $admin->id])
             ->assertJsonMissing(['id' => $anotherStudent->id])
             ->assertJsonMissing(['id' => $pendingUniversity->id]);
 
+        $school = \App\Models\School::create(['name' => 'Northbridge Academy', 'location' => 'Boston']);
+        $schoolCoordinator = $this->user('school', 'northbridge@example.test', $school->id);
         Sanctum::actingAs($university);
+        $this->getJson('/api/_test-conversations/recipients?search=Northbridge')
+            ->assertOk()
+            ->assertJsonFragment(['id' => $schoolCoordinator->id, 'institution_name' => 'Northbridge Academy']);
+
         $this->postJson('/api/_test-conversations', [
             'recipient_user_id' => $anotherUniversity->id,
             'subject' => 'Not tenant safe',
@@ -182,24 +193,30 @@ class ConversationMessagingTest extends TestCase
             'status' => 'uploaded',
         ]);
 
-        Sanctum::actingAs($student);
+        Sanctum::actingAs($otherUniversity);
         $this->postJson('/api/_test-conversations', [
-            'recipient_user_id' => $otherUniversity->id,
+            'recipient_user_id' => $student->id,
             'admission_application_id' => $application->id,
             'subject' => 'Cross-tenant attempt',
             'body' => 'This application must remain private.',
         ])->assertForbidden();
 
+        Sanctum::actingAs($university);
         $conversationId = $this->postJson('/api/_test-conversations', [
-            'recipient_user_id' => $university->id,
+            'recipient_user_id' => $student->id,
             'admission_application_id' => $application->id,
-            'student_document_id' => $document->id,
             'subject' => 'Application document',
-            'body' => 'I attached my transcript.',
+            'body' => 'Please attach your transcript.',
         ])->assertCreated()
             ->assertJsonPath('data.admission_application.id', $application->id)
-            ->assertJsonPath('data.latest_message.document.id', $document->id)
             ->json('data.id');
+
+        Sanctum::actingAs($student);
+        $this->postJson("/api/_test-conversations/{$conversationId}/messages", [
+            'body' => 'I attached my transcript.',
+            'student_document_id' => $document->id,
+        ])->assertCreated()
+            ->assertJsonPath('data.document.id', $document->id);
 
         Sanctum::actingAs($otherStudent);
         $this->getJson("/api/_test-conversations/{$conversationId}")->assertForbidden();

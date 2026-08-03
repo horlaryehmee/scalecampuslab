@@ -246,6 +246,62 @@ class PortalDataBoundaryTest extends TestCase
         ]);
     }
 
+    public function test_university_can_change_approved_and_declined_school_request_statuses(): void
+    {
+        $school = School::create(['name' => 'Decision School', 'location' => 'Lagos']);
+        $schoolUser = $this->user('school', 'decision-change-school@example.com', $school->id);
+        $university = $this->user('university', 'decision-change-university@example.com');
+        $event = $this->campusEvent($university, 'Changeable Visit', 'published');
+
+        $request = VisitRequest::create([
+            'school_id' => $school->id,
+            'campus_event_id' => $event->id,
+            'requested_by_user_id' => $schoolUser->id,
+            'requested_window' => 'Oct 20, 2026',
+            'group_size' => 30,
+            'status' => 'declined',
+            'priority' => 3,
+        ]);
+
+        $this->actingAs($university)->post("/visit-requests/{$request->id}/decision", [
+            'decision' => 'approved',
+        ])->assertRedirect();
+
+        $this->assertDatabaseHas('visit_requests', [
+            'id' => $request->id,
+            'status' => 'approved',
+        ]);
+
+        $this->actingAs($university)->post("/visit-requests/{$request->id}/decision", [
+            'decision' => 'declined',
+        ])->assertRedirect();
+
+        $this->assertDatabaseHas('visit_requests', [
+            'id' => $request->id,
+            'status' => 'declined',
+        ]);
+
+        $sentEvent = $this->campusEvent($university, 'Outbound Changeable Visit', 'published');
+        $sentRequest = VisitRequest::create([
+            'school_id' => $school->id,
+            'campus_event_id' => $sentEvent->id,
+            'requested_by_user_id' => $university->id,
+            'requested_window' => 'Oct 24, 2026',
+            'group_size' => 20,
+            'status' => 'declined',
+            'priority' => 2,
+        ]);
+
+        $this->actingAs($university)->post("/visit-requests/{$sentRequest->id}/decision", [
+            'decision' => 'approved',
+        ])->assertRedirect();
+
+        $this->assertDatabaseHas('visit_requests', [
+            'id' => $sentRequest->id,
+            'status' => 'approved',
+        ]);
+    }
+
     public function test_school_can_add_reorder_update_and_remove_owned_itinerary_items(): void
     {
         $school = School::create(['name' => 'Planner School', 'location' => 'Lagos, Nigeria']);
@@ -280,6 +336,26 @@ class PortalDataBoundaryTest extends TestCase
             'notes' => 'Bring consent forms and arrange transport.',
         ])->assertRedirect();
         $this->assertDatabaseHas('school_itinerary_items', ['id' => $items[0]->id, 'notes' => 'Bring consent forms and arrange transport.']);
+
+        $this->actingAs($schoolUser)->post('/school-itinerary', [
+            'stop_type' => 'pickup',
+            'title' => 'Bus pickup',
+            'location' => 'North gate',
+            'planned_start_at' => now()->addMonth()->setTime(8, 0)->format('Y-m-d H:i:s'),
+            'notes' => 'Meet the bus outside the main office.',
+        ])->assertRedirect();
+        $customStop = SchoolItineraryItem::where('user_id', $schoolUser->id)->where('stop_type', 'pickup')->first();
+        $this->assertNotNull($customStop);
+        $this->assertSame('Bus pickup', $customStop->title);
+
+        $this->actingAs($schoolUser)->put("/school-itinerary/{$customStop->id}", [
+            'stop_type' => 'checkpoint',
+            'title' => 'Roster check',
+            'location' => 'Main office',
+            'planned_start_at' => now()->addMonth()->setTime(8, 15)->format('Y-m-d H:i:s'),
+            'notes' => 'Confirm attendance before departure.',
+        ])->assertRedirect();
+        $this->assertDatabaseHas('school_itinerary_items', ['id' => $customStop->id, 'stop_type' => 'checkpoint', 'title' => 'Roster check']);
 
         $this->actingAs($schoolUser)->delete("/school-itinerary/{$items[0]->id}")->assertRedirect();
         $this->assertDatabaseMissing('school_itinerary_items', ['id' => $items[0]->id]);

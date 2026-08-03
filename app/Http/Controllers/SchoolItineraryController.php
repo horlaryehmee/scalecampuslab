@@ -8,6 +8,7 @@ use App\Models\VisitRequest;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class SchoolItineraryController extends Controller
 {
@@ -17,39 +18,73 @@ class SchoolItineraryController extends Controller
         abort_unless(in_array($user?->role, ['school', 'high_school'], true), 403);
 
         $validated = $request->validate([
-            'campus_event_id' => ['required', 'integer', 'exists:campus_events,id'],
+            'campus_event_id' => ['nullable', 'integer', 'exists:campus_events,id'],
+            'stop_type' => ['nullable', Rule::in(['pickup', 'transport', 'meal', 'checkpoint', 'program', 'return', 'note'])],
+            'title' => ['required_without:campus_event_id', 'nullable', 'string', 'max:120'],
+            'location' => ['required_without:campus_event_id', 'nullable', 'string', 'max:255'],
             'planned_start_at' => ['nullable', 'date'],
+            'latitude' => ['nullable', 'numeric', 'between:-90,90'],
+            'longitude' => ['nullable', 'numeric', 'between:-180,180'],
             'notes' => ['nullable', 'string', 'max:1000'],
         ]);
-        $event = CampusEvent::query()->whereKey($validated['campus_event_id'])->where('status', 'published')->firstOrFail();
         abort_unless($user->school_id, 422, 'Your account must be linked to a school.');
-        $visit = VisitRequest::query()
-            ->where('campus_event_id', $event->id)
-            ->where('school_id', $user->school_id)
-            ->whereIn('status', ['approved', 'scheduled'])
-            ->firstOrFail();
         $position = (int) SchoolItineraryItem::where('user_id', $user->id)->max('position') + 1;
 
-        SchoolItineraryItem::updateOrCreate(
-            ['user_id' => $user->id, 'campus_event_id' => $event->id],
-            [
-                'position' => $position,
-                'visit_request_id' => $visit->id,
-                'planned_start_at' => $validated['planned_start_at'] ?? $event->starts_at,
-                'notes' => $validated['notes'] ?? null,
-            ]
-        );
+        if (! empty($validated['campus_event_id'])) {
+            $event = CampusEvent::query()->whereKey($validated['campus_event_id'])->where('status', 'published')->firstOrFail();
+            $visit = VisitRequest::query()
+                ->where('campus_event_id', $event->id)
+                ->where('school_id', $user->school_id)
+                ->whereIn('status', ['approved', 'scheduled'])
+                ->firstOrFail();
 
-        return back()->with('status', "{$event->title} added to your itinerary.");
+            SchoolItineraryItem::updateOrCreate(
+                ['user_id' => $user->id, 'campus_event_id' => $event->id, 'stop_type' => 'program'],
+                [
+                    'position' => $position,
+                    'visit_request_id' => $visit->id,
+                    'planned_start_at' => $validated['planned_start_at'] ?? $event->starts_at,
+                    'notes' => $validated['notes'] ?? null,
+                ]
+            );
+
+            return back()->with('status', "{$event->title} added to your itinerary.");
+        }
+
+        SchoolItineraryItem::create([
+            'user_id' => $user->id,
+            'campus_event_id' => null,
+            'visit_request_id' => null,
+            'stop_type' => $validated['stop_type'] ?? 'checkpoint',
+            'title' => $validated['title'],
+            'location' => $validated['location'],
+            'latitude' => $validated['latitude'] ?? null,
+            'longitude' => $validated['longitude'] ?? null,
+            'planned_start_at' => $validated['planned_start_at'] ?? now(),
+            'position' => $position,
+            'notes' => $validated['notes'] ?? null,
+        ]);
+
+        return back()->with('status', 'Itinerary stop added.');
     }
 
     public function update(Request $request, SchoolItineraryItem $itineraryItem): RedirectResponse
     {
         $this->authorizeOwner($request, $itineraryItem);
         $validated = $request->validate([
+            'stop_type' => ['nullable', Rule::in(['pickup', 'transport', 'meal', 'checkpoint', 'program', 'return', 'note'])],
+            'title' => ['nullable', 'string', 'max:120'],
+            'location' => ['nullable', 'string', 'max:255'],
             'planned_start_at' => ['nullable', 'date'],
+            'latitude' => ['nullable', 'numeric', 'between:-90,90'],
+            'longitude' => ['nullable', 'numeric', 'between:-180,180'],
             'notes' => ['nullable', 'string', 'max:1000'],
         ]);
+
+        if ($itineraryItem->campus_event_id) {
+            $validated = collect($validated)->only(['planned_start_at', 'notes'])->all();
+        }
+
         $itineraryItem->update($validated);
 
         return back()->with('status', 'Itinerary stop updated.');
@@ -61,7 +96,7 @@ class SchoolItineraryController extends Controller
         $itineraryItem->delete();
         $this->normalizePositions($request->user()->id);
 
-        return back()->with('status', 'Destination removed from your itinerary.');
+        return back()->with('status', 'Itinerary stop removed.');
     }
 
     public function reorder(Request $request): RedirectResponse

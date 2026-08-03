@@ -54,13 +54,14 @@ class VisitRequestController extends WorkflowController
 
         try {
             $visit = DB::transaction(function () use ($validated, $event, $actor, $school, $schoolUsers): VisitRequest {
-                abort_if(
-                    VisitRequest::query()->where('campus_event_id', $event->id)->where('school_id', $school->id)->exists(),
-                    409,
-                    'This school already has a visit request for the event.'
-                );
+                $existing = VisitRequest::query()
+                    ->where('campus_event_id', $event->id)
+                    ->where('school_id', $school->id)
+                    ->first();
 
-                $visit = new VisitRequest;
+                abort_if($existing && $existing->status !== 'declined', 409, 'This school already has a visit request for the event.');
+
+                $visit = $existing ?: new VisitRequest;
                 $visit->forceFill([
                     'target_school_id' => null,
                     'school_id' => $school->id,
@@ -71,6 +72,9 @@ class VisitRequestController extends WorkflowController
                     'status' => 'requested',
                     'priority' => 1,
                     'notes' => $validated['notes'] ?? null,
+                    'responded_by_user_id' => null,
+                    'responded_at' => null,
+                    'decision_note' => null,
                 ]);
                 $visit->save();
 
@@ -107,14 +111,14 @@ class VisitRequestController extends WorkflowController
             abort_unless($actor->school_id === $visitRequest->school_id, 403);
         }
 
-        abort_unless($visitRequest->status === 'requested', 409, 'This visit request has already been decided.');
         $validated = $request->validate([
-            'decision' => ['required', Rule::in(['approved', 'rejected'])],
+            'decision' => ['required', Rule::in(['approved', 'declined', 'rejected'])],
             'decision_note' => ['nullable', 'string', 'max:2000'],
         ]);
         $event = CampusEvent::findOrFail($visitRequest->campus_event_id);
         abort_if($event->status === 'cancelled', 409, 'Cancelled events cannot have visit requests approved or rejected.');
         abort_unless($event->starts_at->isFuture(), 422, 'Past visit requests can no longer be decided.');
+        abort_if($visitRequest->status === 'scheduled', 409, 'Scheduled requests must be managed from the schedule.');
         $storedStatus = $validated['decision'] === 'approved' ? 'approved' : 'declined';
 
         DB::transaction(function () use ($visitRequest, $actor, $validated, $storedStatus, $event): void {

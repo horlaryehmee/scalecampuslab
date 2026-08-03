@@ -121,39 +121,47 @@ class VisitOperationsController extends Controller
     }
 
     /* Legacy target-school directories are retained for relationship notes, but
-       scheduling always resolves to a real School tenant and canonical visit. */
+       invitations always resolve to a real School tenant and canonical visit request. */
     public function schedulePartnerVisit(Request $request, TargetSchool $school): RedirectResponse
     {
         abort_unless($request->user()?->role === 'university', 403);
 
+        $validated = $request->validate([
+            'campus_event_id' => ['required', 'integer', 'exists:campus_events,id'],
+            'group_size' => ['nullable', 'integer', 'min:1', 'max:10000'],
+            'priority' => ['nullable', 'integer', 'min:1', 'max:5'],
+            'notes' => ['nullable', 'string', 'max:1000'],
+        ]);
+
         $recipientSchool = School::query()->where('name', $school->name)->first();
         if (! $recipientSchool) {
-            return back()->withErrors(['school_visit' => 'This partner-school record is only an outreach directory entry. Create or link a registered School account before scheduling a visit request.']);
+            return back()->withErrors(['school_visit' => 'This partner-school record is only an outreach directory entry. Create or link a registered School account before sending a visit invitation.']);
         }
+        abort_unless($recipientSchool->users()->whereIn('role', ['school', 'high_school'])->where('access_status', 'active')->whereNotNull('email_verified_at')->exists(), 422, 'This school has no active verified coordinator.');
 
         $event = CampusEvent::query()
+            ->whereKey($validated['campus_event_id'])
             ->where('university_user_id', $request->user()->id)
             ->where('status', 'published')
             ->where('starts_at', '>', now())
-            ->orderBy('starts_at')
             ->first();
 
         if (! $event) {
-            return back()->withErrors(['school_visit' => 'Publish an upcoming event before scheduling a partner school visit.']);
+            return back()->withErrors(['school_visit' => 'Select a published upcoming visit program before inviting a partner school.']);
         }
 
         $visit = $this->createOrReopenRequest($event, $recipientSchool, $request->user(), [
             'requested_window' => $event->starts_at,
-            'group_size' => max(1, $school->active_applicants),
-            'priority' => max(1, min(5, (int) ceil($school->match_score / 20))),
-            'notes' => 'Partner school visit requested from the University Schools workspace.',
+            'group_size' => $validated['group_size'] ?? max(1, $school->active_applicants),
+            'priority' => $validated['priority'] ?? max(1, min(5, (int) ceil($school->match_score / 20))),
+            'notes' => $validated['notes'] ?? 'Partner school invited from the University Schools workspace.',
         ]);
 
         foreach ($recipientSchool->users()->whereIn('role', ['school', 'high_school'])->where('access_status', 'active')->whereNotNull('email_verified_at')->get() as $recipient) {
             $this->notifier->notify($recipient, 'New university visit request', "{$request->user()->name} invited {$recipientSchool->name} to {$event->title}.", 'visit.requested', ['visit_request_id' => $visit->id], false);
         }
 
-        return back()->with('status', "Visit request sent to {$recipientSchool->name}.");
+        return back()->with('status', "Visit invitation sent to {$recipientSchool->name}.");
     }
 
     public function decideRequest(Request $request, VisitRequest $visitRequest): RedirectResponse
@@ -163,7 +171,7 @@ class VisitOperationsController extends Controller
         $visitRequest->loadMissing(['event.university', 'recipientSchool.users', 'requester']);
 
         $validated = $request->validate([
-            'decision' => ['required', Rule::in(['approved', 'declined', 'scheduled'])],
+            'decision' => ['required', Rule::in(['approved', 'declined'])],
             'decision_note' => ['nullable', 'string', 'max:2000'],
         ]);
 
@@ -195,17 +203,15 @@ class VisitOperationsController extends Controller
         $isRequester = $visitRequest->requested_by_user_id === $user->id;
         $requesterIsUniversity = $visitRequest->requester?->role === 'university';
 
-        if ($validated['decision'] === 'scheduled') {
-            abort_unless($visitRequest->status === 'approved' && ($isAdmin || $isEventOwner), 403);
-        } elseif ($isRequester && $validated['decision'] === 'declined') {
+        if ($isRequester && $validated['decision'] === 'declined' && ! $isEventOwner) {
             abort_unless($visitRequest->status === 'requested', 422, 'Only a pending request can be cancelled.');
         } elseif ($requesterIsUniversity) {
-            abort_unless($isAdmin || $isRecipientSchool, 403);
+            abort_unless($isAdmin || $isRecipientSchool || $isEventOwner, 403);
         } else {
             abort_unless($isAdmin || $isEventOwner, 403);
         }
 
-        abort_if(in_array($visitRequest->status, ['declined', 'scheduled'], true), 422, 'This request has already reached a final state.');
+        abort_if($visitRequest->status === 'scheduled', 422, 'Scheduled requests must be managed from the schedule.');
 
         $visitRequest->update([
             'status' => $validated['decision'],

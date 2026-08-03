@@ -1913,6 +1913,24 @@ function LoginPage({ csrf, errors, old, title, subtitle, action, mode }) {
                         <a href="/admin/login" className="mt-3 inline-flex font-bold text-lime-200 hover:text-lime-100">Use admin login</a>
                     )}
                 </div>
+                {mode !== 'admin' && (
+                    <div className="mt-5 border-t border-white/10 pt-5">
+                        <p className="text-center text-[11px] font-black uppercase tracking-wide text-white/40">Demo portals</p>
+                        <div className="mt-3 grid grid-cols-3 gap-2">
+                            {[
+                                ['university', 'University'],
+                                ['school', 'School'],
+                                ['student', 'Student'],
+                            ].map(([role, label]) => (
+                                <form key={role} action="/demo-login" method="POST">
+                                    <input type="hidden" name="_token" value={csrf} />
+                                    <input type="hidden" name="role" value={role} />
+                                    <button className="w-full rounded-xl border border-white/10 bg-white/5 px-2 py-2.5 text-xs font-black text-white/75 hover:border-lime-300/30 hover:bg-lime-300/10 hover:text-lime-100">{label}</button>
+                                </form>
+                            ))}
+                        </div>
+                    </div>
+                )}
             </div>
         </CenteredShell>
     );
@@ -2654,27 +2672,75 @@ function SaaSCard({ title, description, action, children, className = '' }) {
     );
 }
 
-function SaaSTable({ columns = [], rows = [], empty = 'No records yet.' }) {
+function SaaSTable({ columns = [], rows = [], empty = 'No records yet.', perPage = 10 }) {
+    const tablePages = usePaginatedItems(rows, perPage, rows.length);
+
     return (
-        <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] text-left">
-                <thead className="border-b border-slate-200 bg-slate-50 text-xs font-black uppercase tracking-wide text-slate-500">
-                    <tr>{columns.map((column) => <th key={column} className="px-5 py-3">{column}</th>)}</tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-sm">
-                    {rows.length === 0 ? (
-                        <tr>
-                            <td colSpan={columns.length || 1}>
-                                <SaaSEmptyState title={empty} description="Create or import records to populate this table." />
-                            </td>
-                        </tr>
-                    ) : rows.map((row, index) => (
-                        <tr key={index} className="hover:bg-slate-50">
-                            {row.map((cell, cellIndex) => <td key={cellIndex} className="px-5 py-4 font-semibold text-slate-600">{cell}</td>)}
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
+        <>
+            <div className="overflow-x-auto">
+                <table className="w-full min-w-[720px] text-left">
+                    <thead className="border-b border-slate-200 bg-slate-50 text-xs font-black uppercase tracking-wide text-slate-500">
+                        <tr>{columns.map((column) => <th key={column} className="px-5 py-3">{column}</th>)}</tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-sm">
+                        {rows.length === 0 ? (
+                            <tr>
+                                <td colSpan={columns.length || 1}>
+                                    <SaaSEmptyState title={empty} description="Create or import records to populate this table." />
+                                </td>
+                            </tr>
+                        ) : tablePages.items.map((row, index) => (
+                            <tr key={`${tablePages.startItem}-${index}`} className="hover:bg-slate-50">
+                                {row.map((cell, cellIndex) => <td key={cellIndex} className="px-5 py-4 font-semibold text-slate-600">{cell}</td>)}
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+            <PaginationControls pagination={tablePages} />
+        </>
+    );
+}
+
+function usePaginatedItems(items = [], perPage = 10, resetKey = '') {
+    const [page, setPage] = useState(1);
+    const total = items.length;
+    const lastPage = Math.max(1, Math.ceil(total / perPage));
+    const currentPage = Math.min(page, lastPage);
+    const start = (currentPage - 1) * perPage;
+
+    useEffect(() => {
+        setPage(1);
+    }, [resetKey, perPage]);
+
+    useEffect(() => {
+        if (page > lastPage) setPage(lastPage);
+    }, [page, lastPage]);
+
+    return {
+        items: items.slice(start, start + perPage),
+        page: currentPage,
+        lastPage,
+        total,
+        startItem: total ? start + 1 : 0,
+        endItem: Math.min(start + perPage, total),
+        setPage,
+    };
+}
+
+function PaginationControls({ pagination, label = 'records', className = '' }) {
+    if (!pagination || pagination.total <= 0) return null;
+
+    return (
+        <div className={cx('flex flex-col gap-3 border-t border-slate-200 px-4 py-3 text-xs font-semibold text-slate-500 md:flex-row md:items-center md:justify-between', className)}>
+            <span>Showing {pagination.startItem}-{pagination.endItem} of {pagination.total} {label}</span>
+            {pagination.lastPage > 1 && (
+                <div className="flex items-center gap-2">
+                    <button type="button" onClick={() => pagination.setPage(Math.max(1, pagination.page - 1))} disabled={pagination.page <= 1} className="rounded-lg border border-slate-200 bg-white px-3 py-2 font-black text-slate-700 disabled:cursor-not-allowed disabled:opacity-40">Previous</button>
+                    <span className="rounded-lg bg-slate-100 px-3 py-2 font-black text-slate-700">Page {pagination.page} of {pagination.lastPage}</span>
+                    <button type="button" onClick={() => pagination.setPage(Math.min(pagination.lastPage, pagination.page + 1))} disabled={pagination.page >= pagination.lastPage} className="rounded-lg border border-slate-200 bg-white px-3 py-2 font-black text-slate-700 disabled:cursor-not-allowed disabled:opacity-40">Next</button>
+                </div>
+            )}
         </div>
     );
 }
@@ -3022,10 +3088,10 @@ function UniversityRecruitmentOverview({ csrf, events = [], overview = {}, setSe
                     </section>
 
                     <section className="rounded-xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-3 shadow-sm md:p-4">
-                        <div className="flex items-center gap-2 text-emerald-800"><Sparkles size={16} /><h2 className="font-black">Guide Next</h2></div>
+                        <div className="flex items-center gap-2 text-emerald-800"><Sparkles size={16} /><h2 className="font-black">Next Steps</h2></div>
                         <div className="mt-4 rounded-xl border border-emerald-100 bg-white/80 p-4">
                             <p className="text-xs font-black text-emerald-700">Next Program Checklist</p>
-                            <p className="mt-2 text-xs leading-5 text-slate-600">{nextVisit ? `Your next hosted program is ${nextVisit.title} at ${nextVisit.location || nextVisit.venue}. Review capacity and attendee communications before arrival.` : 'Create or populate a visit program to receive database-driven planning guidance.'}</p>
+                            <p className="mt-2 text-xs leading-5 text-slate-600">{nextVisit ? `Your next hosted program is ${nextVisit.title} at ${nextVisit.location || nextVisit.venue}. Review capacity and attendee communications before arrival.` : 'Create a visit program to start planning school visits.'}</p>
                         </div>
                         <button type="button" onClick={() => setSection('calendar')} className="mt-3 w-full rounded-lg border border-[#006a61]/30 bg-white px-3 py-2 text-xs font-black text-[#006a61]">Review Schedule</button>
                     </section>
@@ -3063,7 +3129,7 @@ function UniversityOverviewSection({ events, registrations, schools, analytics, 
                     <div>
                         <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-600">Recruitment command center</p>
                         <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-950">University Recruitment Dashboard</h1>
-                        <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">Manage discovery, campus visits, attendee flow, and itinerary planning from database-backed demo records.</p>
+                        <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">Manage discovery, campus visits, attendee flow, and itinerary planning.</p>
                     </div>
                     <div className="flex flex-wrap gap-2">
                         <button onClick={() => setSection('events')} className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-bold text-white">Create Visit</button>
@@ -3157,6 +3223,7 @@ function UniversityVisitsSection({ csrf, events, registrations, schools = [], se
 
         return matchesStatus && matchesQuery && matchesDate;
     });
+    const eventPages = usePaginatedItems(filteredEvents, 8, `${status}|${query}|${date}`);
     const totalRegistrations = events.reduce((total, event) => total + Number(event.confirmedSeats || 0), 0);
     const totalCapacity = events.reduce((total, event) => total + Number(event.capacity || 0), 0);
     const averageFill = totalCapacity ? Math.round((totalRegistrations / totalCapacity) * 100) : 0;
@@ -3219,7 +3286,7 @@ function UniversityVisitsSection({ csrf, events, registrations, schools = [], se
                 <div className="grid gap-2 p-3">
                     {filteredEvents.length === 0 ? (
                         <div className="rounded-xl border border-dashed border-slate-200 p-10 text-center text-sm font-semibold text-slate-500">No visit programs match your filters.</div>
-                    ) : filteredEvents.map((event) => {
+                    ) : eventPages.items.map((event) => {
                         const percent = eventCapacityPercent(event);
                         const isDraft = event.status === 'draft';
                         const schoolsLabel = event.location || event.venue || 'No schools assigned yet';
@@ -3251,10 +3318,6 @@ function UniversityVisitsSection({ csrf, events, registrations, schools = [], se
                                             <span className="w-9 text-right text-[11px] font-black text-[#006a61]">{percent}%</span>
                                         </div>
                                         <button type="button" onClick={() => setDetail(event)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 shadow-sm hover:border-[#006a61]/40 hover:bg-emerald-50 hover:text-[#006a61]">Details</button>
-                                        <form action={`/campus-events/${event.id}/duplicate`} method="POST">
-                                            <input type="hidden" name="_token" value={csrf} />
-                                            <button className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 shadow-sm hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700">Copy</button>
-                                        </form>
                                         <button type="button" onClick={() => setInviteProgram(event)} className="rounded-xl border border-[#006a61]/25 bg-white px-3 py-2 text-xs font-black text-[#006a61] shadow-sm hover:bg-emerald-50">Invite</button>
                                         <button type="button" onClick={() => setEditor(event)} className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-[#006a61]/40 hover:bg-emerald-50 hover:text-[#006a61]" aria-label={`Edit ${event.title}`} title={`Edit ${event.title}`}><Edit3 size={16} /></button>
                                         <ConfirmForm csrf={csrf} action={`/campus-events/${event.id}`} method="DELETE" title="Delete visit program?" message={`Delete ${event.title}? This cannot be undone.`} confirmLabel="Delete" className="grid h-8 w-8 place-items-center rounded-lg border border-red-100 text-red-600 hover:bg-red-50" aria-label={`Delete ${event.title}`}>
@@ -3267,10 +3330,7 @@ function UniversityVisitsSection({ csrf, events, registrations, schools = [], se
                     })}
                 </div>
 
-                <div className="flex flex-col gap-2 border-t border-slate-200 px-4 py-3 text-xs font-semibold text-slate-500 md:flex-row md:items-center md:justify-between">
-                    <span>Showing {filteredEvents.length} of {events.length} visit programs</span>
-                    <span>Program actions update directly in your database.</span>
-                </div>
+                <PaginationControls pagination={eventPages} label="visit programs" />
             </section>
         </div>
     );
@@ -3613,7 +3673,7 @@ function InviteSchoolsModal({ csrf, event, schools = [], onClose }) {
                     <div>
                         <p className="text-xs font-black uppercase tracking-[0.14em] text-[#006a61]">Invite schools</p>
                         <h2 className="mt-1 text-xl font-black text-slate-950">Invite schools to {event.title}</h2>
-                        <p className="mt-1 text-sm font-semibold text-slate-500">Creates database-backed visit requests for selected schools.</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-500">Select partner schools and send invitations.</p>
                     </div>
                     <button type="button" onClick={onClose} className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-slate-200 bg-white text-slate-500 shadow-sm"><X size={18} /></button>
                 </div>
@@ -3656,7 +3716,7 @@ function UniversityPrdTracker({ events = [], registrations = [], schools = [], v
         ['Partner School Management', [
             ['Add and remove partner schools', 'done', 'University users can add schools and remove schools without shared history.'],
             ['Manual priority or tier assignment', 'done', 'Relationship tier and match score are editable and persisted.'],
-            ['Persistent internal notes', 'done', 'Internal notes are saved on the partner-school database record.'],
+            ['Persistent internal notes', 'done', 'Internal notes are saved on each partner-school profile.'],
             ['Direct contact actions', 'done', 'Contact actions queue a deliverable email notification and create a follow-up task.'],
             ['Engagement history tracking', schools.some((school) => Number(school.archiveVisits || 0) > 0 || Number(school.visitRequests || 0) > 0) ? 'done' : 'midway', 'Profile combines archived visits, requests, and visits count.'],
             ['Partner follow-up tasks', schools.some((school) => Number(school.taskCount || 0) > 0) ? 'done' : 'midway', 'University users can store and complete real partner-school follow-up tasks.'],
@@ -3684,7 +3744,7 @@ function UniversityPrdTracker({ events = [], registrations = [], schools = [], v
             ['Conversion funnel by school and program', (analytics.schoolProgramFunnel || []).length ? 'done' : 'midway', 'Funnel rows are grouped from live registrations by school and visit program.'],
             ['Trend comparisons across cycles', (analytics.cycleComparisons || []).length ? 'done' : 'midway', 'Current cycle is compared with the previous equivalent date window.'],
             ['Downloadable reports', 'done', 'University insights export uses the server-side report endpoint.'],
-            ['Saved insights and recommendations', (analytics.savedInsights || []).length ? 'done' : 'midway', 'Generated insights can be saved, completed, or dismissed in the database.'],
+            ['Saved insights and recommendations', (analytics.savedInsights || []).length ? 'done' : 'midway', 'Recommendations can be saved, completed, or dismissed.'],
             ['Transparent operational indicators', analytics.predictiveScore ? 'done' : 'midway', 'Indicators are derived from recorded attendance, capacity, and application signals and include their data coverage.'],
         ]],
         ['Settings and Configuration', [
@@ -3704,13 +3764,13 @@ function UniversityPrdTracker({ events = [], registrations = [], schools = [], v
             ['Target specific schools or students', 'done', 'Targeting supports all, confirmed, waitlisted, schools only, and students only for the selected program.'],
         ]],
         ['Enterprise Readiness Upgrade', [
-            ['Real-time SPA behavior', 'done', 'Dashboard forms submit through the in-place workspace handler, preserve the active tab, show loading state, and refresh database-backed props without a full page navigation.'],
+            ['Real-time SPA behavior', 'done', 'Dashboard forms preserve the active tab, show loading state, and refresh without a full page navigation.'],
             ['Complete communication system', messages.length > 0 ? 'done' : 'midway', 'Communications include threaded UI, targeted program notices, reminder rules, delivery history, and retryable failed notifications.'],
             ['Advanced visit program logistics', events.some((event) => event.venue && event.endsAt && event.visibility && event.lifecycleStage) ? 'done' : 'midway', 'Programs carry venue, time block, capacity, lifecycle, visibility, registration windows, invitations, reminders, and export metadata.'],
             ['Full partner school relationship management', schools.some((school) => school.notes || school.taskCount || school.tier) ? 'done' : 'midway', 'Partner schools support tiering, notes, contact actions, engagement history, scheduling, and actionable recommendation tasks.'],
             ['Robust attendee workflows', registrations.some((item) => item.checkedIn || item.consentStatus || (item.students || []).length) ? 'done' : 'midway', 'Attendee workflows cover grouped rosters, check-in/out, bulk updates, import/export, waitlist visibility, consent, emergency, and profile views.'],
             ['Intelligent scheduling and calendar logic', events.some((event) => event.lastScheduleChangeAt || event.externalCalendarUid || event.recurrenceRule) ? 'done' : 'midway', 'Scheduling includes editable time slots, conflict blocking, drag/move flows, recurrence fields, ICS export, and schedule-change notices.'],
-            ['Deep analytics and reporting', analytics.predictiveScore && (analytics.schoolProgramFunnel || []).length ? 'done' : 'midway', 'Insights use database registrations, attendance, schools, visit trends, date ranges, saved recommendations, predictive score, and export endpoint.'],
+            ['Deep analytics and reporting', analytics.predictiveScore && (analytics.schoolProgramFunnel || []).length ? 'done' : 'midway', 'Insights use registrations, attendance, schools, visit trends, date ranges, saved recommendations, predictive score, and export endpoint.'],
             ['Notification visibility and automation', messages.some((message) => message.notificationType || message.scheduledFor || message.status === 'failed') ? 'done' : 'midway', 'University users can see automation state, notification history, queued/sent/failed counts, preview notices, queue reminders, and retry failures.'],
         ]],
         ['Security, Compliance, and Permissions', [
@@ -3731,6 +3791,41 @@ function UniversityPrdTracker({ events = [], registrations = [], schools = [], v
 
     return (
         <section className="grid gap-4">
+            {false && <details open className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <summary className="cursor-pointer list-none font-black text-slate-950">Start a conversation</summary>
+                <form onSubmit={startConversation} className="mt-4 grid gap-4 xl:grid-cols-[minmax(280px,0.9fr)_minmax(0,1.1fr)]">
+                    <section className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                        <label className="text-sm font-semibold text-slate-700">
+                            Find recipient
+                            <span className="relative mt-2 block">
+                                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                                <input type="search" value={recipientSearch} onChange={(event) => setRecipientSearch(event.target.value)} placeholder="Search by name or school" className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-9 pr-3 text-sm font-semibold outline-none focus:border-[#006a61] focus:ring-4 focus:ring-emerald-50" />
+                            </span>
+                        </label>
+                        <div className="mt-3 max-h-64 overflow-y-auto rounded-xl border border-slate-200 bg-white">
+                            {recipients.map((recipient) => (
+                                <button key={recipient.id} type="button" onClick={() => setSelectedRecipient(recipient)} className={cx('flex w-full items-center gap-3 border-b border-slate-100 px-3 py-3 text-left last:border-b-0 hover:bg-slate-50', selectedRecipient?.id === recipient.id && 'bg-blue-50')}>
+                                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-slate-950 text-[11px] font-black text-white">{initials(recipient.name)}</span>
+                                    <span className="min-w-0">
+                                        <span className="block truncate text-sm font-black text-slate-950">{recipient.name}</span>
+                                        <span className="block truncate text-xs font-semibold text-slate-500">{titleCase(recipient.role)}{recipient.institution_name ? ` · ${recipient.institution_name}` : ''}</span>
+                                    </span>
+                                </button>
+                            ))}
+                            {!recipients.length && <p className="px-3 py-8 text-center text-sm font-semibold text-slate-500">{recipientLoading ? 'Searching contacts...' : 'No contacts match that search.'}</p>}
+                        </div>
+                    </section>
+                    <section className="grid gap-3">
+                        <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                            <p className="text-[11px] font-black uppercase tracking-wide text-slate-500">To</p>
+                            <p className="mt-1 text-sm font-black text-slate-950">{selectedRecipient ? selectedRecipient.name : 'Choose a recipient from the search results'}</p>
+                        </div>
+                        <LightField label="Subject" name="subject" required />
+                        <LightTextarea label="Message" name="body" required />
+                        <button className="rounded-xl bg-[#006a61] px-4 py-3 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-slate-300" disabled={!selectedRecipient}>Send message</button>
+                    </section>
+                </form>
+            </details>}
             <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
                 <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                     <div>
@@ -3892,6 +3987,7 @@ function EventCards({ csrf, events, role, old, errors }) {
 
         return locationMatches && dateMatches;
     });
+    const eventPages = usePaginatedItems(filteredEvents, 8, `${locationFilter}|${dateFilter}`);
 
     return (
         <section className="grid gap-4 lg:grid-cols-2">
@@ -3903,7 +3999,7 @@ function EventCards({ csrf, events, role, old, errors }) {
             )}
             {filteredEvents.length === 0 ? (
                 <p className="rounded-xl border border-gray-200 bg-white px-5 py-10 text-center text-sm font-medium text-gray-500 lg:col-span-2">No campus events yet.</p>
-            ) : filteredEvents.map((event) => {
+            ) : eventPages.items.map((event) => {
                 const isFull = Number(event.confirmedSeats || 0) >= Number(event.capacity || 0);
 
                 return (
@@ -3945,6 +4041,7 @@ function EventCards({ csrf, events, role, old, errors }) {
                     {role === 'student' && <p className="mt-5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-600">Your school assigns students to visits. Assigned visits will appear in My Visits.</p>}
                 </article>
             ); })}
+            <PaginationControls pagination={eventPages} label="campus events" className="lg:col-span-2" />
         </section>
     );
 }
@@ -3992,6 +4089,7 @@ function SchoolAvailableVisitsSection({ csrf, events = [], visitRequests = [], o
     const requestedCount = rows.filter((row) => row.existingRequest).length;
     const openCount = rows.filter((row) => row.seatsLeft > 0).length;
     const mobileRows = filteredRows.slice(0, mobileVisibleCount);
+    const desktopPages = usePaginatedItems(filteredRows, 12, `${query}|${region}|${universityFilter}|${focusFilters.join(',')}|${availability}|${dateFilter}|${sortBy}`);
     const mobileChips = [
         { label: 'All Programmes', active: availability === 'all' && focusFilters.length === 0 && region === 'all', onClick: () => resetFilters() },
         ...focusOptions.slice(0, 3).map((focus) => ({ label: focus, active: focusFilters.includes(focus), onClick: () => toggleFocus(focus) })),
@@ -4209,7 +4307,7 @@ function SchoolAvailableVisitsSection({ csrf, events = [], visitRequests = [], o
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
-                                {filteredRows.map((row) => (
+                                {desktopPages.items.map((row) => (
                                     <tr key={row.id} onClick={() => setPreviewId(row.id)} className={cx('cursor-pointer transition hover:bg-blue-50/40', preview?.id === row.id && 'bg-blue-50/60')}>
                                         <td className="px-4 py-3 text-center" onClick={(event) => event.stopPropagation()}><input type="checkbox" checked={selectedIds.includes(String(row.id))} onChange={() => toggleSelected(row.id)} className="rounded border-slate-300 text-blue-600" /></td>
                                         <td className="px-4 py-3">
@@ -4255,6 +4353,7 @@ function SchoolAvailableVisitsSection({ csrf, events = [], visitRequests = [], o
                         </div>
                         <span>Published university programmes</span>
                     </footer>
+                    <PaginationControls pagination={desktopPages} label="programmes" className="bg-white" />
                 </main>
 
             </div>
@@ -4446,6 +4545,7 @@ function SchoolBookingsSection({ csrf = '', visitRequests = [], registrations = 
 
         return matchesSearch && matchesStatus;
     });
+    const requestPages = usePaginatedItems(filteredRequests, 10, `${query}|${statusFilter}`);
     const confirmedRegistrations = registrations.filter((registration) => registration.status === 'confirmed');
     const pendingCount = visitRequests.filter((request) => request.status === 'requested').length;
     const approvedCount = visitRequests.filter((request) => ['approved', 'scheduled'].includes(request.status)).length;
@@ -4454,6 +4554,7 @@ function SchoolBookingsSection({ csrf = '', visitRequests = [], registrations = 
         ['all', 'All Requests'],
         ['requested', 'Pending'],
         ['approved', 'Approved'],
+        ['declined', 'Declined'],
         ['scheduled', 'Past Visits'],
     ];
 
@@ -4463,28 +4564,24 @@ function SchoolBookingsSection({ csrf = '', visitRequests = [], registrations = 
         scheduled: ['Scheduled', 'bg-blue-50 text-blue-700 ring-blue-200'],
         declined: ['Declined', 'bg-rose-50 text-rose-700 ring-rose-200'],
     };
-    const currentProgress = selected?.status === 'scheduled' ? 'w-full' : selected?.status === 'approved' ? 'w-2/3' : selected?.status === 'declined' ? 'w-1/3 bg-rose-500' : 'w-1/3';
+    const currentProgress = ['approved', 'scheduled'].includes(selected?.status) ? 'w-full' : selected?.status === 'declined' ? 'w-1/3 bg-rose-500' : 'w-1/3';
     const handleMobileRequestAction = (request) => {
-        if (request.status === 'scheduled') {
+        if (['approved', 'scheduled'].includes(request.status)) {
             setSection?.('calendar');
-            return;
-        }
-
-        if (request.status === 'approved') {
-            setSection?.('itinerary');
             return;
         }
 
         setSelectedId(request.id);
     };
     const mobileRequestActionLabel = (request) => {
-        if (request.status === 'scheduled') return 'Open Schedule';
-        if (request.status === 'approved') return 'Plan Itinerary';
+        if (['approved', 'scheduled'].includes(request.status)) return 'Open Schedule';
         if (request.status === 'declined') return 'View Decision';
         return 'View Details';
     };
     const isIncomingRequest = (request) => request.requesterRole === 'university';
-    const canReviewRequest = (request) => request.status === 'requested' && isIncomingRequest(request);
+    const canReviewRequest = (request) => isIncomingRequest(request) && ['requested', 'approved', 'declined'].includes(request.status);
+    const canApproveRequest = (request) => isIncomingRequest(request) && ['requested', 'declined'].includes(request.status);
+    const canDeclineRequest = (request) => isIncomingRequest(request) && ['requested', 'approved'].includes(request.status);
     const canCancelRequest = (request) => request.status === 'requested' && Number(request.requesterId) === Number(currentUserId);
 
     return (
@@ -4519,7 +4616,7 @@ function SchoolBookingsSection({ csrf = '', visitRequests = [], registrations = 
                 </label>
 
                 <div className="mt-3 grid gap-2.5">
-                    {filteredRequests.map((request) => {
+                    {requestPages.items.map((request) => {
                         const [label, tone] = statusMeta[request.status] || [request.status || 'Pending', 'bg-slate-50 text-slate-700 ring-slate-200'];
                         const accent = request.status === 'requested' ? 'border-l-amber-500' : request.status === 'approved' || request.status === 'scheduled' ? 'border-l-emerald-500' : request.status === 'declined' ? 'border-l-rose-500' : 'border-l-blue-500';
                         const Icon = request.status === 'scheduled' ? CalendarDays : request.status === 'approved' ? CheckCircle2 : request.status === 'declined' ? X : Clock;
@@ -4552,8 +4649,8 @@ function SchoolBookingsSection({ csrf = '', visitRequests = [], registrations = 
                                 <div className="mt-2.5 flex gap-2">
                                     {canReviewRequest(request) ? (
                                         <>
-                                            <DecisionTextButton csrf={csrf} id={request.id} decision="approved" label="Approve" tone="approve" />
-                                            <DecisionTextButton csrf={csrf} id={request.id} decision="declined" label="Decline" tone="deny" />
+                                            {canApproveRequest(request) && <DecisionTextButton csrf={csrf} id={request.id} decision="approved" label="Approve" tone="approve" />}
+                                            {canDeclineRequest(request) && <DecisionTextButton csrf={csrf} id={request.id} decision="declined" label="Decline" tone="deny" />}
                                         </>
                                     ) : canCancelRequest(request) ? (
                                         <DecisionTextButton csrf={csrf} id={request.id} decision="declined" label="Cancel request" tone="deny" />
@@ -4562,9 +4659,7 @@ function SchoolBookingsSection({ csrf = '', visitRequests = [], registrations = 
                                             {mobileRequestActionLabel(request)}
                                         </button>
                                     )}
-                                    <button type="button" onClick={() => setSelectedId(request.id)} className="grid h-8 w-9 place-items-center rounded-lg border border-slate-200 text-slate-600" aria-label="Open request details">
-                                        <MoreVertical size={17} />
-                                    </button>
+                                    <button type="button" onClick={() => setSelectedId(request.id)} className="rounded-lg border border-slate-200 px-3 py-2 text-[12px] font-black text-slate-600" aria-label="Open request details">Details</button>
                                 </div>
                             </article>
                         );
@@ -4578,6 +4673,7 @@ function SchoolBookingsSection({ csrf = '', visitRequests = [], registrations = 
                         </div>
                     )}
                 </div>
+                <PaginationControls pagination={requestPages} label="requests" className="mt-3 px-0" />
 
                 <button type="button" onClick={() => setCreateOpen(true)} className="fixed bottom-24 right-5 z-30 grid h-14 w-14 place-items-center rounded-full bg-[#006a61] text-white shadow-xl shadow-slate-950/20">
                     <Plus size={27} />
@@ -4587,7 +4683,7 @@ function SchoolBookingsSection({ csrf = '', visitRequests = [], registrations = 
             <div className="hidden flex-col gap-4 lg:flex-row lg:items-end lg:justify-between md:flex">
                 <div>
                     <h1 className="text-3xl font-black text-slate-950">My Requests Tracking</h1>
-                    <p className="mt-1 max-w-3xl text-sm text-slate-500">Review university invitations and track requests sent by your school. Status updates, student counts, and itinerary readiness stay tied to database records.</p>
+                    <p className="mt-1 max-w-3xl text-sm text-slate-500">Review university invitations and track requests sent by your school. Status updates, student counts, and itinerary readiness stay in sync.</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                     <button type="button" onClick={() => setSection?.('events')} className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 hover:bg-slate-50">
@@ -4623,7 +4719,6 @@ function SchoolBookingsSection({ csrf = '', visitRequests = [], registrations = 
                                     <option value="all">All Statuses</option>
                                     <option value="requested">Pending</option>
                                     <option value="approved">Approved</option>
-                                    <option value="scheduled">Scheduled</option>
                                     <option value="declined">Declined</option>
                                 </select>
                             </div>
@@ -4642,7 +4737,7 @@ function SchoolBookingsSection({ csrf = '', visitRequests = [], registrations = 
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
-                                {filteredRequests.map((request) => {
+                                {requestPages.items.map((request) => {
                                     const [label, tone] = statusMeta[request.status] || [request.status || 'Pending', 'bg-slate-50 text-slate-700 ring-slate-200'];
 
                                     return (
@@ -4662,7 +4757,8 @@ function SchoolBookingsSection({ csrf = '', visitRequests = [], registrations = 
                                             <td className="px-5 py-4"><span className={cx('rounded-full px-2.5 py-1 text-[11px] font-black uppercase ring-1', tone)}>{label}</span></td>
                                             <td className="px-5 py-4 text-right">
                                                 <div className="flex justify-end gap-1">
-                                                    {canReviewRequest(request) && <><DecisionIconButton csrf={csrf} id={request.id} decision="approved" label="Approve" icon={CheckCircle2} tone="green" /><DecisionIconButton csrf={csrf} id={request.id} decision="declined" label="Decline" icon={X} tone="red" /></>}
+                                                    {canApproveRequest(request) && <DecisionIconButton csrf={csrf} id={request.id} decision="approved" label="Approve" icon={CheckCircle2} tone="green" />}
+                                                    {canDeclineRequest(request) && <DecisionIconButton csrf={csrf} id={request.id} decision="declined" label="Decline" icon={X} tone="red" />}
                                                     {canCancelRequest(request) && <DecisionIconButton csrf={csrf} id={request.id} decision="declined" label="Cancel request" icon={X} tone="red" />}
                                                     <button type="button" onClick={() => setSelectedId(request.id)} className="rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-black text-blue-700 hover:bg-blue-50">View Details</button>
                                                 </div>
@@ -4685,6 +4781,7 @@ function SchoolBookingsSection({ csrf = '', visitRequests = [], registrations = 
                             </tbody>
                         </table>
                     </div>
+                    <PaginationControls pagination={requestPages} label="requests" />
                 </section>
 
                 <aside className="hidden">
@@ -4780,17 +4877,14 @@ function SchoolBookingsSection({ csrf = '', visitRequests = [], registrations = 
     );
 }
 
-function SchoolItinerarySection({ csrf, visitRequests = [], registrations = [], events = [], students = [], itineraryItems = [], setSection }) {
+function SchoolItinerarySection({ csrf, visitRequests = [], registrations = [], events = [], students = [], itineraryItems = [], schoolProfile = {}, setSection }) {
     const eventRows = Array.isArray(events) ? events : [];
     const requestRows = Array.isArray(visitRequests) ? visitRequests : [];
     const registrationRows = Array.isArray(registrations) ? registrations : [];
-    const studentRows = Array.isArray(students) ? students : [];
     const itineraryRows = Array.isArray(itineraryItems) ? itineraryItems : [];
     const liveEvents = eventRows.filter((event) => event && event.status === 'published');
+    const hasPublishedPrograms = liveEvents.length > 0;
     const eventById = new Map(liveEvents.map((event) => [Number(event.id), event]));
-    const requestedEventIds = new Set(requestRows.filter((request) => request && !['declined', 'cancelled'].includes(request.status)).map((request) => Number(request.eventId)).filter(Boolean));
-    const registeredEventIds = new Set(registrationRows.filter((registration) => registration && ['confirmed', 'waitlisted'].includes(registration.status)).map((registration) => Number(registration.eventId)).filter(Boolean));
-    const plannedEventIds = new Set([...requestedEventIds, ...registeredEventIds, ...itineraryRows.map((item) => Number(item.eventId))]);
     const requestStops = requestRows
         .filter((request) => request && ['approved', 'scheduled'].includes(request.status) && request.eventId)
         .map((request) => {
@@ -4820,7 +4914,7 @@ function SchoolItinerarySection({ csrf, visitRequests = [], registrations = [], 
     const persistedStops = itineraryRows.map((item) => ({
         ...liveEventItineraryStop({
             id: `itinerary-${item.id}`,
-            source: 'Itinerary',
+            source: item.stopType || 'program',
             status: item.requestStatus || 'planned',
             students: Number(item.students || 0),
             notes: item.notes,
@@ -4829,202 +4923,287 @@ function SchoolItinerarySection({ csrf, visitRequests = [], registrations = [], 
         itineraryItemId: item.id,
         position: item.position,
     }));
-    const stops = (persistedStops.length ? persistedStops : [...requestStops, ...registrationStops])
-        .filter((stop, index, list) => list.findIndex((candidate) => Number(candidate.eventId) === Number(stop.eventId)) === index)
+    const stops = [...persistedStops, ...requestStops, ...registrationStops]
+        .filter((stop, index, list) => {
+            const key = stop.eventId ? `event-${stop.eventId}` : stop.id;
+            return list.findIndex((candidate) => (candidate.eventId ? `event-${candidate.eventId}` : candidate.id) === key) === index;
+        })
         .sort((left, right) => persistedStops.length ? Number(left.position || 0) - Number(right.position || 0) : new Date(left.date || '2999-12-31') - new Date(right.date || '2999-12-31'));
-    const itinerarySignature = itineraryRows.map((item) => `${item.id}:${item.position}`).join('|');
-    const [orderedIds, setOrderedIds] = useState(() => persistedStops.map((stop) => stop.itineraryItemId));
-    const [draggedId, setDraggedId] = useState(null);
-    useEffect(() => setOrderedIds(persistedStops.map((stop) => stop.itineraryItemId)), [itinerarySignature]);
-    const upcoming = (orderedIds.length ? orderedIds.map((id) => stops.find((stop) => Number(stop.itineraryItemId) === Number(id))).filter(Boolean) : stops).slice(0, 20);
-    const moveStop = (id, direction) => {
-        setOrderedIds((current) => {
-            const index = current.indexOf(id);
-            const target = index + direction;
-            if (index < 0 || target < 0 || target >= current.length) return current;
-            const next = [...current];
-            [next[index], next[target]] = [next[target], next[index]];
-            return next;
-        });
-    };
-    const dropStop = (targetId) => {
-        if (!draggedId || draggedId === targetId) return;
-        setOrderedIds((current) => {
-            const next = current.filter((id) => id !== draggedId);
-            next.splice(Math.max(0, next.indexOf(targetId)), 0, draggedId);
-            return next;
-        });
-        setDraggedId(null);
-    };
-    const availableDestinations = liveEvents
-        .filter((event) => !plannedEventIds.has(Number(event.id)))
-        .sort((left, right) => new Date(left.startsAt || '2999-12-31') - new Date(right.startsAt || '2999-12-31'))
-        .slice(0, 4);
-    const routeSegments = upcoming.map((stop, index) => index === 0 ? null : routeSegment(upcoming[index - 1], stop));
-    const knownSegments = routeSegments.filter(Boolean).filter((segment) => segment.distanceMiles !== null);
-    const totalMiles = knownSegments.reduce((sum, segment) => sum + Number(segment.distanceMiles || 0), 0);
-    const totalStudents = upcoming.reduce((sum, stop) => sum + Number(stop.students || 0), 0);
-    const confirmedStops = upcoming.filter((stop) => ['confirmed', 'scheduled', 'approved'].includes(stop.status)).length;
-    const routePoints = upcoming.map((stop) => ({ label: stop.title, location: stop.location, latitude: stop.latitude, longitude: stop.longitude, meta: `${stop.university} • ${stop.students} student(s)` }));
-    const routeSegmentCount = Math.max(0, upcoming.length - 1);
-    const hasCompleteCoordinates = upcoming.length > 0 && upcoming.every((stop) => stop.latitude !== null && stop.longitude !== null);
+    const [addStopOpen, setAddStopOpen] = useState(false);
+    const upcoming = [...stops].sort(itineraryStopSort).slice(0, 20);
+    const itineraryGroups = groupItineraryByDate(upcoming);
+    const [activeDateKey, setActiveDateKey] = useState(null);
+    useEffect(() => {
+        if (!itineraryGroups.length) {
+            setActiveDateKey(null);
+            return;
+        }
+        if (!itineraryGroups.some((group) => group.key === activeDateKey)) {
+            setActiveDateKey(itineraryGroups[0].key);
+        }
+    }, [activeDateKey, itineraryGroups.map((group) => group.key).join('|')]);
+    const origin = schoolRouteOrigin(schoolProfile, requestRows);
+    const activeDateGroup = itineraryGroups.find((group) => group.key === activeDateKey) || itineraryGroups[0] || null;
+    const nextDateStops = activeDateGroup?.items || [];
+    const destination = nextDateStops[nextDateStops.length - 1] || null;
+    const pendingRequests = requestRows.filter((request) => ['requested', 'pending'].includes(request.status)).length;
+    const routeStops = origin ? [origin, ...nextDateStops] : nextDateStops;
+    const routeHasCompleteCoordinates = routeStops.length > 0 && routeStops.every((stop) => stop.latitude !== null && stop.longitude !== null);
 
     return (
         <div className="grid gap-6">
-            <section className="grid gap-4 md:grid-cols-4">
-                <SchoolRequestMetric label="Live Destinations" value={upcoming.length} helper={`${confirmedStops} approved / confirmed`} icon={RouteIcon} tone="blue" />
-                <SchoolRequestMetric label="Students Covered" value={totalStudents.toLocaleString()} helper={`${studentRows.length.toLocaleString()} student records available`} icon={UsersRound} tone="emerald" />
-                <SchoolRequestMetric label="Confirmed Stops" value={confirmedStops.toLocaleString()} helper="Approved, scheduled, or confirmed" icon={CheckCircle2} tone="amber" />
-                <SchoolRequestMetric label="Straight-line Distance" value={knownSegments.length ? `${totalMiles.toFixed(1)}mi` : 'Set coords'} helper={knownSegments.length ? `${knownSegments.length}/${routeSegmentCount} segment(s) with coordinates` : 'Add event coordinates to calculate'} icon={MapPin} />
-            </section>
-
             <section className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
                 <aside className="space-y-5">
-                    <div className="rounded-2xl bg-gradient-to-r from-blue-700 to-indigo-600 p-5 text-white shadow-lg">
-                        <div className="flex items-start justify-between gap-4">
-                            <div>
-                                <p className="text-xs font-black uppercase tracking-[0.14em] text-white/70">Database itinerary</p>
-                                <h2 className="mt-2 text-2xl font-black">Live Route Builder</h2>
-                                <p className="mt-2 text-sm leading-6 text-white/80">{upcoming.length ? `Itinerary is built from ${upcoming.length} live event destination(s) in the database.` : 'Approved requests and confirmed registrations will generate the route automatically.'}</p>
-                            </div>
-                            <Sparkles size={24} className="shrink-0" />
-                        </div>
-                        <button type="button" onClick={() => setSection?.('events')} className="mt-5 rounded-xl bg-white/15 px-4 py-2.5 text-sm font-black text-white hover:bg-white/25">Discover More Visits</button>
-                    </div>
-
                     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                        <div className="grid gap-3 border-b border-slate-100 pb-4">
+                            <RouteLocationRow label="Start" title={origin?.title || 'School location not set'} body={origin?.location || 'Add the school address or location in Profile.'} />
+                            <RouteLocationRow label="Destination" title={destination?.title || 'No approved program selected'} body={destination ? `${destination.venue ? `${destination.venue}, ` : ''}${destination.location}` : 'Approve or request a visit program first.'} />
+                        </div>
                         <div className="flex items-center justify-between gap-3">
                             <div>
-                                <h2 className="text-lg font-black text-slate-950">Visit Sequence</h2>
-                                <p className="mt-1 text-xs font-semibold text-slate-500">Live event destinations from approved requests and registrations.</p>
+                                <h2 className="mt-4 text-lg font-black text-slate-950">Visit Dates</h2>
+                                <p className="mt-1 text-xs font-semibold text-slate-500">Visit programs and school logistics are grouped by date.</p>
                             </div>
                             <div className="flex items-center gap-2">
+                                <button type="button" onClick={() => setAddStopOpen((open) => !open)} className="rounded-lg bg-slate-950 px-3 py-2 text-xs font-black text-white">{addStopOpen ? 'Close' : 'Add Stop'}</button>
                                 <button type="button" onClick={() => setSection?.('bookings')} className="text-xs font-black text-blue-700">Requests</button>
-                                {orderedIds.length > 1 && (
-                                    <form action="/school-itinerary/reorder" method="POST">
-                                        <input type="hidden" name="_token" value={csrf} />
-                                        {orderedIds.map((id) => <input key={id} type="hidden" name="item_ids[]" value={id} />)}
-                                        <button className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-black text-white">Save order</button>
-                                    </form>
-                                )}
                             </div>
                         </div>
+                        {addStopOpen && (
+                            <form action="/school-itinerary" method="POST" className="mt-4 grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                                <input type="hidden" name="_token" value={csrf} />
+                                <div className="grid gap-3">
+                                    <label className="grid min-w-0 gap-1 text-[11px] font-black text-slate-600">Stop type<select name="stop_type" defaultValue="pickup" className="w-full min-w-0 rounded-lg border border-slate-200 bg-white px-2 py-2 text-xs font-medium">
+                                        <option value="pickup">Pickup</option>
+                                        <option value="transport">Transport</option>
+                                        <option value="meal">Meal</option>
+                                        <option value="checkpoint">Checkpoint</option>
+                                        <option value="return">Return</option>
+                                        <option value="note">Note</option>
+                                    </select></label>
+                                    <label className="grid min-w-0 gap-1 text-[11px] font-black text-slate-600">Date and time<input type="datetime-local" name="planned_start_at" required className="w-full min-w-0 rounded-lg border border-slate-200 bg-white px-2 py-2 text-xs font-medium" /></label>
+                                </div>
+                                <label className="grid min-w-0 gap-1 text-[11px] font-black text-slate-600">Stop name<input name="title" required maxLength="120" placeholder="Bus pickup, lunch stop, return to school..." className="w-full min-w-0 rounded-lg border border-slate-200 bg-white px-2 py-2 text-xs font-medium" /></label>
+                                <label className="grid min-w-0 gap-1 text-[11px] font-black text-slate-600">Location<input name="location" required maxLength="255" placeholder="Address or place name" className="w-full min-w-0 rounded-lg border border-slate-200 bg-white px-2 py-2 text-xs font-medium" /></label>
+                                <label className="grid min-w-0 gap-1 text-[11px] font-black text-slate-600">Notes<textarea name="notes" rows="2" maxLength="1000" className="w-full min-w-0 rounded-lg border border-slate-200 bg-white px-2 py-2 text-xs font-medium" /></label>
+                                <button className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-black text-white">Save stop</button>
+                            </form>
+                        )}
                         <div className="mt-4 space-y-3">
                             {upcoming.length === 0 ? (
-                                <EmptyState message="No live itinerary yet. Request a published visit or confirm a registration to add destinations." />
-                            ) : upcoming.map((stop, index) => (
-                                <article key={stop.id} draggable={Boolean(stop.itineraryItemId)} onDragStart={() => setDraggedId(stop.itineraryItemId)} onDragOver={(event) => event.preventDefault()} onDrop={() => dropStop(stop.itineraryItemId)} className="rounded-xl border border-slate-200 bg-white p-4 transition hover:border-blue-300 hover:shadow-sm">
-                                    <div className="flex items-start gap-3">
-                                        <span className="grid h-9 w-9 shrink-0 cursor-grab place-items-center rounded-xl bg-slate-950 text-xs font-black text-white" title="Drag to rearrange"><MoreVertical size={16} /></span>
-                                        <div className="min-w-0 flex-1">
-                                            <div className="flex items-center justify-between gap-3">
-                                                <p className="truncate font-black text-slate-950">{stop.title}</p>
-                                                <ItineraryStatusBadge status={stop.status} />
+                                <SchoolItineraryEmptyState hasPublishedPrograms={hasPublishedPrograms} pendingRequests={pendingRequests} setSection={setSection} />
+                            ) : itineraryGroups.map((group) => {
+                                const dateParts = itineraryDateParts(group.key, group.label);
+
+                                return (
+                                <section key={group.key} className={cx('overflow-hidden rounded-xl border bg-white transition', group.key === activeDateGroup?.key ? 'border-blue-300 ring-2 ring-blue-50' : 'border-slate-200')}>
+                                    <div className="grid grid-cols-[4.5rem_minmax(0,1fr)] border-b border-slate-100 bg-slate-50">
+                                        <div className="grid place-items-center border-r border-slate-200 bg-white px-2 py-3 text-center">
+                                            <p className="text-[10px] font-black uppercase tracking-wide text-blue-700">{dateParts.month}</p>
+                                            <p className="text-3xl font-black leading-none text-slate-950">{dateParts.day}</p>
+                                            <p className="mt-1 text-[10px] font-black uppercase tracking-wide text-slate-400">{dateParts.weekday}</p>
+                                        </div>
+                                        <div className="flex min-w-0 items-center justify-between gap-3 px-4 py-3">
+                                            <div className="min-w-0">
+                                                <p className="truncate text-sm font-black text-slate-950">{group.label}</p>
+                                                <p className="mt-0.5 text-xs font-semibold text-slate-500">{group.items.length} stop{group.items.length === 1 ? '' : 's'} for this day</p>
                                             </div>
-                                            <p className="mt-1 text-sm font-semibold text-blue-700">{stop.university}</p>
-                                            <p className="mt-1 text-xs leading-5 text-slate-500">{formatShortDate(stop.date)} • {stop.time}</p>
-                                            <p className="mt-1 text-xs leading-5 text-slate-500">{stop.venue ? `${stop.venue} • ` : ''}{stop.location}</p>
-                                            <p className="mt-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-400">{stop.source} • Capacity {Number(stop.capacity || 0).toLocaleString()}</p>
-                                            {stop.notes && <p className="mt-2 rounded-lg bg-slate-50 p-2 text-xs leading-5 text-slate-600">{stop.notes}</p>}
-                                            {stop.itineraryItemId && (
-                                                <div className="mt-3">
-                                                    <div className="flex flex-wrap gap-2">
-                                                        <button type="button" disabled={index === 0} onClick={() => moveStop(stop.itineraryItemId, -1)} className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-[11px] font-black text-slate-600 disabled:opacity-30">Move up</button>
-                                                        <button type="button" disabled={index === upcoming.length - 1} onClick={() => moveStop(stop.itineraryItemId, 1)} className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-[11px] font-black text-slate-600 disabled:opacity-30">Move down</button>
-                                                        <details className="group">
-                                                            <summary className="cursor-pointer list-none rounded-lg border border-blue-200 px-2.5 py-1.5 text-[11px] font-black text-blue-700">Edit stop</summary>
-                                                            <form action={`/school-itinerary/${stop.itineraryItemId}`} method="POST" className="mt-2 grid gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
-                                                                <input type="hidden" name="_token" value={csrf} /><input type="hidden" name="_method" value="PUT" />
-                                                                <label className="grid gap-1 text-[11px] font-black text-slate-600">Planned date and time<input type="datetime-local" name="planned_start_at" defaultValue={stop.date ? String(stop.date).slice(0, 16) : ''} className="rounded-lg border border-slate-200 bg-white px-2 py-2 text-xs font-medium" /></label>
-                                                                <label className="grid gap-1 text-[11px] font-black text-slate-600">Coordinator notes<textarea name="notes" rows="2" defaultValue={stop.notes || ''} className="rounded-lg border border-slate-200 bg-white px-2 py-2 text-xs font-medium" /></label>
-                                                                <button className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-black text-white">Save changes</button>
-                                                            </form>
-                                                        </details>
-                                                        <ConfirmForm csrf={csrf} action={`/school-itinerary/${stop.itineraryItemId}`} method="DELETE" title="Remove itinerary stop?" message="Remove this destination from your itinerary?" confirmLabel="Remove" className="rounded-lg border border-rose-200 px-2.5 py-1.5 text-[11px] font-black text-rose-700">
-                                                            Remove
-                                                        </ConfirmForm>
-                                                    </div>
-                                                </div>
-                                            )}
+                                            <button type="button" onClick={() => { setActiveDateKey(group.key); document.getElementById('school-route-map')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }} className={cx('shrink-0 rounded-lg px-3 py-2 text-[11px] font-black', group.key === activeDateGroup?.key ? 'bg-blue-600 text-white' : 'border border-slate-200 bg-white text-slate-700')}>Show route</button>
                                         </div>
                                     </div>
-                                    {index < upcoming.length - 1 && (
-                                        <div className="ml-4 mt-3 border-l-2 border-dashed border-blue-200 py-2 pl-6 text-xs font-bold text-slate-500">
-                                            <RouteIcon size={14} className="inline text-blue-600" /> {routeSegments[index + 1]?.label || 'Set event coordinates to calculate distance'}
-                                        </div>
-                                    )}
-                                </article>
-                            ))}
+                                    <div className="space-y-3 p-3">
+                                        {group.items.map((stop) => {
+                                            const index = upcoming.findIndex((item) => item.id === stop.id);
+
+                                            return (
+                                                <article key={stop.id} className="grid grid-cols-[2.75rem_minmax(0,1fr)] rounded-xl border border-slate-200 bg-white transition hover:border-blue-300 hover:shadow-sm">
+                                                    <div className="relative grid justify-center border-r border-dashed border-slate-200 py-4">
+                                                        <span className="grid h-8 w-8 place-items-center rounded-full bg-slate-950 text-xs font-black text-white">{index + 1}</span>
+                                                    </div>
+                                                    <div className="min-w-0 p-4">
+                                                            <p className="truncate font-black text-slate-950">{stop.title}</p>
+                                                            <p className="mt-1 text-sm font-semibold text-blue-700">{stop.university}</p>
+                                                            <p className="mt-1 text-xs leading-5 text-slate-500">{stop.time}</p>
+                                                            <p className="mt-1 text-xs leading-5 text-slate-500">{stop.venue ? `${stop.venue}, ` : ''}{stop.location}</p>
+                                                            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs font-bold text-slate-600">
+                                                                <span>{titleCase(stop.stopType || 'program')}</span>
+                                                                {origin && <button type="button" onClick={() => { setActiveDateKey(group.key); document.getElementById('school-route-map')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }} className="text-blue-700 hover:text-blue-900">Show route</button>}
+                                                            </div>
+                                                            {stop.notes && <p className="mt-2 rounded-lg bg-slate-50 p-2 text-xs leading-5 text-slate-600">{stop.notes}</p>}
+                                                            {stop.itineraryItemId && (
+                                                                <div className="mt-3 flex flex-wrap gap-2">
+                                                                    <details className="group">
+                                                                        <summary className="cursor-pointer list-none rounded-lg border border-blue-200 px-2.5 py-1.5 text-[11px] font-black text-blue-700">{stop.eventId ? 'Edit date' : 'Edit stop'}</summary>
+                                                                        <form action={`/school-itinerary/${stop.itineraryItemId}`} method="POST" className="mt-2 grid gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                                                                            <input type="hidden" name="_token" value={csrf} /><input type="hidden" name="_method" value="PUT" />
+                                                                            {!stop.eventId && <><label className="grid gap-1 text-[11px] font-black text-slate-600">Stop type<select name="stop_type" defaultValue={stop.stopType || 'checkpoint'} className="rounded-lg border border-slate-200 bg-white px-2 py-2 text-xs font-medium"><option value="pickup">Pickup</option><option value="transport">Transport</option><option value="meal">Meal</option><option value="checkpoint">Checkpoint</option><option value="return">Return</option><option value="note">Note</option></select></label><label className="grid gap-1 text-[11px] font-black text-slate-600">Stop name<input name="title" defaultValue={stop.title || ''} className="rounded-lg border border-slate-200 bg-white px-2 py-2 text-xs font-medium" /></label><label className="grid gap-1 text-[11px] font-black text-slate-600">Location<input name="location" defaultValue={stop.location || ''} className="rounded-lg border border-slate-200 bg-white px-2 py-2 text-xs font-medium" /></label></>}
+                                                                            <label className="grid gap-1 text-[11px] font-black text-slate-600">Planned date and time<input type="datetime-local" name="planned_start_at" defaultValue={stop.date ? String(stop.date).slice(0, 16) : ''} className="rounded-lg border border-slate-200 bg-white px-2 py-2 text-xs font-medium" /></label>
+                                                                            <label className="grid gap-1 text-[11px] font-black text-slate-600">Coordinator notes<textarea name="notes" rows="2" defaultValue={stop.notes || ''} className="rounded-lg border border-slate-200 bg-white px-2 py-2 text-xs font-medium" /></label>
+                                                                            <button className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-black text-white">Save changes</button>
+                                                                        </form>
+                                                                    </details>
+                                                                    <ConfirmForm csrf={csrf} action={`/school-itinerary/${stop.itineraryItemId}`} method="DELETE" title="Remove itinerary visit?" message="Remove this visit from your itinerary?" confirmLabel="Remove" className="rounded-lg border border-rose-200 px-2.5 py-1.5 text-[11px] font-black text-rose-700">
+                                                                        Remove
+                                                                    </ConfirmForm>
+                                                                </div>
+                                                            )}
+                                                    </div>
+                                                </article>
+                                            );
+                                        })}
+                                    </div>
+                                </section>
+                                );
+                            })}
                         </div>
                     </section>
                 </aside>
 
                 <div className="space-y-6">
-                    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                    <section id="school-route-map" className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
                         <div className="flex items-center justify-between gap-3 border-b border-slate-200 p-5">
                             <div>
                                 <h2 className="text-xl font-black text-slate-950">Route Map</h2>
-                                <p className="mt-1 text-sm text-slate-500">OpenStreetMap markers are driven by event locations and coordinates from the database.</p>
-                            </div>
-                            {upcoming[0] && <OpenStreetMapLink location={upcoming[0].location} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-black text-blue-700">Open Map</OpenStreetMapLink>}
-                        </div>
-                        {upcoming.length > 0 ? <OpenStreetMapEmbed location={upcoming[0].location} points={routePoints} title="School itinerary route map" className="h-[460px] rounded-none border-0" /> : <EmptyState message="Add an approved visit destination to display the route map." />}
-                        {!hasCompleteCoordinates && upcoming.length > 0 && <p className="border-t border-slate-200 bg-amber-50 px-5 py-3 text-xs font-bold text-amber-800">Add latitude/longitude to every visit program for precise markers and complete straight-line distance calculations.</p>}
-                    </section>
-
-                    <section className="grid gap-6 lg:grid-cols-2">
-                        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                            <h2 className="text-lg font-black text-slate-950">Student Allocation</h2>
-                            <div className="mt-5 space-y-4">
-                                {upcoming.slice(0, 4).map((stop, index) => (
-                                    <div key={`${stop.id}-time`}>
-                                        <div className="flex items-center justify-between text-sm"><span className="font-black text-slate-700">{stop.title}</span><span className="font-bold text-slate-500">{formatShortDate(stop.date)}</span></div>
-                                        <div className="mt-2 h-3 rounded-full bg-slate-100"><div className="h-full rounded-full bg-blue-600" style={{ width: `${Math.min(100, Math.max(12, (Number(stop.students || 1) / Math.max(1, totalStudents)) * 100))}%` }} /></div>
-                                        <p className="mt-1 text-xs font-semibold text-slate-500">{stop.students} student(s) allocated to this destination</p>
-                                    </div>
-                                ))}
-                                {upcoming.length === 0 && <p className="text-sm font-semibold text-slate-500">Student allocation will appear when live event destinations exist.</p>}
+                                <p className="mt-1 text-sm text-slate-500">{activeDateGroup ? `Showing route for ${activeDateGroup.label}.` : 'Directions stay inside the school portal.'}</p>
                             </div>
                         </div>
-
-                        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm">
-                            <Sparkles size={18} className="text-emerald-700" />
-                            <h2 className="mt-3 text-lg font-black text-slate-950">Coordinator Guidance</h2>
-                            <p className="mt-2 text-sm leading-6 text-slate-700">{upcoming.length ? `Next destination is ${upcoming[0].title} at ${upcoming[0].location}. Confirm roster, transport, and counselor contact against the live event record.` : 'Submit or confirm a visit request to activate itinerary guidance.'}</p>
-                            <button type="button" onClick={() => setSection?.('students')} className="mt-4 rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-black text-white">Review Student Roster</button>
-                        </div>
-                    </section>
-
-                    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                        <div className="flex items-center justify-between gap-3">
-                            <div>
-                                <h2 className="text-lg font-black text-slate-950">Available Live Event Destinations</h2>
-                                <p className="mt-1 text-sm text-slate-500">Published events not yet in this school itinerary.</p>
-                            </div>
-                            <button type="button" onClick={() => setSection?.('events')} className="text-xs font-black text-blue-700">View all</button>
-                        </div>
-                        <div className="mt-4 divide-y divide-slate-100">
-                            {availableDestinations.length === 0 ? <p className="py-5 text-sm font-semibold text-slate-500">Every available published event is already requested or registered.</p> : availableDestinations.map((event) => (
-                                <div key={event.id} className="grid gap-3 py-4 md:grid-cols-[1fr_auto] md:items-center">
-                                    <div>
-                                        <p className="font-black text-slate-950">{event.title}</p>
-                                        <p className="mt-1 text-sm font-semibold text-slate-500">{event.university || 'University partner'} • {event.location || event.venue || 'Location TBA'}</p>
-                                        <p className="mt-1 text-xs font-semibold text-slate-400">{formatShortDate(event.startsAt)} • {Number(event.confirmedSeats || 0)}/{Number(event.capacity || 0)} seats</p>
-                                    </div>
-                                    <form action="/school-itinerary" method="POST">
-                                        <input type="hidden" name="_token" value={csrf} />
-                                        <input type="hidden" name="campus_event_id" value={event.id} />
-                                        <input type="hidden" name="notes" value="Requested from School Itinerary live event destinations." />
-                                        <button className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-black text-white">Add to Itinerary</button>
-                                    </form>
-                                </div>
-                            ))}
-                        </div>
+                        {origin && destination ? <InAppDirectionsMap origin={origin} destination={destination} waypoints={nextDateStops.slice(0, -1)} title="School itinerary route map" className="h-[560px] rounded-none border-0" /> : <SchoolItineraryEmptyRoute hasPublishedPrograms={hasPublishedPrograms} pendingRequests={pendingRequests} setSection={setSection} />}
+                        {!routeHasCompleteCoordinates && routeStops.length > 0 && <p className="border-t border-slate-200 bg-amber-50 px-5 py-3 text-xs font-bold text-amber-800">Some locations are approximate. Add coordinates to school and program records for a more exact route.</p>}
                     </section>
                 </div>
             </section>
         </div>
     );
+}
+
+function schoolRouteOrigin(profile = {}, requests = []) {
+    const requestWithLocation = requests.find((request) => request?.location || request?.region) || {};
+    const location = [profile.address, profile.city, profile.state, profile.country].filter(Boolean).join(', ')
+        || profile.location
+        || requestWithLocation.location
+        || requestWithLocation.region
+        || '';
+    const title = profile.name || requestWithLocation.school || 'School';
+
+    return location ? {
+        id: 'school-origin',
+        title,
+        location,
+        latitude: safeCoordinate(profile.latitude),
+        longitude: safeCoordinate(profile.longitude),
+        meta: 'School origin',
+    } : null;
+}
+
+function RouteLocationRow({ label, title, body }) {
+    return (
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">{label}</p>
+            <p className="mt-1 font-black text-slate-950">{title}</p>
+            <p className="mt-1 text-xs leading-5 text-slate-500">{body}</p>
+        </div>
+    );
+}
+
+function SchoolItineraryEmptyState({ hasPublishedPrograms, pendingRequests = 0, setSection }) {
+    return (
+        <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-5">
+            <CalendarDays size={22} className="text-blue-700" />
+            <p className="mt-3 font-black text-slate-950">No itinerary dates yet</p>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+                {pendingRequests > 0
+                    ? `${pendingRequests} visit request${pendingRequests === 1 ? ' is' : 's are'} waiting for approval. Approved visits will appear here by date.`
+                    : hasPublishedPrograms
+                        ? 'Request a published university program first. Once it is approved or confirmed, the itinerary will appear here.'
+                        : 'No university programs are available right now. The itinerary will stay empty until a university publishes a program or sends your school an invitation.'}
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+                {hasPublishedPrograms && <button type="button" onClick={() => setSection?.('events')} className="rounded-lg bg-slate-950 px-3 py-2 text-xs font-black text-white">Browse Programs</button>}
+                <button type="button" onClick={() => setSection?.('bookings')} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700">View Requests</button>
+            </div>
+        </div>
+    );
+}
+
+function SchoolItineraryEmptyRoute({ hasPublishedPrograms, pendingRequests = 0, setSection }) {
+    return (
+        <div className="grid min-h-[560px] place-items-center bg-slate-50 p-6 text-center">
+            <div className="max-w-md">
+                <MapPin className="mx-auto text-blue-700" size={28} />
+                <h3 className="mt-4 text-xl font-black text-slate-950">No route to show</h3>
+                <p className="mt-2 text-sm leading-6 text-slate-600">
+                    {pendingRequests > 0
+                        ? 'A route is created after a pending visit request is approved.'
+                        : hasPublishedPrograms
+                            ? 'Choose a published program and submit a visit request. Approved visits become dated route destinations.'
+                            : 'There are no available programs or approved visits yet, so there is no destination to route to.'}
+                </p>
+                <div className="mt-5 flex flex-wrap justify-center gap-2">
+                    {hasPublishedPrograms && <button type="button" onClick={() => setSection?.('events')} className="rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-black text-white">Browse Programs</button>}
+                    <button type="button" onClick={() => setSection?.('bookings')} className="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-700">View Requests</button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function itineraryStopSort(left, right) {
+    const leftTime = itineraryTimestamp(left.date);
+    const rightTime = itineraryTimestamp(right.date);
+
+    if (leftTime !== rightTime) return leftTime - rightTime;
+
+    return Number(left.position || 0) - Number(right.position || 0);
+}
+
+function itineraryTimestamp(value) {
+    const timestamp = value ? new Date(value).getTime() : Number.NaN;
+    return Number.isFinite(timestamp) ? timestamp : 8640000000000000;
+}
+
+function itineraryDateKey(value) {
+    const date = value ? new Date(value) : null;
+    return date && !Number.isNaN(date.getTime()) ? date.toISOString().slice(0, 10) : 'tba';
+}
+
+function itineraryDateLabel(value) {
+    if (value === 'tba') return 'Date TBA';
+
+    return new Date(`${value}T12:00:00`).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function itineraryDateParts(value, fallbackLabel = 'Date TBA') {
+    if (value === 'tba') {
+        return { month: 'TBA', day: '--', weekday: 'Date', label: fallbackLabel };
+    }
+
+    const date = new Date(`${value}T12:00:00`);
+
+    if (Number.isNaN(date.getTime())) {
+        return { month: 'TBA', day: '--', weekday: 'Date', label: fallbackLabel };
+    }
+
+    return {
+        month: date.toLocaleDateString([], { month: 'short' }),
+        day: date.toLocaleDateString([], { day: '2-digit' }),
+        weekday: date.toLocaleDateString([], { weekday: 'short' }),
+        label: fallbackLabel,
+    };
+}
+
+function groupItineraryByDate(stops = []) {
+    return stops.reduce((groups, stop) => {
+        const key = itineraryDateKey(stop.date);
+        const existing = groups.find((group) => group.key === key);
+
+        if (existing) {
+            existing.items.push(stop);
+        } else {
+            groups.push({ key, label: itineraryDateLabel(key), items: [stop] });
+        }
+
+        return groups;
+    }, []);
 }
 
 function liveEventItineraryStop({ id, source, status, students, notes, event }) {
@@ -5043,6 +5222,7 @@ function liveEventItineraryStop({ id, source, status, students, notes, event }) 
         time: event.startsAt ? formatTimeRange(event.startsAt, event.endsAt) : 'Date TBA',
         students,
         status,
+        stopType: source,
         notes,
         latitude,
         longitude,
@@ -5097,7 +5277,6 @@ function SchoolRequestMetric({ label, value, helper, icon: Icon, tone = 'slate' 
         <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex items-start justify-between">
                 <span className={cx('grid h-10 w-10 place-items-center rounded-xl', tones[tone])}><Icon size={18} /></span>
-                <span className="text-xs font-black uppercase text-emerald-600">Live data</span>
             </div>
             <p className="mt-5 text-sm font-semibold text-slate-500">{label}</p>
             <p className="mt-2 text-3xl font-black text-slate-950">{value}</p>
@@ -5112,7 +5291,7 @@ function SchoolRequestPreview({ csrf, request, statusMeta = {}, currentUserId = 
     }
 
     const currentProgress = request.status === 'scheduled' ? 'w-full' : request.status === 'approved' ? 'w-2/3' : request.status === 'declined' ? 'w-1/3 bg-rose-500' : 'w-1/3';
-    const canReview = request.status === 'requested' && request.requesterRole === 'university';
+    const canReview = request.requesterRole === 'university' && ['requested', 'approved', 'declined'].includes(request.status);
     const canCancel = request.status === 'requested' && Number(request.requesterId) === Number(currentUserId);
 
     return (
@@ -5164,7 +5343,16 @@ function SchoolRequestPreview({ csrf, request, statusMeta = {}, currentUserId = 
 
                 <div className="mt-5 flex flex-col gap-2">
                     <button type="button" onClick={() => { onClose?.(); setSection?.('events'); }} className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 hover:bg-slate-50">View Visit Program</button>
-                    {canReview && <div className="grid grid-cols-2 gap-2"><DecisionTextButton csrf={csrf} id={request.id} decision="approved" label="Approve" tone="approve" /><DecisionTextButton csrf={csrf} id={request.id} decision="declined" label="Decline" tone="deny" /></div>}
+                    {canReview && (
+                        <form action={`/visit-requests/${request.id}/decision`} method="POST" className="grid gap-2">
+                            <input type="hidden" name="_token" value={csrf} />
+                            <select name="decision" defaultValue={request.status === 'declined' ? 'declined' : 'approved'} className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-bold text-slate-700">
+                                <option value="approved">Approved</option>
+                                <option value="declined">Declined</option>
+                            </select>
+                            <button className="rounded-xl bg-slate-950 px-4 py-3 text-sm font-black text-white">Save status</button>
+                        </form>
+                    )}
                     {canCancel && (
                         <form action={`/visit-requests/${request.id}/decision`} method="POST">
                             <input type="hidden" name="_token" value={csrf} />
@@ -5193,6 +5381,7 @@ function AdminUniversitiesSection({ csrf, users = [], events = [], registrations
             && (status === 'all' || item.verificationStatus === status)
             && (region === 'all' || item.region === region);
     });
+    const universityPages = usePaginatedItems(filtered, 10, `${query}|${status}|${region}`);
     const selected = universities.find((item) => item.id === selectedId);
     const activeInstitutions = universities.filter((item) => item.accountStatus === 'active').length;
     const pendingVerification = universities.filter((item) => item.verificationStatus === 'unverified').length;
@@ -5227,8 +5416,9 @@ function AdminUniversitiesSection({ csrf, users = [], events = [], registrations
                 </aside>
 
                 <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-                    <div className="flex flex-col gap-3 border-b border-slate-200 p-5 md:flex-row md:items-center md:justify-between"><div><h2 className="text-xl font-black text-slate-950">University Directory</h2><p className="mt-1 text-sm text-slate-500">{filtered.length} result(s), database-backed institution accounts.</p></div><div className="flex flex-wrap gap-2"><button type="button" onClick={() => exportRowsToCsv('universities.csv', [['Name', 'Email', 'Location', 'Programs', 'Bookings', 'Account Status', 'Verification'], ...filtered.map((item) => [item.name, item.email, item.region, item.activePrograms, item.bookings, item.accountStatus, item.verificationStatus])])} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50"><Download size={14} className="inline" /> Export</button><button type="button" onClick={() => setModal({ type: 'create' })} className="rounded-lg bg-slate-950 px-3 py-2 text-xs font-black text-white hover:bg-slate-800"><Plus size={14} className="inline" /> New University</button></div></div>
-                    <div className="overflow-x-auto"><table className="w-full min-w-[1020px] text-left text-sm"><thead className="bg-slate-50 text-[11px] font-black uppercase tracking-[0.08em] text-slate-500"><tr><th className="px-5 py-4">University Name</th><th className="px-5 py-4">Primary Contact</th><th className="px-5 py-4 text-center">Active Programs</th><th className="px-5 py-4 text-center">Total Bookings</th><th className="px-5 py-4">Status</th><th className="px-5 py-4">Verification</th><th className="px-5 py-4 text-right">Actions</th></tr></thead><tbody className="divide-y divide-slate-100">{filtered.map((item) => <tr key={item.id} className="group hover:bg-slate-50"><td className="px-5 py-4"><div className="flex items-center gap-3"><span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-slate-950 text-xs font-black text-white">{item.initials}</span><span><span className="block font-black text-slate-950">{item.name}</span><span className="mt-0.5 block text-xs font-semibold text-slate-500">{item.region}</span></span></div></td><td className="px-5 py-4"><p className="font-bold text-slate-800">{item.contact}</p><p className="mt-1 text-xs text-slate-500">{item.email}</p></td><td className="px-5 py-4 text-center"><button type="button" onClick={() => setSelectedId(item.id)} className="font-black text-blue-700 hover:underline">{item.activePrograms}</button></td><td className="px-5 py-4 text-center font-black text-slate-800">{item.bookings.toLocaleString()}</td><td className="px-5 py-4"><span className={cx('inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-black uppercase', item.accountStatus === 'active' ? 'bg-emerald-50 text-emerald-700' : item.accountStatus === 'suspended' ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-700')}><span className={cx('h-1.5 w-1.5 rounded-full', item.accountStatus === 'active' ? 'bg-emerald-500' : item.accountStatus === 'suspended' ? 'bg-rose-500' : 'bg-amber-500')} />{item.accountStatus}</span></td><td className="px-5 py-4"><span className={cx('inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-black uppercase', item.verificationStatus === 'verified' ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700')}><span className={cx('h-1.5 w-1.5 rounded-full', item.verificationStatus === 'verified' ? 'bg-blue-500' : 'bg-amber-500')} />{item.verificationStatus}</span></td><td className="px-5 py-4 text-right"><div className="flex justify-end gap-1"><button type="button" onClick={() => setSelectedId(item.id)} className="rounded-lg p-2 text-blue-700 hover:bg-blue-50" title="View Profile"><Search size={17} /></button><button type="button" onClick={() => setModal({ type: 'edit', item })} className="rounded-lg p-2 text-slate-600 hover:bg-slate-100" title="Edit Institution"><Edit3 size={17} /></button><form action={`/dashboard/admin/universities/${item.id}/verification`} method="POST"><input type="hidden" name="_token" value={csrf} /><input type="hidden" name="verified" value={item.verificationStatus === 'verified' ? '0' : '1'} /><button className="rounded-lg p-2 text-emerald-700 hover:bg-emerald-50" title="Toggle Verification"><ShieldCheck size={17} /></button></form><button type="button" onClick={() => setModal({ type: 'delete', item })} className="rounded-lg p-2 text-rose-700 hover:bg-rose-50" title="Delete Institution"><Trash2 size={17} /></button></div></td></tr>)}{filtered.length === 0 && <tr><td colSpan="7" className="px-5 py-14 text-center"><EmptyState message="No institution accounts match these filters." /></td></tr>}</tbody></table></div>
+                    <div className="flex flex-col gap-3 border-b border-slate-200 p-5 md:flex-row md:items-center md:justify-between"><div><h2 className="text-xl font-black text-slate-950">University Directory</h2><p className="mt-1 text-sm text-slate-500">{filtered.length} institution account(s).</p></div><div className="flex flex-wrap gap-2"><button type="button" onClick={() => exportRowsToCsv('universities.csv', [['Name', 'Email', 'Location', 'Programs', 'Bookings', 'Account Status', 'Verification'], ...filtered.map((item) => [item.name, item.email, item.region, item.activePrograms, item.bookings, item.accountStatus, item.verificationStatus])])} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50"><Download size={14} className="inline" /> Export</button><button type="button" onClick={() => setModal({ type: 'create' })} className="rounded-lg bg-slate-950 px-3 py-2 text-xs font-black text-white hover:bg-slate-800"><Plus size={14} className="inline" /> New University</button></div></div>
+                    <div className="overflow-x-auto"><table className="w-full min-w-[1020px] text-left text-sm"><thead className="bg-slate-50 text-[11px] font-black uppercase tracking-[0.08em] text-slate-500"><tr><th className="px-5 py-4">University Name</th><th className="px-5 py-4">Primary Contact</th><th className="px-5 py-4 text-center">Active Programs</th><th className="px-5 py-4 text-center">Total Bookings</th><th className="px-5 py-4">Status</th><th className="px-5 py-4">Verification</th><th className="px-5 py-4 text-right">Actions</th></tr></thead><tbody className="divide-y divide-slate-100">{universityPages.items.map((item) => <tr key={item.id} className="group hover:bg-slate-50"><td className="px-5 py-4"><div className="flex items-center gap-3"><span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-slate-950 text-xs font-black text-white">{item.initials}</span><span><span className="block font-black text-slate-950">{item.name}</span><span className="mt-0.5 block text-xs font-semibold text-slate-500">{item.region}</span></span></div></td><td className="px-5 py-4"><p className="font-bold text-slate-800">{item.contact}</p><p className="mt-1 text-xs text-slate-500">{item.email}</p></td><td className="px-5 py-4 text-center"><button type="button" onClick={() => setSelectedId(item.id)} className="font-black text-blue-700 hover:underline">{item.activePrograms}</button></td><td className="px-5 py-4 text-center font-black text-slate-800">{item.bookings.toLocaleString()}</td><td className="px-5 py-4"><span className={cx('inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-black uppercase', item.accountStatus === 'active' ? 'bg-emerald-50 text-emerald-700' : item.accountStatus === 'suspended' ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-700')}><span className={cx('h-1.5 w-1.5 rounded-full', item.accountStatus === 'active' ? 'bg-emerald-500' : item.accountStatus === 'suspended' ? 'bg-rose-500' : 'bg-amber-500')} />{item.accountStatus}</span></td><td className="px-5 py-4"><span className={cx('inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-black uppercase', item.verificationStatus === 'verified' ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700')}><span className={cx('h-1.5 w-1.5 rounded-full', item.verificationStatus === 'verified' ? 'bg-blue-500' : 'bg-amber-500')} />{item.verificationStatus}</span></td><td className="px-5 py-4 text-right"><div className="flex justify-end gap-1"><button type="button" onClick={() => setSelectedId(item.id)} className="rounded-lg p-2 text-blue-700 hover:bg-blue-50" title="View Profile"><Search size={17} /></button><button type="button" onClick={() => setModal({ type: 'edit', item })} className="rounded-lg p-2 text-slate-600 hover:bg-slate-100" title="Edit Institution"><Edit3 size={17} /></button><form action={`/dashboard/admin/universities/${item.id}/verification`} method="POST"><input type="hidden" name="_token" value={csrf} /><input type="hidden" name="verified" value={item.verificationStatus === 'verified' ? '0' : '1'} /><button className="rounded-lg p-2 text-emerald-700 hover:bg-emerald-50" title="Toggle Verification"><ShieldCheck size={17} /></button></form><button type="button" onClick={() => setModal({ type: 'delete', item })} className="rounded-lg p-2 text-rose-700 hover:bg-rose-50" title="Delete Institution"><Trash2 size={17} /></button></div></td></tr>)}{filtered.length === 0 && <tr><td colSpan="7" className="px-5 py-14 text-center"><EmptyState message="No institution accounts match these filters." /></td></tr>}</tbody></table></div>
+                    <PaginationControls pagination={universityPages} label="institution accounts" />
                 </section>
             </section>
 
@@ -5328,6 +5518,8 @@ function AdminSchoolsSection({ csrf, schools = [], schoolAccounts = [], visitReq
     const activeSchoolAccounts = schoolAccounts.filter((account) => account.status === 'active').length;
     const registeredStudentCount = schoolAccounts.reduce((total, account) => total + Number(account.studentCount || 0), 0);
     const registeredCoordinatorCount = schoolAccounts.reduce((total, account) => total + Number(account.coordinatorCount || 0), 0);
+    const accountPages = usePaginatedItems(schoolAccounts, 10);
+    const schoolPages = usePaginatedItems(filtered, 10, `${query}|${status}|${region}|${volume}`);
 
     return (
         <div className="grid gap-6">
@@ -5350,7 +5542,7 @@ function AdminSchoolsSection({ csrf, schools = [], schoolAccounts = [], visitReq
                     <table className="w-full min-w-[960px] text-left text-sm">
                         <thead className="bg-slate-50 text-[11px] font-black uppercase tracking-[0.08em] text-slate-500"><tr><th className="px-5 py-3">School Account</th><th className="px-5 py-3">Primary Coordinator</th><th className="px-5 py-3">Linked Users</th><th className="px-5 py-3">Platform Activity</th><th className="px-5 py-3">Status</th><th className="px-5 py-3 text-right">Actions</th></tr></thead>
                         <tbody className="divide-y divide-slate-100">
-                            {schoolAccounts.map((account) => (
+                            {accountPages.items.map((account) => (
                                 <tr key={account.id} className="hover:bg-slate-50">
                                     <td className="px-5 py-4"><p className="font-black text-slate-950">{account.name}</p><p className="mt-1 text-xs font-semibold text-slate-500">{account.location || 'Location not recorded'}</p></td>
                                     <td className="px-5 py-4"><p className="font-bold text-slate-800">{account.coordinatorName || 'Not assigned'}</p><p className="mt-1 text-xs text-slate-500">{account.coordinatorEmail || 'No coordinator email'}{account.coordinatorPhone ? ` · ${account.coordinatorPhone}` : ''}</p>{(account.coordinators || []).length > 0 && <p className="mt-1 max-w-[260px] truncate text-[10px] font-bold text-slate-400" title={(account.coordinators || []).map((coordinator) => `${coordinator.name} (${coordinator.accessStatus}${coordinator.verified ? ', verified' : ', unverified'})`).join(', ')}>Linked: {(account.coordinators || []).slice(0, 2).map((coordinator) => `${coordinator.name} · ${coordinator.accessStatus}`).join(', ')}</p>}</td>
@@ -5385,7 +5577,7 @@ function AdminSchoolsSection({ csrf, schools = [], schoolAccounts = [], visitReq
                         <table className="w-full min-w-[980px] text-left text-sm">
                             <thead className="bg-slate-50 text-[11px] font-black uppercase tracking-[0.08em] text-slate-500"><tr><th className="px-5 py-4">School Name & Code</th><th className="px-5 py-4">District</th><th className="px-5 py-4">Coordinator</th><th className="px-5 py-4 text-center">Active Students</th><th className="px-5 py-4">Status</th><th className="px-5 py-4 text-right">Actions</th></tr></thead>
                             <tbody className="divide-y divide-slate-100">
-                                {filtered.map((school) => (
+                                {schoolPages.items.map((school) => (
                                     <tr key={school.id} className="group hover:bg-slate-50">
                                         <td className="px-5 py-4"><div className="flex items-center gap-3"><span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-blue-50 text-xs font-black text-blue-700">{school.initials}</span><span><span className="block font-black text-slate-950">{school.name}</span><span className="mt-0.5 block text-xs font-semibold text-slate-500">CODE: {school.code}</span></span></div></td>
                                         <td className="px-5 py-4"><p className="font-bold text-slate-800">{school.district}</p><p className="mt-1 text-xs text-slate-500">{school.city}, {school.country}</p></td>
@@ -5399,7 +5591,7 @@ function AdminSchoolsSection({ csrf, schools = [], schoolAccounts = [], visitReq
                             </tbody>
                         </table>
                     </div>
-                    <div className="flex items-center justify-between border-t border-slate-200 bg-slate-50 px-5 py-4 text-xs font-bold text-slate-500"><span>Showing {filtered.length} of {rows.length} outreach records</span><span>Outreach directory is database-backed</span></div>
+                    <PaginationControls pagination={schoolPages} label="outreach records" className="bg-slate-50" />
                 </div>
 
                 <aside className="space-y-4">
@@ -5409,7 +5601,7 @@ function AdminSchoolsSection({ csrf, schools = [], schoolAccounts = [], visitReq
                         <div className="p-4"><p className="text-xs font-black uppercase text-slate-400">Top Region</p><p className="mt-1 font-black text-slate-950">{topRegion?.name || 'No region yet'}</p><div className="mt-3 h-2 rounded-full bg-slate-100"><div className="h-full rounded-full bg-blue-600" style={{ width: `${topRegion ? Math.min(100, (topRegion.count / Math.max(1, rows.length)) * 100) : 0}%` }} /></div></div>
                     </div>
                     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><h3 className="font-black text-slate-950">Directory Analytics</h3><div className="mt-4 space-y-3"><MiniStat label="Saved Priority Avg." value={`${rows.length ? Math.round(rows.reduce((sum, school) => sum + Number(school.matchScore || 0), 0) / rows.length) : 0}/100`} /><MiniStat label="Visit Requests" value={rows.reduce((sum, school) => sum + Number(school.visitRequests || 0), 0)} /><MiniStat label="Archive Visits" value={rows.reduce((sum, school) => sum + Number(school.archiveVisits || 0), 0)} /></div></div>
-                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm"><Sparkles size={18} className="text-emerald-700" /><h3 className="mt-3 font-black text-slate-950">Admin Insight</h3><p className="mt-2 text-sm leading-6 text-slate-600">{pending > 0 ? `${pending} outreach record(s) need verification.` : 'The outreach directory is verified. Monitor suspended and high-volume records weekly.'}</p></div>
+                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm"><Sparkles size={18} className="text-emerald-700" /><h3 className="mt-3 font-black text-slate-950">Admin Notes</h3><p className="mt-2 text-sm leading-6 text-slate-600">{pending > 0 ? `${pending} outreach record(s) need verification.` : 'The outreach directory is verified. Monitor suspended and high-volume records weekly.'}</p></div>
                 </aside>
             </section>
 
@@ -5544,6 +5736,7 @@ function AdminVisitActivitySection({ csrf, events = [], visitRequests = [], regi
 
         return matchesTab && (!query || haystack.includes(query.toLowerCase()));
     });
+    const activityPages = usePaginatedItems(filtered, 12, `${tab}|${query}`);
     const selected = rows.find((row) => row.id === selectedId);
     const urgentRows = rows.filter((row) => row.severity === 'urgent');
     const warningRows = rows.filter((row) => row.severity === 'warning');
@@ -5561,6 +5754,8 @@ function AdminVisitActivitySection({ csrf, events = [], visitRequests = [], regi
         ...filtered.map((row) => [row.idLabel, row.university, row.school, row.dateLabel, row.attendees, row.status, row.location]),
     ]);
     const topRegion = filtered.find((row) => row.location)?.location || rows.find((row) => row.location)?.location || 'United States';
+    const canApproveRequest = (row) => row.requestId && ['requested', 'declined'].includes(row.status);
+    const canDeclineRequest = (row) => row.requestId && ['requested', 'approved'].includes(row.status);
 
     return (
         <div className="grid gap-6">
@@ -5618,21 +5813,21 @@ function AdminVisitActivitySection({ csrf, events = [], visitRequests = [], regi
                         <table className="w-full min-w-[920px] text-left text-sm">
                             <thead className="bg-slate-50 text-[11px] font-black uppercase tracking-[0.08em] text-slate-500"><tr><th className="px-5 py-4">ID & University</th><th className="px-5 py-4">School</th><th className="px-5 py-4">Visit Date</th><th className="px-5 py-4">Attendees</th><th className="px-5 py-4">Status</th><th className="px-5 py-4 text-right">Actions</th></tr></thead>
                             <tbody className="divide-y divide-slate-100">
-                                {filtered.map((row) => (
+                                {activityPages.items.map((row) => (
                                     <tr key={row.id} className={cx('group hover:bg-slate-50', row.severity === 'urgent' && 'border-l-4 border-rose-600')}>
                                         <td className="px-5 py-4"><p className={cx('font-black', row.severity === 'urgent' ? 'text-rose-700' : 'text-blue-700')}>{row.idLabel}</p><p className="mt-1 text-sm font-semibold text-slate-700">{row.university}</p></td>
                                         <td className="px-5 py-4 text-slate-600">{row.school}</td>
                                         <td className="px-5 py-4"><p className={cx('font-black', row.severity === 'urgent' ? 'text-rose-700' : 'text-slate-900')}>{row.dateLabel}</p><p className="mt-1 text-[10px] font-bold uppercase text-slate-400">{row.timeLabel}</p></td>
                                         <td className="px-5 py-4 font-black text-slate-800">{Number(row.attendees || 0).toLocaleString()}</td>
                                         <td className="px-5 py-4"><AdminVisitStatusBadge status={row.status} /></td>
-                                        <td className="px-5 py-4 text-right"><div className="flex justify-end gap-1"><button type="button" onClick={() => setSelectedId(row.id)} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"><MoreVertical size={17} /></button>{row.requestId && row.status === 'requested' && <><AdminVisitDecisionForm csrf={csrf} requestId={row.requestId} decision="approved" label="Approve" /><AdminVisitDecisionForm csrf={csrf} requestId={row.requestId} decision="declined" label="Decline" /></>}</div></td>
+                                        <td className="px-5 py-4 text-right"><div className="flex justify-end gap-1"><button type="button" onClick={() => setSelectedId(row.id)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-black text-slate-600 hover:bg-slate-100">Details</button>{canApproveRequest(row) && <AdminVisitDecisionForm csrf={csrf} requestId={row.requestId} decision="approved" label="Approve" />}{canDeclineRequest(row) && <AdminVisitDecisionForm csrf={csrf} requestId={row.requestId} decision="declined" label="Decline" />}</div></td>
                                     </tr>
                                 ))}
                                 {filtered.length === 0 && <tr><td colSpan="6" className="px-5 py-14 text-center"><EmptyState message="No visit activity matches this view." /></td></tr>}
                             </tbody>
                         </table>
                     </div>
-                    <div className="flex items-center justify-between border-t border-slate-200 bg-slate-50 px-5 py-4 text-xs font-bold text-slate-500"><span>Showing {filtered.length} of {rows.length} records</span><span>Live database records</span></div>
+                    <PaginationControls pagination={activityPages} label="records" className="bg-slate-50" />
                 </section>
             </section>
 
@@ -5677,7 +5872,19 @@ function AdminVisitActivityDrawer({ row, onClose, csrf }) {
                 <div className="mt-5 grid grid-cols-2 gap-3"><MiniStat label="Attendees" value={row.attendees} /><MiniStat label="Priority" value={row.priority} /><MiniStat label="Status" value={row.status} /><MiniStat label="Source" value={row.source} /></div>
                 <section className="mt-5 rounded-xl border border-slate-200 p-4"><p className="text-xs font-black uppercase tracking-[0.12em] text-slate-400">Location</p><p className="mt-2 font-black text-slate-950">{row.location || 'Location TBA'}</p><div className="mt-3"><OpenStreetMapEmbed location={row.location || row.school || row.university} points={[{ label: row.title, location: row.location || row.school, latitude: row.latitude, longitude: row.longitude, meta: `${row.dateLabel} • ${row.attendees} attendee(s)` }]} title={`${row.title} visit activity location`} className="h-40" /></div></section>
                 <section className="mt-5 rounded-xl border border-slate-200 p-4"><p className="text-xs font-black uppercase tracking-[0.12em] text-slate-400">Logistics Notes</p><p className="mt-2 text-sm leading-6 text-slate-600">{row.notes || row.alertBody || 'No additional logistics notes on this record.'}</p></section>
-                {row.requestId && row.status === 'requested' && <section className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4"><p className="font-black text-slate-950">Pending request decision</p><div className="mt-4 flex gap-2"><AdminVisitDecisionForm csrf={csrf} requestId={row.requestId} decision="approved" label="Approve" /><AdminVisitDecisionForm csrf={csrf} requestId={row.requestId} decision="declined" label="Decline" /></div></section>}
+                {row.requestId && ['requested', 'approved', 'declined'].includes(row.status) && (
+                    <section className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4">
+                        <p className="font-black text-slate-950">Update request status</p>
+                        <form action={`/visit-requests/${row.requestId}/decision`} method="POST" className="mt-4 grid gap-2">
+                            <input type="hidden" name="_token" value={csrf} />
+                            <select name="decision" defaultValue={row.status === 'declined' ? 'declined' : 'approved'} className="rounded-xl border border-amber-200 bg-white px-3 py-3 text-sm font-bold text-slate-700">
+                                <option value="approved">Approved</option>
+                                <option value="declined">Declined</option>
+                            </select>
+                            <button className="rounded-xl bg-slate-950 px-4 py-3 text-sm font-black text-white">Save status</button>
+                        </form>
+                    </section>
+                )}
             </aside>
         </div>
     );
@@ -5773,6 +5980,7 @@ function AdminUsersAccessSection({ csrf, users = [], schoolAccounts = [], errors
             && (role === 'all' || user.role === role)
             && (status === 'all' || user.accessStatus === status);
     });
+    const userPages = usePaginatedItems(filtered, 10, `${query}|${role}|${status}`);
     const selected = rows.find((user) => Number(user.id) === Number(selectedId));
     const roleCounts = rows.reduce((counts, user) => ({ ...counts, [user.role]: (counts[user.role] || 0) + 1 }), {});
     const activeCount = rows.filter((user) => user.accessStatus === 'active').length;
@@ -5814,7 +6022,7 @@ function AdminUsersAccessSection({ csrf, users = [], schoolAccounts = [], errors
                                 <tr><th className="px-5 py-4">User</th><th className="px-5 py-4">Role</th><th className="px-5 py-4">Institution / School</th><th className="px-5 py-4">Security</th><th className="px-5 py-4">Access</th><th className="px-5 py-4 text-right">Actions</th></tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
-                                {filtered.map((user) => (
+                                {userPages.items.map((user) => (
                                     <tr key={user.id} className="group hover:bg-slate-50">
                                         <td className="px-5 py-4"><div className="flex items-center gap-3"><span className={cx('grid h-11 w-11 shrink-0 place-items-center rounded-xl text-xs font-black', user.role === 'admin' ? 'bg-slate-950 text-white' : 'bg-blue-50 text-blue-700')}>{user.initials}</span><span><span className="block font-black text-slate-950">{user.name}</span><span className="mt-0.5 block text-xs font-semibold text-slate-500">{user.email}</span></span></div></td>
                                         <td className="px-5 py-4"><span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-black uppercase text-slate-600">{user.roleLabel}</span></td>
@@ -5828,7 +6036,7 @@ function AdminUsersAccessSection({ csrf, users = [], schoolAccounts = [], errors
                             </tbody>
                         </table>
                     </div>
-                    <div className="flex items-center justify-between border-t border-slate-200 bg-slate-50 px-5 py-4 text-xs font-bold text-slate-500"><span>Showing {filtered.length} of {rows.length} users</span><button type="button" onClick={reset} className="font-black text-blue-700">Reset filters</button></div>
+                    <PaginationControls pagination={userPages} label="users" className="bg-slate-50" />
                 </div>
 
                 <aside className="space-y-4">
@@ -5970,8 +6178,8 @@ function AdminAnalyticsSection({ analytics = {}, users = [], events = [], regist
             <section className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                 <div>
                     <p className="text-xs font-black uppercase tracking-[0.16em] text-blue-700">Master admin analytics</p>
-                    <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-950">Platform Intelligence</h1>
-                    <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">Deep-dive analytics across conversion funnels, visit activity, access, communication, and market engagement using live database records.</p>
+                    <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-950">Platform Analytics</h1>
+                    <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">Deep-dive analytics across conversion funnels, visit activity, access, communication, and market engagement.</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                     <span className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-700">All Available Records</span>
@@ -6145,7 +6353,7 @@ function AdminSystemHealthSection({ health = {} }) {
     const warningCount = checks.filter((item) => item.status === 'warning').length;
 
     const exportAudit = () => exportRowsToCsv('system-health-audit.csv', [
-        ['Generated At', health.generatedAt || new Date().toISOString()],
+        ['Updated At', health.generatedAt || new Date().toISOString()],
         ['Readiness Score', score],
         ['Readiness Status', status],
         [],
@@ -6162,7 +6370,7 @@ function AdminSystemHealthSection({ health = {} }) {
                 <div>
                     <p className="text-xs font-black uppercase tracking-[0.16em] text-blue-700">Operational readiness</p>
                     <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-950">Readiness & Audit Hub</h1>
-                    <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">Configuration and runtime checks are generated by Laravel from the current database, storage, queue, mail, session, log, and server settings.</p>
+                    <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">Review current storage, queue, mail, session, log, and server settings.</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                     <form action="/dashboard/admin" method="GET"><button className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-black text-white"><RefreshCcw size={16} /> Refresh Checks</button></form>
@@ -6188,7 +6396,7 @@ function AdminSystemHealthSection({ health = {} }) {
                         <div className="flex items-center justify-between gap-3">
                             <div>
                                 <h2 className="text-xl font-black text-slate-950">Configuration and Runtime Checks</h2>
-                                <p className="mt-1 text-sm text-slate-500">Generated at {formatDateTime(health.generatedAt)} from current application configuration and direct runtime checks.</p>
+                                <p className="mt-1 text-sm text-slate-500">Updated {formatDateTime(health.generatedAt)} from current application settings and runtime checks.</p>
                             </div>
                             <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black uppercase text-slate-600">{checks.length} checks</span>
                         </div>
@@ -6207,7 +6415,7 @@ function AdminSystemHealthSection({ health = {} }) {
                         <div className="flex items-center justify-between gap-3">
                             <div>
                                 <h2 className="text-xl font-black text-slate-950">Audit Activity</h2>
-                                <p className="mt-1 text-sm text-slate-500">Recent users, visit programs, requests, and notifications from the database.</p>
+                                <p className="mt-1 text-sm text-slate-500">Recent users, visit programs, requests, and notifications.</p>
                             </div>
                             <button type="button" onClick={exportAudit} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50">Export</button>
                         </div>
@@ -6337,7 +6545,7 @@ function AdminWaitlistSection({ csrf, waitlist = {}, errors = {} }) {
                 <div className="flex items-center justify-between gap-4 border-b border-slate-100 p-5">
                     <div>
                         <h2 className="text-lg font-black text-slate-950">Recent signups</h2>
-                        <p className="mt-1 text-sm text-slate-500">Latest 50 waitlist records from the database.</p>
+                        <p className="mt-1 text-sm text-slate-500">Latest 50 waitlist records.</p>
                     </div>
                 </div>
                 <div className="overflow-x-auto">
@@ -6499,7 +6707,7 @@ function AdminSettingsSection({ csrf, settings = {}, profile = {}, errors = {} }
                                 <span className="grid h-10 w-10 place-items-center rounded-xl bg-white text-amber-700"><Database size={18} /></span>
                                 <div>
                                     <h2 className="text-lg font-black text-slate-950">Demo Data</h2>
-                                    <p className="mt-1 text-sm leading-6 text-slate-700">Populate or clear database demo records for admin, university, school, and student portals. Waitlist records are never changed.</p>
+                                    <p className="mt-1 text-sm leading-6 text-slate-700">Populate or clear demo content for admin, university, school, and student portals. Waitlist records are never changed.</p>
                                 </div>
                             </div>
                             <div className="mt-5 grid gap-3">
@@ -6669,7 +6877,7 @@ function AdminPlatformOverviewSection({ users = [], events = [], registrations =
                     </section>
 
                     <section className="rounded-2xl border border-blue-100 bg-blue-50 p-5">
-                        <h2 className="text-lg font-black text-slate-950">Platform Intelligence</h2>
+                        <h2 className="text-lg font-black text-slate-950">Platform Analytics</h2>
                         <p className="mt-2 text-sm leading-6 text-slate-600">{analytics?.insights?.[0]?.body || `${activeSchools} school(s) and ${institutionRows.length} institution(s) are currently represented in platform activity.`}</p>
                         <button type="button" onClick={() => setSection?.('analytics')} className="mt-4 rounded-xl bg-slate-950 px-4 py-3 text-sm font-black text-white">Open Analytics</button>
                     </section>
@@ -7273,14 +7481,14 @@ function SchoolStudentsSection({ csrf, events = [], students = [], visitRequests
             <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                 <div>
                     <h1 className="text-2xl font-black text-slate-950 md:text-3xl">Student Directory</h1>
-                    <p className="mt-1 text-sm text-slate-500">Manage and assign {rows.length.toLocaleString()} active student profiles.</p>
+                    <p className="mt-1 text-sm text-slate-500">Add or import students, send setup invites, then assign selected students to approved visits.</p>
                 </div>
                 <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-3">
                     <button type="button" onClick={() => setModal({ type: 'bulk' })} className="inline-flex items-center justify-center gap-2 rounded-xl border border-blue-200 bg-white px-3 py-2 text-xs font-black text-blue-700 shadow-sm hover:bg-blue-50 md:px-4 md:py-2.5 md:text-sm">
                         <Upload size={15} /> Bulk Upload (CSV)
                     </button>
                     <button type="button" onClick={() => setModal({ type: 'add' })} className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-3 py-2 text-xs font-black text-white shadow-sm hover:bg-slate-800 md:px-4 md:py-2.5 md:text-sm">
-                        <Plus size={15} /> Add Student Manually
+                        <Plus size={15} /> Add & Invite Student
                     </button>
                 </div>
             </div>
@@ -7548,7 +7756,7 @@ function StudentForm({ csrf, action, method = 'POST', student = {}, errors = {},
             </div>
             <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))} className="hidden">Cancel</button>
-                <button className="rounded-lg bg-slate-950 px-4 py-2 text-sm font-black text-white">{method === 'POST' ? 'Add Student' : 'Save Changes'}</button>
+                <button className="rounded-lg bg-slate-950 px-4 py-2 text-sm font-black text-white">{method === 'POST' ? 'Send Invite' : 'Save Changes'}</button>
             </div>
         </form>
     );
@@ -7667,7 +7875,7 @@ function SchoolExploreUniversitiesSection({ events = [], setSection }) {
                             </span>
                             <span className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-600">{publishedVisitCount} published program(s)</span>
                         </div>
-                        <p className="text-xs font-semibold text-slate-500">Every row is built from a current published campus event.</p>
+                        <p className="text-xs font-semibold text-slate-500">Showing current published campus events.</p>
                     </div>
 
                     <div className="hidden bg-slate-50 px-5 py-3 text-[11px] font-black uppercase tracking-wide text-slate-400 lg:grid lg:grid-cols-[1.6fr_1fr_1fr_120px_1.2fr_150px]">
@@ -7763,7 +7971,7 @@ function SchoolExploreUniversitiesSection({ events = [], setSection }) {
                     </section>
 
                     <section className="rounded-2xl bg-slate-950 p-5 text-white shadow-sm">
-                        <div className="flex items-center gap-2 text-emerald-300"><Sparkles size={18} /><span className="text-xs font-black uppercase">Suggested Next Action</span></div>
+                        <div className="flex items-center gap-2 text-emerald-300"><Sparkles size={18} /><span className="text-xs font-black uppercase">Next Action</span></div>
                         <p className="mt-3 text-sm font-semibold leading-6">Build a visit request around the top shortlisted institutions, then invite students by program interest.</p>
                         <button type="button" onClick={() => setSection?.('events')} className="mt-4 rounded-lg bg-white px-4 py-2 text-xs font-black text-slate-950">Open Available Visits</button>
                     </section>
@@ -8600,7 +8808,7 @@ function SecurityAccessSection({ csrf, profile = {}, errors = {}, role = 'user' 
         <div className="grid gap-4 md:gap-6">
             <section>
                 <h1 className="text-2xl font-black text-slate-950 md:text-3xl">Settings</h1>
-                <p className="mt-1 max-w-3xl text-sm font-semibold leading-6 text-slate-500 md:mt-2">Manage authentication, recovery settings, and database-backed sessions for {user.email || 'this account'}.</p>
+                <p className="mt-1 max-w-3xl text-sm font-semibold leading-6 text-slate-500 md:mt-2">Manage authentication, recovery settings, and active sessions for {user.email || 'this account'}.</p>
             </section>
 
             <section className="grid grid-cols-2 gap-2 md:grid-cols-3 md:gap-4">
@@ -8683,7 +8891,7 @@ function SecurityAccessSection({ csrf, profile = {}, errors = {}, role = 'user' 
                         </div>
                         <div className="divide-y divide-slate-100">
                             {sessions.length === 0 ? (
-                                <p className="p-5 text-sm font-semibold text-slate-500">No active database sessions found.</p>
+                                <p className="p-5 text-sm font-semibold text-slate-500">No active sessions found.</p>
                             ) : sessions.map((session) => (
                                 <article key={session.id} className="flex gap-3 p-4 md:gap-4 md:p-5">
                                     <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-slate-100 text-slate-600 md:h-11 md:w-11">
@@ -9073,7 +9281,7 @@ function UniversityAttendeesSection({ csrf, registrations = [], events = [] }) {
                 </div>
             </section>
 
-            <section className="grid gap-3 lg:grid-cols-[1.7fr_1fr] md:gap-4">
+            <section className="grid gap-3 md:gap-4">
                 <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm md:p-5">
                     <p className="text-xs font-black uppercase tracking-wide text-slate-500">Quick Filters</p>
                     <div className="mt-3 grid gap-2 md:mt-4 md:grid-cols-2 md:gap-3 xl:grid-cols-4">
@@ -9117,15 +9325,6 @@ function UniversityAttendeesSection({ csrf, registrations = [], events = [] }) {
                             <button className="rounded-xl bg-[#006a61] px-4 py-2.5 text-sm font-black text-white">Apply Bulk Action</button>
                         </form>
                     )}
-                </div>
-                <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm md:p-5">
-                    <div className="flex items-center gap-2">
-                        <ClipboardCheck size={18} className="text-emerald-700" />
-                        <p className="text-xs font-black uppercase tracking-wide text-emerald-800">Roster Summary</p>
-                    </div>
-                    <p className="mt-3 text-sm leading-6 text-emerald-900">Highest attendee concentration is <span className="font-black">{topInterest}</span>. Use this to plan faculty coverage, lab guides, and follow-up messaging.</p>
-                    <p className="mt-2 text-xs font-bold text-emerald-800">{waitlistedSeats.toLocaleString()} waitlisted seat(s) visible for promotion tracking. Attendance marked: {Math.round((attendedSeats / Math.max(1, confirmedSeats)) * 100)}%.</p>
-                    <button type="button" onClick={() => setProgram('all')} className="mt-4 inline-flex items-center gap-2 text-sm font-black text-emerald-800">Review full roster <ArrowRight size={15} /></button>
                 </div>
             </section>
 
@@ -9831,9 +10030,12 @@ function normalizeCanonicalStudentVisit(record, bucket) {
         location: event.location || null,
         venue: event.venue || null,
         university: event.university?.name || event.university_name || null,
+        school: record?.school || null,
         capacity: Number(event.capacity || 0),
         eventStatus: event.status || null,
         status: checkedIn ? 'attended' : (record?.status || 'confirmed'),
+        consentStatus: record?.consent_status || 'not_required',
+        confirmed_at: record?.student_confirmed_at || record?.confirmed_at || null,
         checked_in_at: record?.checked_in_at || null,
         checked_out_at: record?.checked_out_at || null,
         participationType: record?.participation_type || null,
@@ -9911,6 +10113,22 @@ function StudentVisitsSection({ csrf, compact = false, userId }) {
         setMessage('');
         setError('');
     };
+    const confirmVisit = async (visit) => {
+        setMessage('');
+        setError('');
+        const type = visit.participationType === 'school_assignment' ? 'school-assignment' : 'self';
+        try {
+            const payload = await apiRequest(`/api/v1/student/visits/${type}/${visit.participationId}/confirm`, { method: 'POST' });
+            const confirmedAt = payload?.data?.student_confirmed_at || new Date().toISOString();
+            const consentStatus = payload?.data?.consent_status || visit.consentStatus;
+            const updated = { ...visit, confirmed_at: confirmedAt, consentStatus };
+            persistVisits(visits.map((row) => row.id === visit.id ? updated : row));
+            setSelected(updated);
+            setMessage('Attendance confirmed.');
+        } catch (requestError) {
+            setError(requestError.message || 'Unable to confirm this visit.');
+        }
+    };
 
     const attended = visits.filter((visit) => visit.status === 'attended').length;
     const confirmed = visits.filter((visit) => visit.status === 'confirmed').length;
@@ -9926,6 +10144,7 @@ function StudentVisitsSection({ csrf, compact = false, userId }) {
                 message={message}
                 error={error}
                 onBack={() => setSelected(null)}
+                onConfirm={() => confirmVisit(selected)}
             />
         );
     }
@@ -10019,7 +10238,7 @@ function StudentItineraryDashboardSection({ userId }) {
     const visitsWithItinerary = useMemo(() => visits
         .filter(isUpcomingStudentVisit)
         .map((visit) => ({ ...visit, itinerary: [...(visit.itinerary || [])].sort((left, right) => new Date(left.start_time || 0) - new Date(right.start_time || 0)) }))
-        .filter((visit) => visit.itinerary.length > 0), [visits]);
+        .filter((visit) => visit.itinerary.length > 0 || visit.location || visit.venue), [visits]);
     useEffect(() => {
         if (!visitsWithItinerary.length) return;
         const current = visitsWithItinerary.find((visit) => visit.id === selectedVisitId);
@@ -10030,6 +10249,29 @@ function StudentItineraryDashboardSection({ userId }) {
     }, [visitsWithItinerary, selectedVisitId]);
     const selectedVisit = visitsWithItinerary.find((visit) => visit.id === selectedVisitId) || visitsWithItinerary[0] || null;
     const selectedItems = selectedVisit?.itinerary || [];
+    const schoolLocation = selectedVisit?.school?.location || [selectedVisit?.school?.address, selectedVisit?.school?.city, selectedVisit?.school?.state, selectedVisit?.school?.country].filter(Boolean).join(', ');
+    const routeOrigin = selectedVisit && schoolLocation ? {
+        id: `school-${selectedVisit.school?.id || selectedVisit.id}`,
+        title: selectedVisit.school?.name || 'Your school',
+        location: schoolLocation,
+    } : null;
+    const locationStops = selectedItems
+        .filter((item) => item.location || item.venue)
+        .map((item) => ({
+            id: item.id,
+            title: item.title || 'Itinerary stop',
+            location: item.location || item.venue,
+            venue: item.venue,
+            latitude: item.latitude,
+            longitude: item.longitude,
+        }));
+    const routeDestination = locationStops[locationStops.length - 1] || (selectedVisit && (selectedVisit.location || selectedVisit.venue) ? {
+        id: `event-${selectedVisit.eventId || selectedVisit.id}`,
+        title: selectedVisit.title || 'Program location',
+        location: selectedVisit.location || selectedVisit.venue,
+        venue: selectedVisit.venue,
+    } : null);
+    const routeWaypoints = routeOrigin && locationStops.length > 1 ? locationStops.slice(0, -1) : [];
     const nextItem = selectedItems.find((item) => itineraryItemState(item) !== 'completed') || selectedItems[selectedItems.length - 1] || null;
     const visitDates = visitsWithItinerary.map((visit) => ({
         id: visit.id,
@@ -10067,7 +10309,7 @@ function StudentItineraryDashboardSection({ userId }) {
                     <div>
                         <p className="text-xs font-black uppercase tracking-[0.14em] text-[#006a61]">Student portal</p>
                         <h1 className="mt-0.5 text-xl font-black text-slate-950 md:text-2xl">Daily Itinerary</h1>
-                        <p className="mt-1 hidden max-w-2xl text-sm font-semibold leading-6 text-slate-500 sm:block">Shared schedules from your assigned campus visits. This uses the same database records seen by your school and university.</p>
+                        <p className="mt-1 hidden max-w-2xl text-sm font-semibold leading-6 text-slate-500 sm:block">Shared schedules from your assigned campus visits.</p>
                     </div>
                     <button type="button" onClick={loadVisits} disabled={loading} className="shrink-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 disabled:opacity-60 md:px-4 md:py-2.5 md:text-sm">
                         {loading ? '...' : 'Refresh'}
@@ -10082,7 +10324,7 @@ function StudentItineraryDashboardSection({ userId }) {
                     {[1, 2].map((item) => <div key={item} className="h-44 animate-pulse rounded-3xl border border-slate-200 bg-white shadow-sm" />)}
                 </div>
             ) : visitsWithItinerary.length === 0 ? (
-                <EmptyState title="No itinerary shared yet" message="When your school or university publishes itinerary items, they will appear here automatically." />
+                <EmptyState title="No itinerary available" message="When you are assigned to a visit with a program location, your route and schedule will appear here." />
             ) : (
                 <>
                     <section className="rounded-3xl border border-slate-200 bg-white p-3 shadow-sm md:p-4">
@@ -10150,9 +10392,30 @@ function StudentItineraryDashboardSection({ userId }) {
                                 <div>
                                     <p className="text-xs font-black uppercase tracking-[0.14em] text-[#006a61]">Selected visit</p>
                                     <h2 className="mt-1 text-lg font-black text-slate-950 md:text-xl">{selectedVisit.title || 'Campus visit'}</h2>
+                                    {selectedVisit.school?.name && <p className="mt-2 inline-flex w-fit items-center gap-2 rounded-xl bg-blue-50 px-3 py-1.5 text-xs font-black text-blue-700"><School size={14} /> Registered under {selectedVisit.school.name}</p>}
                                     <p className="mt-1 text-sm font-semibold text-slate-500">{formatDateTime(selectedVisit.starts_at || selectedVisit.date)} · {selectedVisit.location || selectedVisit.venue || 'Location TBA'}</p>
                                 </div>
                                 <StudentVisitStatusBadge status={selectedVisit.status} />
+                            </div>
+
+                            <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200">
+                                {routeOrigin && routeDestination ? (
+                                    <InAppDirectionsMap
+                                        origin={routeOrigin}
+                                        destination={routeDestination}
+                                        waypoints={routeWaypoints}
+                                        title={`${selectedVisit.school?.name || 'School'} to ${selectedVisit.title || 'program'} route`}
+                                        className="min-h-[760px] rounded-none border-0 lg:h-[560px] lg:min-h-0"
+                                    />
+                                ) : (
+                                    <div className="grid min-h-[280px] place-items-center bg-slate-50 p-6 text-center">
+                                        <div>
+                                            <MapPin className="mx-auto text-slate-300" size={32} />
+                                            <p className="mt-3 font-black text-slate-950">Route not ready</p>
+                                            <p className="mt-1 text-sm font-semibold text-slate-500">A school address and program location are needed before live directions can be shown.</p>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                             <StudentItineraryTimeline items={selectedItems} enhanced />
@@ -10174,8 +10437,8 @@ function StudentItineraryDashboardSection({ userId }) {
                                         <p className="mt-1 font-black text-slate-950">{selectedVisit.location || selectedVisit.venue || 'Location TBA'}</p>
                                     </div>
                                     <div className="rounded-2xl bg-slate-50 px-3 py-3">
-                                        <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">Group</p>
-                                        <p className="mt-1 font-black text-slate-950">{selectedVisit.school_group || selectedVisit.student?.name || 'Direct assignment'}</p>
+                                        <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">School</p>
+                                        <p className="mt-1 font-black text-slate-950">{selectedVisit.school?.name || selectedVisit.school_group || 'Not linked'}</p>
                                     </div>
                                     <div className="rounded-2xl bg-slate-50 px-3 py-3">
                                         <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">Schedule items</p>
@@ -10251,6 +10514,7 @@ function StudentProfileSection({ csrf, profile = {}, registrations = [], errors 
                         <div className="mt-3 flex flex-wrap gap-2">
                             <span className="inline-flex items-center gap-1 rounded-xl bg-slate-50 px-3 py-1.5 text-xs font-black text-slate-600"><ShieldCheck size={14} /> {user.emailVerified ? 'Email verified' : 'Email pending'}</span>
                             <span className="inline-flex items-center gap-1 rounded-xl bg-slate-50 px-3 py-1.5 text-xs font-black text-slate-600"><UsersRound size={14} /> {titleCase(user.role || 'student')}</span>
+                            {user.schoolName && <span className="inline-flex items-center gap-1 rounded-xl bg-blue-50 px-3 py-1.5 text-xs font-black text-blue-700"><School size={14} /> {user.schoolName}</span>}
                         </div>
                     </div>
                     <button type="button" onClick={loadVisits} disabled={loading} className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-black text-slate-700 disabled:opacity-60">
@@ -10283,7 +10547,7 @@ function StudentProfileSection({ csrf, profile = {}, registrations = [], errors 
                         <div className="mt-4 grid gap-4 md:grid-cols-3">
                             <LightField label="Student ID" name="student_identifier" defaultValue={value('student_identifier', user.studentIdentifier)} error={errors.student_identifier?.[0]} />
                             <LightField label="Grade level" name="grade_level" defaultValue={value('grade_level', user.gradeLevel)} error={errors.grade_level?.[0]} />
-                            <LightField label="Interest / intended major" name="interest_major" defaultValue={value('interest_major', user.interestMajor)} error={errors.interest_major?.[0]} />
+                            <LightField label="Subject or career interest" name="interest_major" defaultValue={value('interest_major', user.interestMajor)} error={errors.interest_major?.[0]} />
                         </div>
                     </section>
 
@@ -10377,6 +10641,7 @@ function StudentVisitCard({ visit, onClick }) {
                         <div className="hidden shrink-0 md:block"><StudentVisitStatusBadge status={status} /></div>
                     </div>
                     <p className="mt-0.5 truncate text-xs font-bold text-slate-500 md:text-sm">{visit.university || visit.host || 'University visit'}</p>
+                    {visit.school?.name && <p className="mt-1 truncate text-xs font-black text-blue-700">Registered under {visit.school.name}</p>}
                 </div>
                 <div className="md:hidden"><StudentVisitStatusBadge status={status} /></div>
             </div>
@@ -10394,7 +10659,8 @@ function StudentVisitCard({ visit, onClick }) {
     );
 }
 
-function StudentVisitDetails({ visit, loading, message, error, onBack }) {
+function StudentVisitDetails({ visit, loading, message, error, onBack, onConfirm }) {
+    const canConfirm = !visit.confirmed_at && !['cancelled', 'declined', 'rejected', 'attended'].includes(visit.status);
     return (
         <section className="grid gap-4 md:gap-5">
             <button type="button" onClick={onBack} className="w-fit rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-black text-slate-700">Back to visits</button>
@@ -10407,12 +10673,18 @@ function StudentVisitDetails({ visit, loading, message, error, onBack }) {
                         <div className="mt-4 flex flex-col gap-2 text-sm font-semibold text-slate-500 sm:flex-row sm:flex-wrap">
                             <span className="inline-flex items-center gap-2"><CalendarDays size={16} /> {formatDateTime(visit.starts_at || visit.date)}</span>
                             <span className="inline-flex items-center gap-2"><MapPin size={16} /> {visit.location || visit.venue || 'Location TBA'}</span>
+                            {visit.school?.name && <span className="inline-flex items-center gap-2"><School size={16} /> Registered under {visit.school.name}</span>}
                         </div>
                     </div>
                     <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
                         <p className="text-xs font-black uppercase tracking-wide text-slate-400">Current status</p>
                         <div className="mt-3"><StudentVisitStatusBadge status={visit.status} /></div>
                         <p className="mt-3 text-xs font-bold leading-5 text-slate-500">Attendance is managed by your school and the visit host.</p>
+                        <div className="mt-3 grid gap-2 text-xs font-bold text-slate-600">
+                            <span>Student confirmation: {visit.confirmed_at ? formatShortDate(visit.confirmed_at) : 'Not confirmed'}</span>
+                            <span>Consent status: {titleCase(visit.consentStatus || 'not_required')}</span>
+                        </div>
+                        {canConfirm && <button type="button" onClick={onConfirm} className="mt-4 w-full rounded-xl bg-[#006a61] px-3 py-2.5 text-xs font-black text-white">Confirm attendance</button>}
                     </div>
                 </div>
                 {loading && <p className="mt-4 rounded-xl bg-blue-50 px-4 py-3 text-sm font-bold text-blue-800">Loading visit details...</p>}
@@ -11376,6 +11648,10 @@ function openStreetMapEmbedUrl(location) {
 
 const knownMapCoordinates = {
     'United States': [39.8283, -98.5795],
+    '123 Education': [41.8781, -87.6298],
+    Cityville: [41.8781, -87.6298],
+    'Admissions Welcome Center': [41.7897, -87.5997],
+    'Main Campus': [41.7897, -87.5997],
     'Pacific Northwest': [45.5152, -122.6784],
     Northeast: [42.3601, -71.0589],
     South: [30.2672, -97.7431],
@@ -11392,10 +11668,15 @@ const knownMapCoordinates = {
 };
 
 function coordinatesForLocation(location, index = 0) {
-    const label = String(location || '').toLowerCase();
-    const exact = Object.entries(knownMapCoordinates).find(([key]) => label.includes(key.toLowerCase()));
-    const base = exact ? exact[1] : knownMapCoordinates['United States'];
+    const base = knownCoordinateMatch(location) || knownMapCoordinates['United States'];
     return [base[0] + index * 0.025, base[1] + index * 0.025];
+}
+
+function knownCoordinateMatch(location) {
+    const label = String(location || '').toLowerCase();
+    return Object.entries(knownMapCoordinates)
+        .sort(([left], [right]) => (right === 'United States' ? -1 : right.length) - (left === 'United States' ? -1 : left.length))
+        .find(([key]) => label.includes(key.toLowerCase()))?.[1] || null;
 }
 
 function safeCoordinate(value) {
@@ -11422,6 +11703,338 @@ function normalizeMapPoints({ points = [], location, title }) {
             longitude: coords[1],
         };
     });
+}
+
+function exactCoordinatePair(point = {}) {
+    const latitude = safeCoordinate(point.latitude);
+    const longitude = safeCoordinate(point.longitude);
+
+    return latitude !== null && longitude !== null ? { latitude, longitude, exact: true } : null;
+}
+
+async function geocodeRoutePoint(point = {}, fallbackLocation = 'United States') {
+    const exact = exactCoordinatePair(point);
+    if (exact) return exact;
+
+    const pointQuery = [point.location, point.title].filter(Boolean).join(', ');
+    const query = [pointQuery, fallbackLocation].filter(Boolean).join(', ');
+    const known = knownCoordinateMatch(pointQuery);
+    if (known) {
+        return { latitude: known[0], longitude: known[1], exact: false };
+    }
+
+    if (query) {
+        try {
+            const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(query)}`);
+            if (response.ok) {
+                const rows = await response.json();
+                const match = rows?.[0];
+                const latitude = safeCoordinate(match?.lat);
+                const longitude = safeCoordinate(match?.lon);
+                if (latitude !== null && longitude !== null) {
+                    return { latitude, longitude, exact: false };
+                }
+            }
+        } catch (_) {
+            // Fall back to a local approximate marker when live geocoding is unavailable.
+        }
+    }
+
+    const [latitude, longitude] = coordinatesForLocation(query || fallbackLocation);
+    return { latitude, longitude, exact: false };
+}
+
+function routeInstruction(step = {}, index = 0) {
+    const maneuver = step.maneuver || {};
+    const road = step.name ? ` onto ${step.name}` : '';
+    const modifier = maneuver.modifier ? ` ${maneuver.modifier}` : '';
+    const type = String(maneuver.type || (index === 0 ? 'depart' : 'continue')).replace(/_/g, ' ');
+    const action = type === 'depart'
+        ? 'Start'
+        : type === 'arrive'
+            ? 'Arrive'
+            : type === 'turn'
+                ? `Turn${modifier}`
+                : type === 'new name'
+                    ? 'Continue'
+                    : titleCase(type);
+    const text = `${action}${road || (index === 0 ? ' from your starting point' : '')}`.trim();
+    const distance = metersToMiles(step.distance);
+
+    return {
+        text: text.replace(/\s+/g, ' '),
+        distance: distance ? `${distance.toFixed(distance >= 10 ? 0 : 1)} mi` : '',
+    };
+}
+
+function metersToMiles(value) {
+    const number = Number(value);
+    return Number.isFinite(number) ? number / 1609.344 : null;
+}
+
+function secondsToMinutes(value) {
+    const number = Number(value);
+    return Number.isFinite(number) ? Math.max(1, Math.round(number / 60)) : null;
+}
+
+function InAppDirectionsMap({ origin, destination, waypoints = [], title = 'Route map', className = 'h-96' }) {
+    const containerRef = useRef(null);
+    const mapRef = useRef(null);
+    const [routeState, setRouteState] = useState({ status: 'loading', points: [], distanceMiles: null, durationMinutes: null, steps: [], approximate: true, error: null });
+    const [currentLocation, setCurrentLocation] = useState(null);
+    const [locationStatus, setLocationStatus] = useState('idle');
+    const [locationError, setLocationError] = useState('');
+    const watchIdRef = useRef(null);
+    const routeStart = currentLocation || origin;
+    const isLiveRoute = Boolean(currentLocation);
+    const waypointRows = Array.isArray(waypoints) ? waypoints : [];
+    const routeSignature = JSON.stringify([routeStart?.title, routeStart?.location, routeStart?.latitude, routeStart?.longitude, waypointRows.map((point) => [point.title, point.location, point.latitude, point.longitude]), destination?.title, destination?.location, destination?.latitude, destination?.longitude]);
+
+    const startLiveLocation = () => {
+        if (!navigator.geolocation) {
+            setLocationStatus('error');
+            setLocationError('Location is not available in this browser.');
+            return;
+        }
+
+        setLocationStatus('locating');
+        setLocationError('');
+        watchIdRef.current = navigator.geolocation.watchPosition(
+            (position) => {
+                setCurrentLocation({
+                    id: 'current-location',
+                    title: 'You are here',
+                    location: 'Current location',
+                    latitude: position.coords.latitude,
+                    longitude: position.coords.longitude,
+                    accuracy: position.coords.accuracy,
+                    meta: 'Live location',
+                });
+                setLocationStatus('active');
+            },
+            (error) => {
+                setLocationStatus('error');
+                setLocationError(error.message || 'Allow location access to use live navigation.');
+            },
+            { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 }
+        );
+    };
+
+    const stopLiveLocation = () => {
+        if (watchIdRef.current !== null) {
+            navigator.geolocation.clearWatch(watchIdRef.current);
+            watchIdRef.current = null;
+        }
+        setCurrentLocation(null);
+        setLocationStatus('idle');
+        setLocationError('');
+    };
+
+    useEffect(() => () => {
+        if (watchIdRef.current !== null && navigator.geolocation) {
+            navigator.geolocation.clearWatch(watchIdRef.current);
+        }
+    }, []);
+
+    useEffect(() => {
+        let cancelled = false;
+
+        setRouteState((current) => ({ ...current, status: 'loading', error: null }));
+
+        void (async () => {
+            try {
+                const from = await geocodeRoutePoint(routeStart, destination?.location);
+                const waypointCoordinates = await Promise.all(waypointRows.map((point) => geocodeRoutePoint(point, destination?.location)));
+                const to = await geocodeRoutePoint(destination, routeStart?.location);
+                const routeCoordinates = [from, ...waypointCoordinates, to];
+                const fallbackPoints = routeCoordinates.map((point) => [point.latitude, point.longitude]);
+
+                try {
+                    const osrmCoordinates = routeCoordinates.map((point) => `${point.longitude},${point.latitude}`).join(';');
+                    const response = await fetch(`https://router.project-osrm.org/route/v1/driving/${osrmCoordinates}?overview=full&geometries=geojson&steps=true`);
+                    if (!response.ok) throw new Error('Route service unavailable');
+                    const payload = await response.json();
+                    const route = payload?.routes?.[0];
+                    const coordinates = route?.geometry?.coordinates || [];
+                    if (!coordinates.length) throw new Error('Route geometry unavailable');
+                    const legs = route.legs || [];
+                    const steps = legs.flatMap((leg) => leg.steps || []).slice(0, 8).map(routeInstruction);
+
+                    if (!cancelled) {
+                        setRouteState({
+                            status: 'ready',
+                            points: coordinates.map(([longitude, latitude]) => [latitude, longitude]),
+                            distanceMiles: metersToMiles(route.distance),
+                            durationMinutes: secondsToMinutes(route.duration),
+                            steps,
+                            approximate: routeCoordinates.some((point) => !point.exact),
+                            error: null,
+                        });
+                    }
+                    return;
+                } catch (_) {
+                    if (!cancelled) {
+                        const fallbackDistanceMiles = routeCoordinates.slice(1).reduce((total, point, index) => {
+                            const previous = routeCoordinates[index];
+                            return total + haversineMiles(previous.latitude, previous.longitude, point.latitude, point.longitude);
+                        }, 0);
+                        setRouteState({
+                            status: 'fallback',
+                            points: fallbackPoints,
+                            distanceMiles: fallbackDistanceMiles,
+                            durationMinutes: Math.max(1, Math.round((fallbackDistanceMiles / 25) * 60)),
+                            steps: [
+                                { text: `Start at ${routeStart.title}`, distance: '' },
+                                ...waypointRows.map((point) => ({ text: `Continue to ${point.title}`, distance: '' })),
+                                { text: `Continue to ${destination.title}`, distance: '' },
+                                { text: `Arrive at ${destination.venue || destination.location}`, distance: '' },
+                            ],
+                            approximate: true,
+                            error: null,
+                        });
+                    }
+                }
+            } catch (error) {
+                if (!cancelled) {
+                    setRouteState({ status: 'error', points: [], distanceMiles: null, durationMinutes: null, steps: [], approximate: true, error: error.message });
+                }
+            }
+        })();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [routeSignature]);
+
+    useEffect(() => {
+        if (!containerRef.current || routeState.points.length === 0) return undefined;
+
+        let cancelled = false;
+        let map = null;
+        void (async () => {
+            try {
+                const { default: L } = await import('leaflet');
+                if (cancelled || !containerRef.current) return;
+
+                if (mapRef.current) {
+                    mapRef.current.remove();
+                    mapRef.current = null;
+                }
+
+                map = L.map(containerRef.current, { scrollWheelZoom: false, attributionControl: true });
+                mapRef.current = map;
+
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    maxZoom: 19,
+                    attribution: '&copy; OpenStreetMap contributors',
+                }).addTo(map);
+
+                const line = L.polyline(routeState.points, {
+                    color: '#2563eb',
+                    weight: 6,
+                    opacity: 0.9,
+                    lineCap: 'round',
+                    lineJoin: 'round',
+                }).addTo(map);
+
+                const endpointIcon = (label, background) => L.divIcon({
+                    className: '',
+                    html: `<span style="display:grid;place-items:center;width:34px;height:34px;border-radius:999px;background:${background};color:#fff;border:3px solid #fff;box-shadow:0 10px 25px rgba(15,23,42,.25);font-size:11px;font-weight:900;">${label}</span>`,
+                    iconSize: [34, 34],
+                    iconAnchor: [17, 17],
+                });
+
+                const start = routeState.points[0];
+                const end = routeState.points[routeState.points.length - 1];
+                L.marker(start, { icon: endpointIcon(isLiveRoute ? 'You' : 'A', isLiveRoute ? '#059669' : '#0f172a') }).addTo(map).bindPopup(routeStart.title);
+                L.marker(end, { icon: endpointIcon('B', '#2563eb') }).addTo(map).bindPopup(destination.title);
+                map.fitBounds(line.getBounds(), { padding: [34, 34], maxZoom: 13 });
+            } catch (error) {
+                console.error('Route map failed to initialize', error);
+                setRouteState((current) => ({ ...current, status: 'error', error: error.message }));
+                if (map) {
+                    try { map.remove(); } catch (_) { /* Map was only partially initialized. */ }
+                }
+                mapRef.current = null;
+            }
+        })();
+
+        return () => {
+            cancelled = true;
+            if (mapRef.current === map && map) {
+                try { map.remove(); } catch (_) { /* Map may already be detached. */ }
+            }
+            mapRef.current = null;
+        };
+    }, [routeState.points, routeStart?.title, destination?.title, isLiveRoute, routeSignature]);
+
+    const distanceLabel = routeState.distanceMiles !== null ? `${routeState.distanceMiles.toFixed(routeState.distanceMiles >= 10 ? 0 : 1)} mi` : 'Calculating';
+    const durationLabel = routeState.durationMinutes ? `${routeState.durationMinutes} min` : routeState.status === 'fallback' ? 'Estimate unavailable' : 'Calculating';
+
+    return (
+        <div className={cx('grid overflow-hidden bg-white lg:grid-cols-[minmax(0,1fr)_320px]', className)}>
+            <div className="relative min-h-[360px] bg-slate-100">
+                <div ref={containerRef} role="img" aria-label={title} className="h-full w-full" />
+                {routeState.status === 'loading' && (
+                    <div className="absolute inset-0 grid place-items-center bg-white/70 text-sm font-black text-slate-700">
+                        <span className="rounded-full bg-white px-4 py-2 shadow-sm">Calculating route</span>
+                    </div>
+                )}
+                {routeState.status === 'error' && (
+                    <div className="absolute inset-0 grid place-items-center bg-white p-6 text-center">
+                        <div>
+                            <MapPin className="mx-auto text-blue-600" size={24} />
+                            <p className="mt-3 text-sm font-black text-slate-900">Route map is temporarily unavailable</p>
+                            <p className="mt-1 text-xs font-semibold text-slate-500">Check the school and program locations, then reload the page.</p>
+                        </div>
+                    </div>
+                )}
+            </div>
+            <aside className="border-t border-slate-200 bg-white p-5 lg:border-l lg:border-t-0">
+                <div className="grid grid-cols-2 gap-3">
+                    <MiniStat label={isLiveRoute ? 'Remaining' : 'Drive time'} value={durationLabel} />
+                    <MiniStat label={isLiveRoute ? 'Distance left' : 'Distance'} value={distanceLabel} />
+                </div>
+                <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                        <div>
+                            <p className="text-xs font-black uppercase tracking-wide text-blue-700">{isLiveRoute ? 'Live Location Active' : 'Live Location'}</p>
+                            <p className="mt-1 text-sm font-bold leading-5 text-slate-700">{isLiveRoute ? 'Routing from where you are now.' : 'Use your current location for remaining time.'}</p>
+                            {Number(currentLocation?.accuracy || 0) > 0 && <p className="mt-1 text-xs font-semibold text-slate-500">Accuracy about {Math.round(currentLocation.accuracy)} m</p>}
+                            {locationError && <p className="mt-2 text-xs font-bold text-rose-700">{locationError}</p>}
+                        </div>
+                        <button type="button" onClick={isLiveRoute || locationStatus === 'locating' ? stopLiveLocation : startLiveLocation} className="shrink-0 rounded-lg bg-slate-950 px-3 py-2 text-xs font-black text-white">
+                            {locationStatus === 'locating' ? 'Cancel' : isLiveRoute ? 'Stop' : 'Use Location'}
+                        </button>
+                    </div>
+                </div>
+                <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-xs font-black uppercase tracking-wide text-slate-400">Trip</p>
+                    <p className="mt-2 text-sm font-black text-slate-950">{routeStart.title}</p>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">{routeStart.location}</p>
+                    {waypointRows.map((point) => <div key={point.id || point.title}><div className="my-3 h-px bg-slate-200" /><p className="text-sm font-black text-slate-950">{point.title}</p><p className="mt-1 text-xs leading-5 text-slate-500">{point.location}</p></div>)}
+                    <div className="my-3 h-px bg-slate-200" />
+                    <p className="text-sm font-black text-slate-950">{destination.title}</p>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">{destination.venue ? `${destination.venue}, ` : ''}{destination.location}</p>
+                </div>
+                <div className="mt-5">
+                    <p className="text-xs font-black uppercase tracking-wide text-slate-400">Directions</p>
+                    <div className="mt-3 space-y-3">
+                        {(routeState.steps.length ? routeState.steps : [{ text: 'Route steps will appear after calculation.', distance: '' }]).map((step, index) => (
+                            <div key={`${step.text}-${index}`} className="flex gap-3">
+                                <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-blue-50 text-[11px] font-black text-blue-700">{index + 1}</span>
+                                <div>
+                                    <p className="text-sm font-bold leading-5 text-slate-700">{step.text}</p>
+                                    {step.distance && <p className="mt-0.5 text-xs font-semibold text-slate-400">{step.distance}</p>}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+                {routeState.approximate && routeState.status !== 'loading' && <p className="mt-5 rounded-xl bg-amber-50 p-3 text-xs font-bold leading-5 text-amber-800">This route uses the saved location text where exact coordinates are missing.</p>}
+            </aside>
+        </div>
+    );
 }
 
 function OpenStreetMapEmbed({ location, points = [], title = 'OpenStreetMap location', className = 'h-48' }) {
@@ -11526,7 +12139,7 @@ function OpenStreetMapLink({ location, children, className }) {
     return <a href={openStreetMapUrl(location)} target="_blank" rel="noreferrer" className={className}>{children || 'Open in OpenStreetMap'}</a>;
 }
 
-function PartnerSchoolsSection({ csrf, schools, visitRequests, archives = [] }) {
+function PartnerSchoolsSection({ csrf, schools, visitRequests, archives = [], events = [], setSection }) {
     const [tab, setTab] = useState('all');
     const [query, setQuery] = useState('');
     const [selectedSchool, setSelectedSchool] = useState(null);
@@ -11559,10 +12172,12 @@ function PartnerSchoolsSection({ csrf, schools, visitRequests, archives = [] }) 
             <PartnerSchoolDetail
                 csrf={csrf}
                 school={selectedSchool}
+                events={events}
                 archives={archives.filter((archive) => archive.schoolId === selectedSchool.id || archive.school === selectedSchool.name)}
                 visitsCount={schoolVisits(selectedSchool)}
                 onBack={() => setSelectedSchool(null)}
                 onEdit={() => { setEditor(selectedSchool); setSelectedSchool(null); }}
+                setSection={setSection}
             />
         );
     }
@@ -11689,9 +12304,51 @@ function PartnerSchoolEditor({ csrf, school, onClose }) {
     );
 }
 
-function PartnerSchoolDetail({ csrf, school, archives, visitsCount, onBack, onEdit }) {
+function PartnerSchoolInviteModal({ csrf, school, programs = [], onClose }) {
+    const defaultProgram = programs[0];
+
+    return (
+        <section className="fixed inset-0 z-[95] grid place-items-center bg-slate-950/55 px-3 py-5 backdrop-blur-sm">
+            <form action={`/partner-schools/${school.id}/schedule-visit`} method="POST" className="w-full max-w-xl overflow-hidden rounded-2xl border border-white/70 bg-white shadow-2xl">
+                <input type="hidden" name="_token" value={csrf} />
+                <div className="flex items-start justify-between gap-4 border-b border-slate-100 p-5">
+                    <div>
+                        <p className="text-xs font-black uppercase tracking-[0.14em] text-[#006a61]">Invite school</p>
+                        <h2 className="mt-1 text-xl font-black text-slate-950">Choose a visit program</h2>
+                        <p className="mt-1 text-sm font-semibold text-slate-500">{school.name} will receive a request for the selected program.</p>
+                    </div>
+                    <button type="button" onClick={onClose} className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-slate-200 text-slate-500"><X size={18} /></button>
+                </div>
+                <div className="grid gap-4 p-5">
+                    <label className="grid gap-1.5 text-sm font-bold text-slate-700">
+                        Visit program
+                        <select name="campus_event_id" required defaultValue={defaultProgram?.id || ''} className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold text-slate-800">
+                            {programs.map((program) => (
+                                <option key={program.id} value={program.id}>
+                                    {program.title} - {formatDateTime(program.startsAt)} - {program.venue || program.location || 'Venue pending'}
+                                </option>
+                            ))}
+                        </select>
+                    </label>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                        <label className="grid gap-1.5 text-sm font-bold text-slate-700">Group size<input name="group_size" type="number" min="1" max="10000" defaultValue={Math.max(1, Number(school.activeApplicants || 1))} className="rounded-xl border border-slate-200 px-3 py-3 text-sm font-semibold" /></label>
+                        <label className="grid gap-1.5 text-sm font-bold text-slate-700">Priority<select name="priority" defaultValue={Math.max(1, Math.min(5, Math.ceil(Number(school.matchScore || 20) / 20)))} className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold"><option value="1">Low</option><option value="2">Normal</option><option value="3">High</option><option value="4">Urgent</option><option value="5">Critical</option></select></label>
+                    </div>
+                    <label className="grid gap-1.5 text-sm font-bold text-slate-700">Message<textarea name="notes" rows="3" className="rounded-xl border border-slate-200 px-3 py-3 text-sm font-semibold" placeholder="Add context for the school coordinator..." /></label>
+                </div>
+                <div className="grid grid-cols-2 gap-2 border-t border-slate-100 p-5">
+                    <button type="button" onClick={onClose} className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700">Cancel</button>
+                    <button className="rounded-xl bg-slate-950 px-4 py-3 text-sm font-black text-white">Send Invitation</button>
+                </div>
+            </form>
+        </section>
+    );
+}
+
+function PartnerSchoolDetail({ csrf, school, events = [], archives, visitsCount, onBack, onEdit, setSection }) {
     const [showAllHistory, setShowAllHistory] = useState(false);
     const [messageOpen, setMessageOpen] = useState(false);
+    const [inviteOpen, setInviteOpen] = useState(false);
     const leadsCaptured = archives.reduce((total, archive) => total + Number(archive.leads || 0), 0);
     const relationshipScore = Number(school.matchScore || 0);
     const activeApplicants = Number(school.activeApplicants || 0);
@@ -11727,6 +12384,8 @@ function PartnerSchoolDetail({ csrf, school, archives, visitsCount, onBack, onEd
         name: coordinatorName || school.coordinatorName || school.linkedSchoolName || school.name,
         email: school.coordinatorEmail,
     };
+    const upcomingPrograms = events.filter((event) => event.status === 'published' && (!event.startsAt || new Date(event.startsAt).getTime() >= Date.now()))
+        .sort((left, right) => new Date(left.startsAt || 0).getTime() - new Date(right.startsAt || 0).getTime());
     const timeline = [
         ...archives.map((archive) => ({
             id: `archive-${archive.id}`,
@@ -11751,6 +12410,7 @@ function PartnerSchoolDetail({ csrf, school, archives, visitsCount, onBack, onEd
     return (
         <section className="grid gap-3 md:gap-4">
             {messageOpen && <PartnerSchoolMessageModal csrf={csrf} school={school} recipient={messageRecipient} onClose={() => setMessageOpen(false)} />}
+            {inviteOpen && <PartnerSchoolInviteModal csrf={csrf} school={school} programs={upcomingPrograms} onClose={() => setInviteOpen(false)} />}
 
             <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
                 <button type="button" onClick={onBack} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-2 font-black text-slate-700">
@@ -11779,14 +12439,16 @@ function PartnerSchoolDetail({ csrf, school, archives, visitsCount, onBack, onEd
                         </div>
                     </div>
                     <div className="grid gap-2 sm:grid-cols-2 lg:flex">
-                        {school.canScheduleVisit ? (
-                            <form action={`/partner-schools/${school.id}/schedule-visit`} method="POST">
-                                <input type="hidden" name="_token" value={csrf} />
-                                <button className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-black text-white">
-                                    <CalendarDays size={16} /> Schedule Visit
-                                </button>
-                            </form>
-                        ) : null}
+                        {school.canScheduleVisit && upcomingPrograms.length > 0 && (
+                            <button type="button" onClick={() => setInviteOpen(true)} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-black text-white">
+                                <Send size={16} /> Invite to Program
+                            </button>
+                        )}
+                        {school.canScheduleVisit && upcomingPrograms.length === 0 && (
+                            <button type="button" onClick={() => setSection?.('events')} className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm font-black text-amber-800">
+                                <Plus size={16} /> Create Program First
+                            </button>
+                        )}
                         <button type="button" onClick={() => setMessageOpen(true)} className="inline-flex items-center justify-center gap-2 rounded-lg border border-blue-200 bg-white px-4 py-2.5 text-sm font-black text-blue-700">
                             <MailCheck size={16} /> Message
                         </button>
@@ -12183,6 +12845,8 @@ function UniversityVisitRequestsSection({ csrf, visitRequests = [], schools = []
         scheduled: 'border-blue-200 bg-blue-50 text-blue-700',
         declined: 'border-rose-200 bg-rose-50 text-rose-700',
     };
+    const canApproveRequest = (request) => ['requested', 'declined'].includes(request.status);
+    const canRejectRequest = (request) => ['requested', 'approved'].includes(request.status);
 
     return (
         <div className="grid gap-4 md:gap-5">
@@ -12196,8 +12860,8 @@ function UniversityVisitRequestsSection({ csrf, visitRequests = [], schools = []
 
             <section className="grid grid-cols-2 gap-2 md:grid-cols-4 md:gap-4">
                 <MobileRequestMetric label="Total Pending" value={pendingCount} helper={`${incomingPendingCount} need your decision`} tone="emerald" icon={Activity} />
-                <MobileRequestMetric label="Under Review" value={reviewCount} helper="Approved database records" tone="blue" icon={Clock} />
-                <MobileRequestMetric label="Confirmed" value={approvedCount} helper="Approved or scheduled" tone="emerald" icon={CheckCircle2} />
+                <MobileRequestMetric label="Under Review" value={reviewCount} helper="Approved requests" tone="blue" icon={Clock} />
+                <MobileRequestMetric label="Confirmed" value={approvedCount} helper="Approved requests" tone="emerald" icon={CheckCircle2} />
                 <article className="hidden rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:flex md:flex-col">
                     <span className="text-[11px] font-black uppercase tracking-wide text-slate-400">Capacity</span>
                     <span className="mt-1 text-3xl font-black text-slate-950">{capacityPct}%</span>
@@ -12207,14 +12871,14 @@ function UniversityVisitRequestsSection({ csrf, visitRequests = [], schools = []
 
             <section className="hidden items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 md:flex">
                 <Sparkles size={18} className="mt-0.5 shrink-0 text-emerald-700" />
-                <div><h2 className="text-xs font-black uppercase tracking-wide text-emerald-800">Insight Driven Pipeline</h2><p className="mt-1 text-sm text-emerald-800/80">{visitRequests.length > 0 ? `${visitRequests.filter((item) => item.status === 'requested').length} requests currently need review. Prioritize high-volume groups before opening additional visit slots.` : 'Incoming request insights will appear as partner schools submit visit inquiries.'}</p></div>
+                <div><h2 className="text-xs font-black uppercase tracking-wide text-emerald-800">Request Pipeline</h2><p className="mt-1 text-sm text-emerald-800/80">{visitRequests.length > 0 ? `${visitRequests.filter((item) => item.status === 'requested').length} requests currently need review. Prioritize high-volume groups before opening additional visit slots.` : 'Incoming requests will appear as partner schools submit visit inquiries.'}</p></div>
             </section>
 
             <section className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm md:rounded-2xl md:p-4">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                     <div className="flex flex-1 flex-col gap-3 md:flex-row">
                         <div className="relative flex-1 md:max-w-xs"><Search size={16} className="absolute left-3 top-3 text-slate-400" /><input value={query} onChange={(event) => setQuery(event.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-3 text-sm font-semibold outline-none focus:border-[#006a61] focus:ring-4 focus:ring-emerald-50" placeholder="Search requests or schools..." /></div>
-                        <select value={status} onChange={(event) => setStatus(event.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold"><option value="all">All Statuses</option><option value="requested">Pending</option><option value="approved">Approved</option><option value="scheduled">Scheduled</option><option value="declined">Rejected</option></select>
+                        <select value={status} onChange={(event) => setStatus(event.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold"><option value="all">All Statuses</option><option value="requested">Pending</option><option value="approved">Approved</option><option value="declined">Rejected</option></select>
                         <select value={region} onChange={(event) => setRegion(event.target.value)} className="hidden rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold md:block"><option value="all">All Regions</option>{regions.map((item) => <option key={item}>{item}</option>)}</select>
                         <input type="date" value={date} onChange={(event) => setDate(event.target.value)} className="hidden rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold md:block" />
                     </div>
@@ -12240,20 +12904,19 @@ function UniversityVisitRequestsSection({ csrf, visitRequests = [], schools = []
             </section>
 
             <section className="hidden overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm md:block">
-                <div className="hidden grid-cols-12 gap-4 bg-slate-50 px-6 py-3 text-[10px] font-black uppercase tracking-wider text-slate-500 md:grid"><span className="col-span-3">School Name</span><span className="col-span-2">Requested Date</span><span className="col-span-2">Group Size</span><span className="col-span-2">Region</span><span className="col-span-2">Status</span><span className="text-right">Actions</span></div>
+                <div className="hidden grid-cols-[minmax(220px,2.1fr)_140px_110px_minmax(170px,1.5fr)_130px_220px] gap-4 bg-slate-50 px-6 py-3 text-[10px] font-black uppercase tracking-wider text-slate-500 md:grid"><span>School Name</span><span>Requested Date</span><span>Group Size</span><span>Region</span><span>Status</span><span className="text-right">Actions</span></div>
                 <div className="divide-y divide-slate-100">
                     {visible.length === 0 ? <SaaSEmptyState title="No visit requests found" message="Adjust the filters or add a new request." /> : visible.map((request) => (
-                        <article key={request.id} className="group grid grid-cols-1 items-center gap-4 px-5 py-4 hover:bg-slate-50/70 md:grid-cols-12 md:px-6">
-                            <div className="flex items-center gap-3 md:col-span-3"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-blue-50 text-blue-600"><School size={18} /></span><span className="min-w-0"><span className="block truncate text-sm font-black text-slate-900">{request.school}</span><span className="mt-0.5 block text-xs text-slate-500">ID: REQ-{String(request.id).padStart(4, '0')}</span><span className="mt-1 block text-[10px] font-black uppercase tracking-wide text-slate-400">{isOutboundRequest(request) ? 'Sent by your university' : 'Incoming from school'}</span></span></div>
-                            <p className="text-sm text-slate-700 md:col-span-2">{request.window}</p>
-                            <p className="text-sm font-semibold text-slate-700 md:col-span-2">{request.groupSize} Students</p>
-                            <p className="text-sm text-slate-700 md:col-span-2">{request.region || request.location || 'Unassigned'}</p>
-                            <div className="md:col-span-2"><span className={cx('inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-bold capitalize', statusStyle[request.status] || 'border-slate-200 bg-slate-50 text-slate-600')}><span className="h-1.5 w-1.5 rounded-full bg-current" />{request.status === 'requested' ? 'Pending' : request.status}</span></div>
-                            <div className="flex justify-end gap-1 md:opacity-0 md:group-hover:opacity-100">
-                                {request.status === 'requested' && !isOutboundRequest(request) && <><DecisionIconButton csrf={csrf} id={request.id} decision="approved" label="Approve" icon={CheckCircle2} tone="green" /><DecisionIconButton csrf={csrf} id={request.id} decision="declined" label="Reject" icon={X} tone="red" /></>}
-                                {request.status === 'requested' && isOutboundRequest(request) && <DecisionIconButton csrf={csrf} id={request.id} decision="declined" label="Cancel request" icon={X} tone="red" />}
-                                {request.status === 'approved' && <DecisionIconButton csrf={csrf} id={request.id} decision="scheduled" label="Schedule" icon={CalendarDays} tone="blue" />}
-                                <button type="button" onClick={() => setSelected(request)} className="rounded-lg p-2 text-slate-500 hover:bg-slate-200" title="View details"><MoreVertical size={18} /></button>
+                        <article key={request.id} className="group grid grid-cols-1 items-center gap-4 px-5 py-4 hover:bg-slate-50/70 md:grid-cols-[minmax(220px,2.1fr)_140px_110px_minmax(170px,1.5fr)_130px_220px] md:px-6">
+                            <div className="flex items-center gap-3"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-blue-50 text-blue-600"><School size={18} /></span><span className="min-w-0"><span className="block truncate text-sm font-black text-slate-900">{request.school}</span><span className="mt-0.5 block text-xs text-slate-500">ID: REQ-{String(request.id).padStart(4, '0')}</span><span className="mt-1 block text-[10px] font-black uppercase tracking-wide text-slate-400">{isOutboundRequest(request) ? 'Sent by your university' : 'Incoming from school'}</span></span></div>
+                            <p className="text-sm text-slate-700">{request.window}</p>
+                            <p className="text-sm font-semibold text-slate-700">{request.groupSize} Students</p>
+                            <p className="text-sm text-slate-700">{request.region || request.location || 'Unassigned'}</p>
+                            <div><span className={cx('inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-bold capitalize', statusStyle[request.status] || 'border-slate-200 bg-slate-50 text-slate-600')}><span className="h-1.5 w-1.5 rounded-full bg-current" />{request.status === 'requested' ? 'Pending' : request.status}</span></div>
+                            <div className="flex flex-wrap justify-end gap-2">
+                                {canApproveRequest(request) && <DecisionIconButton csrf={csrf} id={request.id} decision="approved" label="Approve" icon={CheckCircle2} tone="green" />}
+                                {canRejectRequest(request) && <DecisionIconButton csrf={csrf} id={request.id} decision="declined" label="Reject" icon={X} tone="red" />}
+                                <button type="button" onClick={() => setSelected(request)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-600 hover:bg-slate-50" title="View details">Details</button>
                             </div>
                         </article>
                     ))}
@@ -12262,7 +12925,7 @@ function UniversityVisitRequestsSection({ csrf, visitRequests = [], schools = []
             </section>
 
             {createOpen && <ModalShell title="New Visit Request" onClose={() => setCreateOpen(false)}><form action="/visit-requests" method="POST" className="grid gap-4" onSubmit={() => window.setTimeout(() => setCreateOpen(false), 0)}><input type="hidden" name="_token" value={csrf} /><label className="grid gap-1.5 text-sm font-bold text-slate-700">Recipient school<select name="school_id" required className="rounded-lg border border-slate-200 px-3 py-2.5 font-normal"><option value="">Select a school account</option>{schools.map((school) => <option key={school.id} value={school.id}>{school.name}{school.location ? ` · ${school.location}` : ''}</option>)}</select></label><label className="grid gap-1.5 text-sm font-bold text-slate-700">Visit program<select name="campus_event_id" required className="rounded-lg border border-slate-200 px-3 py-2.5 font-normal"><option value="">Select a published event</option>{events.filter((event) => event.status === 'published').map((event) => <option key={event.id} value={event.id}>{event.title} · {formatDateTime(event.startsAt)}</option>)}</select></label><div className="grid gap-4 sm:grid-cols-2"><label className="grid gap-1.5 text-sm font-bold text-slate-700">Requested date<input type="date" name="requested_window" required min={new Date().toISOString().slice(0, 10)} className="rounded-lg border border-slate-200 px-3 py-2.5 font-normal" /></label><label className="grid gap-1.5 text-sm font-bold text-slate-700">Group size<input type="number" name="group_size" required min="1" max="10000" defaultValue="30" className="rounded-lg border border-slate-200 px-3 py-2.5 font-normal" /></label></div><label className="grid gap-1.5 text-sm font-bold text-slate-700">Priority<select name="priority" defaultValue="2" className="rounded-lg border border-slate-200 px-3 py-2.5 font-normal"><option value="1">Low</option><option value="2">Normal</option><option value="3">High</option><option value="4">Urgent</option><option value="5">Critical</option></select></label><label className="grid gap-1.5 text-sm font-bold text-slate-700">Notes<textarea name="notes" rows="3" className="rounded-lg border border-slate-200 px-3 py-2.5 font-normal" placeholder="Request context or accessibility needs..." /></label><div className="flex justify-end gap-2"><button type="button" onClick={() => setCreateOpen(false)} className="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-bold">Cancel</button><button disabled={!schools.length || !events.some((event) => event.status === 'published')} className="rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-bold text-white disabled:bg-slate-300">Send Request</button></div></form></ModalShell>}
-            {selected && <ModalShell title={selected.school} onClose={() => setSelected(null)}><div className="grid gap-3 text-sm"><RequestDetail label="Request ID" value={`REQ-${String(selected.id).padStart(4, '0')}`} /><RequestDetail label="Direction" value={isOutboundRequest(selected) ? 'Sent to school' : 'Received from school'} /><RequestDetail label="Requested date" value={selected.window} /><RequestDetail label="Group size" value={`${selected.groupSize} students`} /><RequestDetail label="Region" value={selected.region || selected.location} /><RequestDetail label="Status" value={selected.status} /></div></ModalShell>}
+            {selected && <VisitRequestDetailModal csrf={csrf} request={selected} statusStyle={statusStyle} isOutbound={isOutboundRequest(selected)} canApprove={canApproveRequest(selected)} canReject={canRejectRequest(selected)} onClose={() => setSelected(null)} />}
         </div>
     );
 }
@@ -12271,9 +12934,65 @@ function ModalShell(props) {
     return <StudentModal {...props} />;
 }
 
+function VisitRequestDetailModal({ csrf, request, statusStyle = {}, isOutbound = false, canApprove = false, canReject = false, onClose }) {
+    const statusLabel = request.status === 'requested' ? 'Pending' : titleCase(request.status || 'unknown');
+    const eventDate = request.eventDate ? formatDateTime(request.eventDate) : request.window;
+    const direction = isOutbound ? 'Sent by your university' : 'Incoming from school';
+    const priorityLabel = Number(request.priority || 0) >= 4 ? 'High priority' : Number(request.priority || 0) >= 3 ? 'Normal priority' : 'Low priority';
+
+    return (
+        <ModalShell title={request.school || 'Visit Request'} onClose={onClose}>
+            <div className="grid gap-5 text-sm">
+                <section className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                        <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">REQ-{String(request.id).padStart(4, '0')}</p>
+                        <h3 className="mt-1 text-xl font-black text-slate-950">{request.event || 'Visit program'}</h3>
+                        <p className="mt-1 font-semibold text-slate-500">{direction}</p>
+                    </div>
+                    <span className={cx('w-fit rounded-full border px-3 py-1.5 text-xs font-black capitalize', statusStyle[request.status] || 'border-slate-200 bg-white text-slate-600')}>{statusLabel}</span>
+                </section>
+
+                <section className="grid gap-3 sm:grid-cols-2">
+                    <RequestDetail label="School" value={request.school} />
+                    <RequestDetail label="University" value={request.university || 'University'} />
+                    <RequestDetail label="Requested date" value={request.window || 'Date pending'} />
+                    <RequestDetail label="Event date" value={eventDate || 'Date pending'} />
+                    <RequestDetail label="Group size" value={`${Number(request.groupSize || 0).toLocaleString()} students`} />
+                    <RequestDetail label="Priority" value={priorityLabel} />
+                    <RequestDetail label="Region" value={request.region || request.location || 'Unassigned'} />
+                    <RequestDetail label="Venue" value={request.venue || request.eventLocation || 'Venue pending'} />
+                </section>
+
+                <section className="rounded-2xl border border-slate-200 p-4">
+                    <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-400">Request notes</p>
+                    <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-600">{request.notes || 'No notes were added to this request.'}</p>
+                </section>
+
+                {(canApprove || canReject || (isOutbound && request.status === 'requested')) && (
+                    <section className="rounded-2xl border border-slate-200 bg-white p-4">
+                        <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-400">Update status</p>
+                        <form action={`/visit-requests/${request.id}/decision`} method="POST" className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto]">
+                            <input type="hidden" name="_token" value={csrf} />
+                            <select name="decision" defaultValue={request.status === 'declined' ? 'declined' : 'approved'} className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold text-slate-700">
+                                <option value="approved">Approved</option>
+                                <option value="declined">Rejected</option>
+                            </select>
+                            <button className="rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-black text-white">Save status</button>
+                        </form>
+                    </section>
+                )}
+            </div>
+        </ModalShell>
+    );
+}
+
 function DecisionIconButton({ csrf, id, decision, label, icon: Icon, tone }) {
-    const tones = { green: 'text-emerald-700 hover:bg-emerald-50', red: 'text-rose-700 hover:bg-rose-50', blue: 'text-blue-700 hover:bg-blue-50' };
-    return <form action={`/visit-requests/${id}/decision`} method="POST"><input type="hidden" name="_token" value={csrf} /><input type="hidden" name="decision" value={decision} /><button className={cx('rounded-lg p-2', tones[tone])} title={label} aria-label={label}><Icon size={18} /></button></form>;
+    const tones = {
+        green: 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100',
+        red: 'border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100',
+        blue: 'border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100',
+    };
+    return <form action={`/visit-requests/${id}/decision`} method="POST"><input type="hidden" name="_token" value={csrf} /><input type="hidden" name="decision" value={decision} /><button className={cx('inline-flex items-center justify-center rounded-lg border px-3 py-2 text-xs font-black', tones[tone])} title={label} aria-label={label}>{label}</button></form>;
 }
 
 function MobileRequestMetric({ label, value, helper, tone = 'emerald', icon: Icon }) {
@@ -12296,13 +13015,15 @@ function MobileRequestMetric({ label, value, helper, tone = 'emerald', icon: Ico
 function MobileVisitRequestCard({ csrf, request, currentUserId = null, onDetails }) {
     const isPending = request.status === 'requested';
     const isOutbound = request.requesterRole === 'university' || Number(request.requesterId) === Number(currentUserId);
+    const canApprove = ['requested', 'declined'].includes(request.status);
+    const canReject = ['requested', 'approved'].includes(request.status);
     const statusTone = {
         requested: 'bg-emerald-50 text-[#006a61]',
         approved: 'bg-blue-50 text-blue-700',
         scheduled: 'bg-emerald-50 text-emerald-700',
         declined: 'bg-rose-50 text-rose-700',
     };
-    const statusLabel = request.status === 'requested' ? 'New' : request.status === 'approved' ? 'Reviewing' : request.status;
+    const statusLabel = request.status === 'requested' ? 'New' : request.status === 'approved' ? 'Approved' : request.status;
 
     return (
         <article className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm">
@@ -12324,21 +13045,15 @@ function MobileVisitRequestCard({ csrf, request, currentUserId = null, onDetails
                 </div>
             </div>
             <div className="mt-3 flex gap-2">
-                {isPending && !isOutbound ? (
+                {canApprove || canReject ? (
                     <>
-                        <DecisionTextButton csrf={csrf} id={request.id} decision="approved" label="Approve" tone="approve" />
-                        <DecisionTextButton csrf={csrf} id={request.id} decision="declined" label="Deny" tone="deny" />
+                        {canApprove && <DecisionTextButton csrf={csrf} id={request.id} decision="approved" label="Approve" tone="approve" />}
+                        {canReject && <DecisionTextButton csrf={csrf} id={request.id} decision="declined" label="Reject" tone="deny" />}
                     </>
                 ) : isPending ? (
                     <DecisionTextButton csrf={csrf} id={request.id} decision="declined" label="Cancel request" tone="deny" />
-                ) : request.status === 'approved' ? (
-                    <DecisionTextButton csrf={csrf} id={request.id} decision="scheduled" label="Schedule" tone="approve" />
-                ) : (
-                    <button type="button" onClick={onDetails} className="flex-1 rounded-full border border-slate-200 px-4 py-2 text-xs font-black text-slate-600">View Status</button>
-                )}
-                <button type="button" onClick={onDetails} className="grid h-9 w-10 place-items-center rounded-full border border-slate-200 text-slate-500" aria-label="View request details">
-                    <MoreVertical size={17} />
-                </button>
+                ) : null}
+                <button type="button" onClick={onDetails} className="flex-1 rounded-full border border-slate-200 px-4 py-2 text-xs font-black text-slate-600" aria-label="View request details">Details</button>
             </div>
         </article>
     );
@@ -12361,7 +13076,9 @@ function RequestDetail({ label, value }) {
 }
 
 function RequestInboxSection({ csrf, visitRequests }) {
-    const groups = ['requested', 'approved', 'scheduled'];
+    const groups = ['requested', 'approved', 'declined', 'scheduled'];
+    const canApproveRequest = (request) => ['requested', 'declined'].includes(request.status);
+    const canDeclineRequest = (request) => ['requested', 'approved'].includes(request.status);
 
     return (
         <div className="grid gap-6 xl:grid-cols-[1fr_280px]">
@@ -12388,13 +13105,12 @@ function RequestInboxSection({ csrf, visitRequests }) {
                                             </div>
                                             <span className="rounded-full bg-blue-50 px-2 py-1 text-[10px] font-black uppercase text-blue-700">P{request.priority}</span>
                                         </div>
-                                        {request.status === 'requested' && (
+                                        {(canApproveRequest(request) || canDeclineRequest(request)) && (
                                             <div className="mt-4 grid grid-cols-2 gap-2">
-                                                <DecisionButton csrf={csrf} id={request.id} decision="approved" label="Accept" dark />
-                                                <DecisionButton csrf={csrf} id={request.id} decision="declined" label="Decline" />
+                                                {canApproveRequest(request) && <DecisionButton csrf={csrf} id={request.id} decision="approved" label="Approve" dark />}
+                                                {canDeclineRequest(request) && <DecisionButton csrf={csrf} id={request.id} decision="declined" label="Decline" />}
                                             </div>
                                         )}
-                                        {request.status === 'approved' && <DecisionButton csrf={csrf} id={request.id} decision="scheduled" label="Schedule visit" full />}
                                     </article>
                                 ))}
                             </div>
@@ -12527,7 +13243,7 @@ function AnalyticsForecastSection({ csrf = '', analytics = {}, schools = [] }) {
             <section className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                 <div>
                     <p className="text-xs font-black uppercase tracking-wide text-blue-700">Database intelligence</p>
-                    <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950 md:mt-2 md:text-3xl">{analytics.title || 'Recruitment Intelligence'}</h1>
+                    <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950 md:mt-2 md:text-3xl">{analytics.title || 'Recruitment Analytics'}</h1>
                     <p className="mt-1 max-w-3xl text-sm font-semibold leading-6 text-slate-500 md:mt-2">{analytics.subtitle || 'Analytics will update as live records are added to the platform.'}</p>
                 </div>
                 <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
@@ -13360,6 +14076,7 @@ function AcademicProgramsSection({ csrf, programs = [], role }) {
         const matchesSearch = !search || `${program.name} ${program.code} ${program.level || ''}`.toLowerCase().includes(search.toLowerCase());
         return matchesSearch && (status === 'all' || program.status === status);
     });
+    const programPages = usePaginatedItems(filtered, 8, `${search}|${status}`);
 
     return (
         <section className="grid gap-5">
@@ -13388,7 +14105,7 @@ function AcademicProgramsSection({ csrf, programs = [], role }) {
                     <select value={status} onChange={(event) => setStatus(event.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm"><option value="all">All statuses</option><option value="draft">Draft</option><option value="published">Published</option><option value="closed">Closed</option></select>
                 </div>
                 <div className="grid gap-3">
-                    {filtered.map((program) => (
+                    {programPages.items.map((program) => (
                         <details key={program.id} className="rounded-2xl border border-slate-200 bg-white p-4">
                             <summary className="cursor-pointer list-none">
                                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -13418,10 +14135,11 @@ function AcademicProgramsSection({ csrf, programs = [], role }) {
                         </details>
                     ))}
                     {!filtered.length && <EmptyState title="No programs found" message="Create the first program or change the current filters." />}
-                </div>
-            </SaaSCard>
-        </section>
-    );
+            </div>
+            <PaginationControls pagination={programPages} label="programs" className="mt-4 px-0" />
+        </SaaSCard>
+    </section>
+);
 }
 
 function AdmissionApplicationsSection({ csrf, applications = [], role }) {
@@ -13431,6 +14149,7 @@ function AdmissionApplicationsSection({ csrf, applications = [], role }) {
         const haystack = `${application.reference} ${application.student?.name || ''} ${application.student?.email || ''} ${application.program?.name || ''}`.toLowerCase();
         return (!search || haystack.includes(search.toLowerCase())) && (status === 'all' || application.status === status);
     });
+    const applicationPages = usePaginatedItems(filtered, 8, `${search}|${status}`);
     const canDecide = role !== 'student';
 
     return (
@@ -13440,7 +14159,7 @@ function AdmissionApplicationsSection({ csrf, applications = [], role }) {
                 <select value={status} onChange={(event) => setStatus(event.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm"><option value="all">All statuses</option>{['draft', 'submitted', 'under_review', 'waitlisted', 'accepted', 'rejected', 'withdrawn'].map((value) => <option key={value} value={value}>{titleCase(value)}</option>)}</select>
             </div>
             <div className="grid gap-3">
-                {filtered.map((application) => {
+                {applicationPages.items.map((application) => {
                     const paid = application.payments?.find((payment) => payment.status === 'paid');
                     return (
                         <details key={application.id} className="rounded-2xl border border-slate-200 bg-white p-4">
@@ -13461,6 +14180,7 @@ function AdmissionApplicationsSection({ csrf, applications = [], role }) {
                 })}
                 {!filtered.length && <EmptyState title="No applications found" message="No application records match the current filters." />}
             </div>
+            <PaginationControls pagination={applicationPages} label="applications" className="mt-4 px-0" />
         </SaaSCard>
     );
 }
@@ -13471,6 +14191,7 @@ function StudentSearchApplySection({ csrf, programs = [], applications = [] }) {
     const applied = new Set(applications.map((application) => application.program?.id));
     const locations = [...new Set(programs.map((program) => program.location).filter(Boolean))].sort();
     const filtered = programs.filter((program) => (!search || `${program.name} ${program.institutionName} ${program.level || ''}`.toLowerCase().includes(search.toLowerCase())) && (location === 'all' || program.location === location));
+    const searchPages = usePaginatedItems(filtered, 8, `${search}|${location}`);
 
     return (
         <section className="grid gap-4">
@@ -13479,7 +14200,7 @@ function StudentSearchApplySection({ csrf, programs = [], applications = [] }) {
                 <select value={location} onChange={(event) => setLocation(event.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm"><option value="all">All locations</option>{locations.map((value) => <option key={value}>{value}</option>)}</select>
             </div>
             <div className="grid gap-4 lg:grid-cols-2">
-                {filtered.map((program) => (
+                {searchPages.items.map((program) => (
                     <article key={program.id} className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
                         <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-black uppercase tracking-wide text-[#006a61]">{program.institutionName}</p><h2 className="mt-1 text-xl font-black text-slate-950">{program.name}</h2><p className="mt-1 text-sm font-semibold text-slate-500">{program.level || 'Program'} · {program.location || 'Location TBA'}</p></div><span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-black uppercase text-emerald-700">Open</span></div>
                         <p className="mt-4 text-sm leading-6 text-slate-600">{program.description || 'The institution has not added a description yet.'}</p>
@@ -13489,26 +14210,44 @@ function StudentSearchApplySection({ csrf, programs = [], applications = [] }) {
                 ))}
                 {!filtered.length && <div className="lg:col-span-2"><EmptyState title="No open programs found" message="Try a different search or location filter." /></div>}
             </div>
+            <PaginationControls pagination={searchPages} label="programs" />
         </section>
     );
 }
 
-function StudentDocumentsSection({ csrf, portfolio = {}, applications = [], profile = {} }) {
+function LegacyStudentDocumentsSection({ csrf, portfolio = {}, applications = [], profile = {} }) {
     const records = portfolio.academicRecords || [];
     const documents = portfolio.documents || [];
     const user = profile.user || {};
+    const recordPages = usePaginatedItems(records, 6);
+    const documentPages = usePaginatedItems(documents, 6);
+    const verifiedDocuments = documents.filter((document) => document.status === 'verified').length;
+    const pendingDocuments = documents.filter((document) => !['verified', 'rejected'].includes(document.status)).length;
 
     return (
-        <section className="grid gap-5 lg:grid-cols-2">
+        <section className="grid gap-4">
+            <section className="grid gap-3 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-[1fr_auto] md:items-center md:p-5">
+                <div className="flex min-w-0 items-center gap-3">
+                    {user.profilePhotoUrl ? <img src={user.profilePhotoUrl} alt="Profile" className="h-14 w-14 shrink-0 rounded-2xl object-cover" /> : <span className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-slate-100 text-base font-black text-slate-600">{initials(user.name || 'Student')}</span>}
+                    <div className="min-w-0">
+                        <p className="text-xs font-black uppercase tracking-[0.14em] text-[#006a61]">Student files</p>
+                        <h2 className="truncate text-xl font-black text-slate-950">{user.name || 'Student'}</h2>
+                        <div className="mt-1 flex flex-wrap gap-2">
+                            {user.schoolName && <span className="rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-black uppercase text-blue-700">{user.schoolName}</span>}
+                            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-black uppercase text-slate-600">{documents.length} file(s)</span>
+                            <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-black uppercase text-amber-700">{pendingDocuments} in review</span>
+                            <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-black uppercase text-emerald-700">{verifiedDocuments} verified</span>
+                        </div>
+                    </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2 md:w-64">
+                    <MiniStat label="Documents" value={documents.length} />
+                    <MiniStat label="Records" value={records.length} />
+                </div>
+            </section>
+
+            <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
             <div className="grid content-start gap-5">
-                <SaaSCard title="Profile image" description="Upload the image used for your student profile.">
-                    <form action="/profile/photo" method="POST" encType="multipart/form-data" className="flex flex-wrap items-end gap-3">
-                        <input type="hidden" name="_token" value={csrf} />
-                        {user.profilePhotoUrl ? <img src={user.profilePhotoUrl} alt="Profile" className="h-16 w-16 rounded-full object-cover" /> : <span className="grid h-16 w-16 place-items-center rounded-full bg-slate-100 text-lg font-black text-slate-600">{initials(user.name || 'Student')}</span>}
-                        <label className="min-w-[220px] flex-1 text-sm font-semibold text-slate-700">Image<input type="file" name="profile_photo" accept="image/png,image/jpeg,image/webp" required className="mt-2 block w-full text-sm" /></label>
-                        <button className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-black text-white">Upload image</button>
-                    </form>
-                </SaaSCard>
                 <SaaSCard title="Academic history" description="Add verified education and qualification details.">
                     <form action="/student/academic-records" method="POST" className="grid gap-3 sm:grid-cols-2">
                         <input type="hidden" name="_token" value={csrf} />
@@ -13520,9 +14259,10 @@ function StudentDocumentsSection({ csrf, portfolio = {}, applications = [], prof
                         <button className="rounded-xl bg-[#006a61] px-4 py-2.5 text-sm font-black text-white sm:col-span-2">Add record</button>
                     </form>
                     <div className="mt-4 divide-y divide-slate-100">
-                        {records.map((record) => <div key={record.id} className="flex items-start justify-between gap-3 py-3"><div><p className="font-black text-slate-950">{record.qualification}</p><p className="text-sm text-slate-500">{record.institutionName} · {record.graduationYear || 'Year not set'}{record.gpa ? ` · ${record.gpa}` : ''}</p></div><form action={`/student/academic-records/${record.id}`} method="POST" onSubmit={(event) => { if (!window.confirm('Remove this academic record?')) event.preventDefault(); }}><input type="hidden" name="_token" value={csrf} /><input type="hidden" name="_method" value="DELETE" /><button className="text-xs font-black text-rose-600">Remove</button></form></div>)}
+                        {recordPages.items.map((record) => <div key={record.id} className="flex items-start justify-between gap-3 py-3"><div><p className="font-black text-slate-950">{record.qualification}</p><p className="text-sm text-slate-500">{record.institutionName} · {record.graduationYear || 'Year not set'}{record.gpa ? ` · ${record.gpa}` : ''}</p></div><form action={`/student/academic-records/${record.id}`} method="POST" onSubmit={(event) => { if (!window.confirm('Remove this academic record?')) event.preventDefault(); }}><input type="hidden" name="_token" value={csrf} /><input type="hidden" name="_method" value="DELETE" /><button className="text-xs font-black text-rose-600">Remove</button></form></div>)}
                         {!records.length && <p className="py-4 text-sm text-slate-500">No academic records added yet.</p>}
                     </div>
+                    <PaginationControls pagination={recordPages} label="records" className="px-0" />
                 </SaaSCard>
             </div>
             <SaaSCard title="Documents" description="PDF certificates and images are stored privately and downloaded through authorized links.">
@@ -13534,10 +14274,142 @@ function StudentDocumentsSection({ csrf, portfolio = {}, applications = [], prof
                     <button className="rounded-xl bg-[#006a61] px-4 py-2.5 text-sm font-black text-white">Upload securely</button>
                 </form>
                 <div className="mt-4 grid gap-3">
-                    {documents.map((document) => <article key={document.id} className="rounded-2xl border border-slate-200 p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate font-black text-slate-950">{document.name}</p><p className="mt-1 text-xs font-semibold text-slate-500">{titleCase(document.category)} · {(document.size / 1024).toFixed(1)} KB · {titleCase(document.status)}</p>{document.applicationReference && <p className="mt-1 text-xs font-black text-[#006a61]">{document.applicationReference}</p>}</div><span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-black uppercase text-slate-600">{document.status}</span></div><div className="mt-3 flex flex-wrap gap-2"><a href={document.previewUrl} target="_blank" rel="noreferrer" className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-black text-slate-700">Preview</a><a href={document.downloadUrl} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-black text-[#006a61]">Download</a>{document.status !== 'verified' && <form action={`/student/documents/${document.id}`} method="POST" onSubmit={(event) => { if (!window.confirm('Delete this document?')) event.preventDefault(); }}><input type="hidden" name="_token" value={csrf} /><input type="hidden" name="_method" value="DELETE" /><button className="rounded-lg border border-rose-100 px-3 py-2 text-xs font-black text-rose-600">Delete</button></form>}</div></article>)}
+                    {documentPages.items.map((document) => <article key={document.id} className="rounded-2xl border border-slate-200 p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate font-black text-slate-950">{document.name}</p><p className="mt-1 text-xs font-semibold text-slate-500">{titleCase(document.category)} · {(document.size / 1024).toFixed(1)} KB · {titleCase(document.status)}</p>{document.applicationReference && <p className="mt-1 text-xs font-black text-[#006a61]">{document.applicationReference}</p>}</div><span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-black uppercase text-slate-600">{document.status}</span></div><div className="mt-3 flex flex-wrap gap-2"><a href={document.previewUrl} target="_blank" rel="noreferrer" className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-black text-slate-700">Preview</a><a href={document.downloadUrl} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-black text-[#006a61]">Download</a>{document.status !== 'verified' && <form action={`/student/documents/${document.id}`} method="POST" onSubmit={(event) => { if (!window.confirm('Delete this document?')) event.preventDefault(); }}><input type="hidden" name="_token" value={csrf} /><input type="hidden" name="_method" value="DELETE" /><button className="rounded-lg border border-rose-100 px-3 py-2 text-xs font-black text-rose-600">Delete</button></form>}</div></article>)}
                     {!documents.length && <EmptyState title="No documents uploaded" message="Upload a PDF certificate, transcript, identity document, recommendation, or image." />}
                 </div>
+                <PaginationControls pagination={documentPages} label="documents" className="mt-4 px-0" />
             </SaaSCard>
+        </section>
+        </section>
+    );
+}
+
+function StudentDocumentsSection({ csrf, portfolio = {}, applications = [], profile = {} }) {
+    const records = portfolio.academicRecords || [];
+    const documents = portfolio.documents || [];
+    const user = profile.user || {};
+    const documentPages = usePaginatedItems(documents, 8);
+    const recordPages = usePaginatedItems(records, 5);
+    const verified = documents.filter((document) => document.status === 'verified').length;
+    const pending = documents.filter((document) => !['verified', 'rejected'].includes(document.status)).length;
+
+    const documentIcon = (category) => {
+        if (category === 'transcript') return BookOpen;
+        if (category === 'identity') return ShieldCheck;
+        if (category === 'recommendation') return MailCheck;
+        return Paperclip;
+    };
+    const statusClass = (status) => status === 'verified'
+        ? 'bg-emerald-50 text-emerald-700 ring-emerald-100'
+        : status === 'rejected'
+            ? 'bg-rose-50 text-rose-700 ring-rose-100'
+            : 'bg-amber-50 text-amber-700 ring-amber-100';
+
+    return (
+        <section className="grid gap-4">
+            <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm md:p-5">
+                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-center">
+                    <div className="flex min-w-0 items-center gap-3">
+                        {user.profilePhotoUrl ? <img src={user.profilePhotoUrl} alt="Profile" className="h-14 w-14 shrink-0 rounded-2xl object-cover" /> : <span className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-slate-100 text-base font-black text-slate-600">{initials(user.name || 'Student')}</span>}
+                        <div className="min-w-0">
+                            <p className="text-xs font-black uppercase tracking-[0.14em] text-[#006a61]">School documents</p>
+                            <h2 className="truncate text-xl font-black text-slate-950 md:text-2xl">{user.name || 'Student'}</h2>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                                {user.schoolName && <span className="rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-black uppercase text-blue-700">{user.schoolName}</span>}
+                                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-black uppercase text-slate-600">{documents.length} file(s)</span>
+                                <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-black uppercase text-amber-700">{pending} in review</span>
+                                <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-black uppercase text-emerald-700">{verified} verified</span>
+                            </div>
+                        </div>
+                    </div>
+                    <form action="/profile/photo" method="POST" encType="multipart/form-data" className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
+                        <input type="hidden" name="_token" value={csrf} />
+                        <label className="min-w-0 text-sm font-semibold text-slate-700">Profile image<input type="file" name="profile_photo" accept="image/png,image/jpeg,image/webp" required className="mt-2 block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-white file:px-3 file:py-1.5 file:text-xs file:font-black file:text-slate-700" /></label>
+                        <button className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-black text-white">Upload</button>
+                    </form>
+                </div>
+            </section>
+
+            <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
+                <div className="grid content-start gap-4">
+                    <div className="grid gap-2 sm:grid-cols-3">
+                        <MiniStat label="Uploaded" value={documents.length} />
+                        <MiniStat label="In review" value={pending} />
+                        <MiniStat label="Verified" value={verified} />
+                    </div>
+
+                    <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm md:p-5">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                            <div>
+                                <p className="text-xs font-black uppercase tracking-[0.14em] text-[#006a61]">My documents</p>
+                                <h3 className="mt-1 text-lg font-black text-slate-950">Uploaded files</h3>
+                            </div>
+                            <p className="text-xs font-bold text-slate-500">PDF, PNG, or JPG up to 10MB</p>
+                        </div>
+                        <div className="mt-4 grid gap-3 md:grid-cols-2">
+                            {documentPages.items.map((document) => {
+                                const Icon = documentIcon(document.category);
+                                return (
+                                    <article key={document.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-[#006a61]/30 hover:shadow-md">
+                                        <div className="flex items-start gap-3">
+                                            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[#e5eeff] text-[#006a61]"><Icon size={18} /></span>
+                                            <div className="min-w-0 flex-1">
+                                                <div className="flex items-start justify-between gap-2">
+                                                    <p className="min-w-0 truncate font-black text-slate-950">{document.name || document.original_name || 'Document'}</p>
+                                                    <span className={cx('shrink-0 rounded-full px-2 py-1 text-[10px] font-black uppercase ring-1', statusClass(document.status))}>{titleCase(document.status || 'uploaded')}</span>
+                                                </div>
+                                                <p className="mt-1 text-xs font-semibold text-slate-500">{titleCase(document.category || 'Document')} - {Number(document.size || 0) ? `${(Number(document.size) / 1024).toFixed(1)} KB` : 'Size unavailable'}</p>
+                                                {document.applicationReference && <p className="mt-1 truncate text-xs font-black text-[#006a61]">{document.applicationReference}</p>}
+                                                <div className="mt-4 flex flex-wrap gap-2">
+                                                    <a href={document.previewUrl || document.preview_url} target="_blank" rel="noreferrer" className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-black text-slate-700">Preview</a>
+                                                    <a href={document.downloadUrl || document.download_url} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-black text-[#006a61]">Download</a>
+                                                    {document.status !== 'verified' && <form action={`/student/documents/${document.id}`} method="POST" onSubmit={(event) => { if (!window.confirm('Delete this document?')) event.preventDefault(); }}><input type="hidden" name="_token" value={csrf} /><input type="hidden" name="_method" value="DELETE" /><button className="rounded-lg border border-rose-100 px-3 py-2 text-xs font-black text-rose-600">Delete</button></form>}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </article>
+                                );
+                            })}
+                            {!documents.length && <div className="md:col-span-2"><EmptyState title="No documents uploaded" message="Upload report cards, consent forms, school ID, or other files your school needs for a visit." /></div>}
+                        </div>
+                        <PaginationControls pagination={documentPages} label="documents" className="mt-4 px-0" />
+                    </section>
+                </div>
+
+                <aside className="grid content-start gap-4">
+                    <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm md:p-5">
+                        <p className="text-xs font-black uppercase tracking-[0.14em] text-[#006a61]">Upload</p>
+                        <h3 className="mt-1 text-lg font-black text-slate-950">Add a document</h3>
+                        <form action="/student/documents" method="POST" encType="multipart/form-data" className="mt-4 grid gap-3">
+                            <input type="hidden" name="_token" value={csrf} />
+                            <label className="text-sm font-semibold text-slate-700">Document type<select name="category" className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5"><option value="transcript">Report card / transcript</option><option value="identity">School ID or identity</option><option value="certificate">Certificate</option><option value="recommendation">Counselor note</option><option value="other">Consent form or other</option></select></label>
+                            <label className="text-sm font-semibold text-slate-700">Used for<select name="admission_application_id" className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5"><option value="">Visit profile</option>{applications.map((application) => <option key={application.id} value={application.id}>{application.reference} - {application.program?.name}</option>)}</select></label>
+                            <label className="text-sm font-semibold text-slate-700">File<input type="file" name="document" accept="application/pdf,image/png,image/jpeg" required className="mt-2 block w-full rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-3 py-5 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-white file:px-3 file:py-1.5 file:text-xs file:font-black file:text-slate-700" /></label>
+                            <button className="rounded-xl bg-[#006a61] px-4 py-3 text-sm font-black text-white">Upload document</button>
+                        </form>
+                    </section>
+
+                    <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm md:p-5">
+                        <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">School records</p>
+                        <form action="/student/academic-records" method="POST" className="mt-4 grid gap-3">
+                            <input type="hidden" name="_token" value={csrf} />
+                            <LightField label="School name" name="institution_name" required />
+                            <LightField label="Class / result" name="qualification" required />
+                            <div className="grid gap-3 sm:grid-cols-2">
+                                <LightField label="School year" name="graduation_year" type="number" min="1950" max={new Date().getFullYear() + 10} />
+                                <LightField label="Score / average" name="gpa" type="number" min="0" max="100" step="0.01" />
+                            </div>
+                            <LightTextarea label="Notes" name="result_summary" />
+                            <button className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-700">Add record</button>
+                        </form>
+                        <div className="mt-4 divide-y divide-slate-100">
+                            {recordPages.items.map((record) => <div key={record.id} className="py-3"><p className="font-black text-slate-950">{record.qualification}</p><p className="text-sm font-semibold text-slate-500">{record.institutionName} - {record.graduationYear || 'Year not set'}{record.gpa ? ` - ${record.gpa}` : ''}</p></div>)}
+                            {!records.length && <p className="py-3 text-sm font-semibold text-slate-500">No academic records added.</p>}
+                        </div>
+                        <PaginationControls pagination={recordPages} label="records" className="px-0" />
+                    </section>
+                </aside>
+            </section>
         </section>
     );
 }
@@ -13545,19 +14417,23 @@ function StudentDocumentsSection({ csrf, portfolio = {}, applications = [], prof
 function StudentPaymentsSection({ csrf, applications = [] }) {
     const payments = applications.flatMap((application) => (application.payments || []).map((payment) => ({ ...payment, application })));
     const payable = applications.filter((application) => Number(application.program?.fee || 0) > 0 && ['submitted', 'under_review', 'waitlisted', 'accepted'].includes(application.status) && !(application.payments || []).some((payment) => payment.status === 'paid'));
+    const payablePages = usePaginatedItems(payable, 6);
+    const paymentPages = usePaginatedItems(payments, 6);
 
     return (
         <section className="grid gap-5 lg:grid-cols-[1fr_0.9fr]">
             <SaaSCard title="Application fees" description="Start payment only for a submitted application with a configured fee.">
                 <div className="grid gap-3">
-                    {payable.map((application) => <article key={application.id} className="rounded-2xl border border-slate-200 p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-black text-slate-950">{application.program?.name}</p><p className="mt-1 text-xs font-semibold text-slate-500">{application.reference} · {application.program?.institutionName}</p></div><p className="text-lg font-black text-[#006a61]">{formatCurrency(application.program?.fee, application.program?.currency)}</p></div><form action={`/admission-applications/${application.id}/payments/paystack`} method="POST" data-native-submit="true" className="mt-4"><input type="hidden" name="_token" value={csrf} /><button className="w-full rounded-xl bg-[#006a61] px-4 py-3 text-sm font-black text-white">Pay securely with Paystack</button></form></article>)}
+                    {payablePages.items.map((application) => <article key={application.id} className="rounded-2xl border border-slate-200 p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-black text-slate-950">{application.program?.name}</p><p className="mt-1 text-xs font-semibold text-slate-500">{application.reference} · {application.program?.institutionName}</p></div><p className="text-lg font-black text-[#006a61]">{formatCurrency(application.program?.fee, application.program?.currency)}</p></div><form action={`/admission-applications/${application.id}/payments/paystack`} method="POST" data-native-submit="true" className="mt-4"><input type="hidden" name="_token" value={csrf} /><button className="w-full rounded-xl bg-[#006a61] px-4 py-3 text-sm font-black text-white">Pay securely with Paystack</button></form></article>)}
                     {!payable.length && <EmptyState title="No fees due" message="A payable application fee will appear here after an application is submitted." />}
+                    <PaginationControls pagination={payablePages} label="fees" className="px-0" />
                 </div>
             </SaaSCard>
             <SaaSCard title="Payment history" description="Verified transactions and downloadable receipts.">
                 <div className="grid gap-3">
-                    {payments.map((payment) => <article key={payment.id} className="rounded-2xl border border-slate-200 p-4"><div className="flex items-start justify-between gap-3"><div><p className="font-black text-slate-950">{payment.application.program?.name}</p><p className="mt-1 text-xs font-semibold text-slate-500">{payment.reference}</p></div><span className={cx('rounded-full px-2.5 py-1 text-[10px] font-black uppercase', payment.status === 'paid' ? 'bg-emerald-50 text-emerald-700' : payment.status === 'failed' ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-700')}>{payment.status}</span></div><p className="mt-3 text-lg font-black text-slate-950">{formatCurrency(payment.amount, payment.currency)}</p>{payment.receiptUrl && <div className="mt-3 flex gap-2"><a href={payment.receiptUrl} target="_blank" rel="noreferrer" className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-black text-slate-700">View receipt</a><a href={payment.receiptDownloadUrl} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-black text-[#006a61]">Download</a></div>}</article>)}
+                    {paymentPages.items.map((payment) => <article key={payment.id} className="rounded-2xl border border-slate-200 p-4"><div className="flex items-start justify-between gap-3"><div><p className="font-black text-slate-950">{payment.application.program?.name}</p><p className="mt-1 text-xs font-semibold text-slate-500">{payment.reference}</p></div><span className={cx('rounded-full px-2.5 py-1 text-[10px] font-black uppercase', payment.status === 'paid' ? 'bg-emerald-50 text-emerald-700' : payment.status === 'failed' ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-700')}>{payment.status}</span></div><p className="mt-3 text-lg font-black text-slate-950">{formatCurrency(payment.amount, payment.currency)}</p>{payment.receiptUrl && <div className="mt-3 flex gap-2"><a href={payment.receiptUrl} target="_blank" rel="noreferrer" className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-black text-slate-700">View receipt</a><a href={payment.receiptDownloadUrl} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-black text-[#006a61]">Download</a></div>}</article>)}
                     {!payments.length && <p className="py-8 text-center text-sm font-semibold text-slate-500">No payment attempts yet.</p>}
+                    <PaginationControls pagination={paymentPages} label="payments" className="px-0" />
                 </div>
             </SaaSCard>
         </section>
@@ -13597,19 +14473,40 @@ function AdminContentSection({ csrf, content = {} }) {
     );
 }
 
-function ConversationCenterSection({ currentUserId }) {
+function ConversationCenterSection({ currentUserId, role }) {
     const [threads, setThreads] = useState([]);
     const [recipients, setRecipients] = useState([]);
+    const [recipientSearch, setRecipientSearch] = useState('');
+    const [selectedRecipient, setSelectedRecipient] = useState(null);
+    const [recipientLoading, setRecipientLoading] = useState(false);
     const [active, setActive] = useState(null);
     const [messages, setMessages] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const canStartConversation = role !== 'student';
     const loadThreads = async () => {
         try {
-            const payload = await apiRequest('/api/v1/conversations?per_page=100');
+            const payload = await apiRequest('/api/v1/conversations?per_page=50');
             setThreads(payload?.data || []);
             return payload?.data || [];
         } catch (requestError) { setError(requestError.message); return []; }
+    };
+    const loadRecipients = async (search = '') => {
+        if (!canStartConversation) {
+            setRecipients([]);
+            return;
+        }
+        setRecipientLoading(true);
+        try {
+            const params = new URLSearchParams({ per_page: '25' });
+            if (search.trim()) params.set('search', search.trim());
+            const payload = await apiRequest(`/api/v1/conversations/recipients?${params.toString()}`);
+            setRecipients(payload?.data || []);
+        } catch (requestError) {
+            setError(requestError.message);
+        } finally {
+            setRecipientLoading(false);
+        }
     };
     const openThread = async (thread) => {
         setError('');
@@ -13623,18 +14520,42 @@ function ConversationCenterSection({ currentUserId }) {
     };
     useEffect(() => {
         let mounted = true;
-        Promise.all([apiRequest('/api/v1/conversations?per_page=100'), apiRequest('/api/v1/conversations/recipients?per_page=100')]).then(([threadPayload, recipientPayload]) => {
+        const requests = canStartConversation
+            ? [apiRequest('/api/v1/conversations?per_page=50'), apiRequest('/api/v1/conversations/recipients?per_page=25')]
+            : [apiRequest('/api/v1/conversations?per_page=50'), Promise.resolve({ data: [] })];
+        Promise.all(requests).then(([threadPayload, recipientPayload]) => {
             if (!mounted) return;
             setThreads(threadPayload?.data || []); setRecipients(recipientPayload?.data || []);
         }).catch((requestError) => mounted && setError(requestError.message)).finally(() => mounted && setLoading(false));
         return () => { mounted = false; };
-    }, []);
+    }, [canStartConversation]);
+    useEffect(() => {
+        if (!canStartConversation) return undefined;
+        const handle = window.setTimeout(() => loadRecipients(recipientSearch), 250);
+        return () => window.clearTimeout(handle);
+    }, [recipientSearch, canStartConversation]);
     const startConversation = async (event) => {
         event.preventDefault(); setError('');
         const form = event.currentTarget; const formData = new FormData(form);
+        if (!selectedRecipient) {
+            setError('Choose a recipient before sending.');
+            return;
+        }
         try {
-            const payload = await apiRequest('/api/v1/conversations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.fromEntries(formData)) });
-            form.reset(); await loadThreads(); await openThread(payload.data);
+            const payload = await apiRequest('/api/v1/conversations', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    recipient_user_id: selectedRecipient.id,
+                    subject: String(formData.get('subject') || '').trim(),
+                    body: String(formData.get('body') || '').trim(),
+                }),
+            });
+            form.reset();
+            setSelectedRecipient(null);
+            setRecipientSearch('');
+            await loadThreads();
+            await openThread(payload.data);
         } catch (requestError) { setError(requestError.message); }
     };
     const reply = async (event) => {
@@ -13648,11 +14569,52 @@ function ConversationCenterSection({ currentUserId }) {
     const otherParticipant = active?.participants?.find((participant) => Number(participant.id) !== Number(currentUserId));
     return (
         <section className="grid gap-4">
-            <details className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><summary className="cursor-pointer font-black text-slate-950">Start a new conversation</summary><form onSubmit={startConversation} className="mt-4 grid gap-3"><label className="text-sm font-semibold text-slate-700">Recipient<select name="recipient_user_id" required className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5"><option value="">Select a recipient</option>{recipients.map((recipient) => <option key={recipient.id} value={recipient.id}>{recipient.name} · {titleCase(recipient.role)}{recipient.institution_name ? ` · ${recipient.institution_name}` : ''}</option>)}</select></label><LightField label="Subject" name="subject" required /><LightTextarea label="Message" name="body" required /><button className="rounded-xl bg-[#006a61] px-4 py-3 text-sm font-black text-white">Send message</button></form></details>
+            {!canStartConversation && (
+                <section className="rounded-2xl border border-blue-100 bg-blue-50 p-4 shadow-sm">
+                    <p className="font-black text-slate-950">Reply to received messages</p>
+                    <p className="mt-1 text-sm font-semibold leading-6 text-slate-600">Your school, university, or platform admin can message you here. You can reply inside those threads.</p>
+                </section>
+            )}
+            <details open className={cx('rounded-2xl border border-slate-200 bg-white p-4 shadow-sm', !canStartConversation && 'hidden')}>
+                <summary className="cursor-pointer list-none font-black text-slate-950">Start a conversation</summary>
+                <form onSubmit={startConversation} className="mt-4 grid gap-4 xl:grid-cols-[minmax(280px,0.9fr)_minmax(0,1.1fr)]">
+                    <section className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                        <label className="text-sm font-semibold text-slate-700">
+                            Find recipient
+                            <span className="relative mt-2 block">
+                                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                                <input type="search" value={recipientSearch} onChange={(event) => setRecipientSearch(event.target.value)} placeholder="Search by name or school" className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-9 pr-3 text-sm font-semibold outline-none focus:border-[#006a61] focus:ring-4 focus:ring-emerald-50" />
+                            </span>
+                        </label>
+                        <div className="mt-3 max-h-64 overflow-y-auto rounded-xl border border-slate-200 bg-white">
+                            {recipients.map((recipient) => (
+                                <button key={recipient.id} type="button" onClick={() => setSelectedRecipient(recipient)} className={cx('flex w-full items-center gap-3 border-b border-slate-100 px-3 py-3 text-left last:border-b-0 hover:bg-slate-50', selectedRecipient?.id === recipient.id && 'bg-blue-50')}>
+                                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-slate-950 text-[11px] font-black text-white">{initials(recipient.name)}</span>
+                                    <span className="min-w-0">
+                                        <span className="block truncate text-sm font-black text-slate-950">{recipient.name}</span>
+                                        <span className="block truncate text-xs font-semibold text-slate-500">{titleCase(recipient.role)}{recipient.institution_name ? ` · ${recipient.institution_name}` : ''}</span>
+                                    </span>
+                                </button>
+                            ))}
+                            {!recipients.length && <p className="px-3 py-8 text-center text-sm font-semibold text-slate-500">{recipientLoading ? 'Searching contacts...' : 'No contacts match that search.'}</p>}
+                        </div>
+                    </section>
+                    <section className="grid gap-3">
+                        <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                            <p className="text-[11px] font-black uppercase tracking-wide text-slate-500">To</p>
+                            <p className="mt-1 text-sm font-black text-slate-950">{selectedRecipient ? selectedRecipient.name : 'Choose a recipient from the search results'}</p>
+                        </div>
+                        <LightField label="Subject" name="subject" required />
+                        <LightTextarea label="Message" name="body" required />
+                        <button className="rounded-xl bg-[#006a61] px-4 py-3 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-slate-300" disabled={!selectedRecipient}>Send message</button>
+                    </section>
+                </form>
+            </details>
+            <details className="hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><summary className="cursor-pointer font-black text-slate-950">Start a new conversation</summary><form onSubmit={startConversation} className="mt-4 grid gap-3"><label className="text-sm font-semibold text-slate-700">Recipient<select name="recipient_user_id" required className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5"><option value="">Select a recipient</option>{recipients.map((recipient) => <option key={recipient.id} value={recipient.id}>{recipient.name} · {titleCase(recipient.role)}{recipient.institution_name ? ` · ${recipient.institution_name}` : ''}</option>)}</select></label><LightField label="Subject" name="subject" required /><LightTextarea label="Message" name="body" required /><button className="rounded-xl bg-[#006a61] px-4 py-3 text-sm font-black text-white">Send message</button></form></details>
             {error && <p className="rounded-xl bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">{error}</p>}
             <div className="grid min-h-[520px] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm lg:grid-cols-[320px_1fr]">
-                <aside className="border-b border-slate-200 lg:border-b-0 lg:border-r"><div className="border-b border-slate-100 p-4"><p className="font-black text-slate-950">Conversations</p><p className="text-xs font-semibold text-slate-500">Direct, authorized messages only</p></div><div className="max-h-[520px] overflow-y-auto">{threads.map((thread) => { const recipient = thread.participants?.find((participant) => Number(participant.id) !== Number(currentUserId)); return <button key={thread.id} type="button" onClick={() => openThread(thread)} className={cx('w-full border-b border-slate-100 p-4 text-left hover:bg-slate-50', active?.id === thread.id && 'bg-blue-50')}><div className="flex items-start justify-between gap-2"><p className="truncate font-black text-slate-950">{recipient?.name || thread.subject}</p>{thread.unread_count > 0 && <span className="rounded-full bg-[#006a61] px-2 py-0.5 text-[10px] font-black text-white">{thread.unread_count}</span>}</div><p className="mt-1 truncate text-xs font-semibold text-slate-500">{thread.subject}</p><p className="mt-1 truncate text-xs text-slate-400">{thread.latest_message?.body}</p></button>; })}{!threads.length && !loading && <p className="p-6 text-center text-sm text-slate-500">No conversations yet.</p>}{loading && <p className="p-6 text-center text-sm text-slate-500">Loading conversations...</p>}</div></aside>
-                <div className="flex min-h-[420px] flex-col">{active ? <><header className="border-b border-slate-100 p-4"><p className="font-black text-slate-950">{otherParticipant?.name || active.subject}</p><p className="text-xs font-semibold text-slate-500">{active.subject}</p></header><div className="flex-1 space-y-3 overflow-y-auto bg-slate-50/60 p-4">{messages.map((message) => { const mine = Number(message.sender?.id) === Number(currentUserId); return <div key={message.id} className={cx('flex', mine ? 'justify-end' : 'justify-start')}><article className={cx('max-w-[82%] rounded-2xl px-4 py-3 text-sm shadow-sm', mine ? 'bg-[#006a61] text-white' : 'border border-slate-200 bg-white text-slate-700')}><p className="whitespace-pre-wrap leading-6">{message.body}</p><p className={cx('mt-1 text-[10px] font-semibold', mine ? 'text-white/60' : 'text-slate-400')}>{formatDateTime(message.created_at)}</p></article></div>; })}</div><form onSubmit={reply} className="flex gap-2 border-t border-slate-100 p-4"><input name="body" required maxLength="5000" placeholder="Write a message..." className="min-w-0 flex-1 rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#006a61]" /><button className="rounded-xl bg-[#006a61] px-4 py-3 text-sm font-black text-white">Send</button></form></> : <div className="grid flex-1 place-items-center p-8 text-center"><div><Inbox className="mx-auto text-slate-300" size={32} /><p className="mt-3 font-black text-slate-950">Select a conversation</p><p className="mt-1 text-sm text-slate-500">Choose a real thread or start a new message.</p></div></div>}</div>
+                <aside className="border-b border-slate-200 lg:border-b-0 lg:border-r"><div className="border-b border-slate-100 p-4"><p className="font-black text-slate-950">Conversations</p><p className="text-xs font-semibold text-slate-500">Direct, authorized messages only</p></div><div className="max-h-[520px] overflow-y-auto">{threads.map((thread) => { const recipient = thread.participants?.find((participant) => Number(participant.id) !== Number(currentUserId)); return <button key={thread.id} type="button" onClick={() => openThread(thread)} className={cx('w-full border-b border-slate-100 p-4 text-left hover:bg-slate-50', active?.id === thread.id && 'bg-blue-50')}><div className="flex items-start justify-between gap-2"><p className="truncate font-black text-slate-950">{recipient?.name || thread.subject}</p>{thread.unread_count > 0 && <span className="rounded-full bg-[#006a61] px-2 py-0.5 text-[10px] font-black text-white">{thread.unread_count}</span>}</div><p className="mt-1 truncate text-xs font-semibold text-slate-500">{thread.subject}</p><p className="mt-1 truncate text-xs text-slate-400">{thread.latest_message?.body}</p></button>; })}{!threads.length && !loading && <p className="p-6 text-center text-sm text-slate-500">{role === 'student' ? 'No messages yet. When your school or university contacts you, the thread will appear here.' : 'No conversations yet.'}</p>}{loading && <p className="p-6 text-center text-sm text-slate-500">Loading conversations...</p>}</div></aside>
+                <div className="flex min-h-[420px] flex-col">{active ? <><header className="border-b border-slate-100 p-4"><p className="font-black text-slate-950">{otherParticipant?.name || active.subject}</p><p className="text-xs font-semibold text-slate-500">{active.subject}</p></header><div className="flex-1 space-y-3 overflow-y-auto bg-slate-50/60 p-4">{messages.map((message) => { const mine = Number(message.sender?.id) === Number(currentUserId); return <div key={message.id} className={cx('flex', mine ? 'justify-end' : 'justify-start')}><article className={cx('max-w-[82%] rounded-2xl px-4 py-3 text-sm shadow-sm', mine ? 'bg-[#006a61] text-white' : 'border border-slate-200 bg-white text-slate-700')}><p className="whitespace-pre-wrap leading-6">{message.body}</p><p className={cx('mt-1 text-[10px] font-semibold', mine ? 'text-white/60' : 'text-slate-400')}>{formatDateTime(message.created_at)}</p></article></div>; })}</div><form onSubmit={reply} className="flex gap-2 border-t border-slate-100 p-4"><input name="body" required maxLength="5000" placeholder="Write a message..." className="min-w-0 flex-1 rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#006a61]" /><button className="rounded-xl bg-[#006a61] px-4 py-3 text-sm font-black text-white">Send</button></form></> : <div className="grid flex-1 place-items-center p-8 text-center"><div><Inbox className="mx-auto text-slate-300" size={32} /><p className="mt-3 font-black text-slate-950">Select a conversation</p><p className="mt-1 text-sm text-slate-500">{role === 'student' ? 'Open a message you received and reply there.' : 'Choose a real thread or start a new message.'}</p></div></div>}</div>
             </div>
         </section>
     );
@@ -13701,6 +14663,7 @@ function dashboardNavGroups(role) {
             { id: 'messages', title: 'Messages', icon: Inbox },
             { id: 'itinerary', title: 'Itinerary', icon: RouteIcon },
             { id: 'notifications', title: 'Notifications', icon: Bell },
+            { id: 'documents', title: 'Documents', icon: Upload },
             { id: 'profile', title: 'Profile', icon: UsersRound },
             { id: 'settings', title: 'Settings', icon: Command },
         ],
@@ -13730,7 +14693,7 @@ function flatNavItems(groups) {
 function dashboardContent(role, activeId, metrics, actions, context = {}) {
     const { csrf, roadmap, events, scheduleEvents, registrations, users, schools, schoolAccounts, students, visitRequests, itineraryItems, archives, tasks, analytics, messages, schoolProfile, securityProfile, universityOverview, universitySettings, universityCompliance, systemHealth, platformSettings, waitlist, programs, admissionApplications, studentPortfolio, notifications, contentManagement, errors, old, setActiveId } = context;
     const baseMetrics = metrics.map((metric) => ({ ...metric, trend: metric.trend || 'Ready for live data' }));
-    const removedAdmissionsSections = ['programs', 'applications', 'search-apply', 'documents', 'payments'];
+    const removedAdmissionsSections = ['programs', 'applications', 'search-apply', 'payments'];
     if (removedAdmissionsSections.includes(activeId)) {
         activeId = role === 'student' ? 'my-visits' : role === 'admin' ? 'overview' : ['school', 'high_school'].includes(role) ? 'events' : 'events';
     }
@@ -13798,7 +14761,7 @@ function dashboardContent(role, activeId, metrics, actions, context = {}) {
             subtitle: 'Manage school relationships and prioritize recruitment opportunities.',
             action: 'Explore schools',
             metrics: baseMetrics,
-            custom: <PartnerSchoolsSection csrf={csrf} schools={schools || []} visitRequests={visitRequests || []} archives={archives || []} />,
+            custom: <PartnerSchoolsSection csrf={csrf} schools={schools || []} visitRequests={visitRequests || []} archives={archives || []} events={events || []} setSection={setActiveId || (() => {})} />,
         };
     }
 
@@ -13833,7 +14796,7 @@ function dashboardContent(role, activeId, metrics, actions, context = {}) {
     }
 
     if (role === 'university' && activeId === 'messages') {
-        return { title: 'Communications', subtitle: 'Send and review direct student communications.', action: 'New message', metrics: baseMetrics, custom: <ConversationCenterSection currentUserId={securityProfile?.user?.id} /> };
+        return { title: 'Communications', subtitle: 'Send and review direct student communications.', action: 'New message', metrics: baseMetrics, custom: <ConversationCenterSection currentUserId={securityProfile?.user?.id} role={role} /> };
     }
 
     if (role === 'university' && activeId === 'profile') {
@@ -13885,7 +14848,7 @@ function dashboardContent(role, activeId, metrics, actions, context = {}) {
     }
 
     if (['school', 'high_school'].includes(role) && activeId === 'itinerary') {
-        return { title: 'Itinerary', subtitle: 'Build, arrange, and manage a route from approved visit destinations.', action: 'Manage route', metrics: baseMetrics, custom: <SchoolItinerarySection csrf={csrf} visitRequests={visitRequests || []} registrations={registrations || []} events={scheduleEvents || []} students={students || []} itineraryItems={itineraryItems || []} setSection={setActiveId || (() => {})} /> };
+        return { title: 'Itinerary', subtitle: 'Build, arrange, and manage a route from approved visit destinations.', action: 'Manage route', metrics: baseMetrics, custom: <SchoolItinerarySection csrf={csrf} visitRequests={visitRequests || []} registrations={registrations || []} events={scheduleEvents || []} students={students || []} itineraryItems={itineraryItems || []} schoolProfile={schoolProfile || {}} setSection={setActiveId || (() => {})} /> };
     }
 
     if (['school', 'high_school'].includes(role) && activeId === 'calendar') {
@@ -13903,7 +14866,7 @@ function dashboardContent(role, activeId, metrics, actions, context = {}) {
     }
 
     if (['school', 'high_school'].includes(role) && activeId === 'messages') {
-        return { title: 'Messages', subtitle: 'Review direct student and administrator communications.', action: 'New message', metrics: baseMetrics, custom: <ConversationCenterSection currentUserId={securityProfile?.user?.id} /> };
+        return { title: 'Messages', subtitle: 'Review direct student and administrator communications.', action: 'New message', metrics: baseMetrics, custom: <ConversationCenterSection currentUserId={securityProfile?.user?.id} role={role} /> };
     }
 
     if (['school', 'high_school'].includes(role) && activeId === 'profile') {
@@ -13939,7 +14902,7 @@ function dashboardContent(role, activeId, metrics, actions, context = {}) {
     }
 
     if (role === 'student' && activeId === 'documents') {
-        return { title: 'Documents', subtitle: 'Manage your academic history and private application documents.', action: 'Upload document', metrics: baseMetrics, custom: <StudentDocumentsSection csrf={csrf} portfolio={studentPortfolio || {}} applications={admissionApplications || []} profile={securityProfile || {}} /> };
+        return { title: 'Documents', subtitle: 'Keep school files needed for visits, consent, and student identification.', action: 'Upload document', metrics: baseMetrics, custom: <StudentDocumentsSection csrf={csrf} portfolio={studentPortfolio || {}} applications={admissionApplications || []} profile={securityProfile || {}} /> };
     }
 
     if (role === 'student' && activeId === 'payments') {
@@ -13947,7 +14910,7 @@ function dashboardContent(role, activeId, metrics, actions, context = {}) {
     }
 
     if (role === 'student' && activeId === 'messages') {
-        return { title: 'Messages', subtitle: 'Message schools, universities, and platform administrators directly.', action: 'New message', metrics: baseMetrics, custom: <ConversationCenterSection currentUserId={securityProfile?.user?.id} /> };
+        return { title: 'Messages', subtitle: 'Reply to messages from your school, university, or platform admin.', action: 'Messages', metrics: baseMetrics, custom: <ConversationCenterSection currentUserId={securityProfile?.user?.id} role={role} /> };
     }
 
     if (role === 'student' && activeId === 'itinerary') {
@@ -13955,7 +14918,7 @@ function dashboardContent(role, activeId, metrics, actions, context = {}) {
     }
 
     if (role === 'student' && activeId === 'notifications') {
-        return { title: 'Notifications', subtitle: 'Read application, payment, message, and visit updates.', action: 'Review alerts', metrics: baseMetrics, custom: <PlatformNotificationsSection initial={notifications || {}} /> };
+        return { title: 'Notifications', subtitle: 'Read visit, message, document, and account updates.', action: 'Review alerts', metrics: baseMetrics, custom: <PlatformNotificationsSection initial={notifications || {}} /> };
     }
 
     if (role === 'student' && activeId === 'profile') {
@@ -13983,7 +14946,7 @@ function dashboardContent(role, activeId, metrics, actions, context = {}) {
     }
 
     if (role === 'admin' && activeId === 'messages') {
-        return { title: 'Messages', subtitle: 'Message any active verified platform user directly.', action: 'New message', metrics: baseMetrics, custom: <ConversationCenterSection currentUserId={securityProfile?.user?.id} /> };
+        return { title: 'Messages', subtitle: 'Message any active verified platform user directly.', action: 'New message', metrics: baseMetrics, custom: <ConversationCenterSection currentUserId={securityProfile?.user?.id} role={role} /> };
     }
 
     if (role === 'admin' && activeId === 'content') {

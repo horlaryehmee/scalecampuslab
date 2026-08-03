@@ -1007,7 +1007,7 @@ class DashboardController extends Controller
     {
         $user = auth()->user();
 
-        return $this->dashboard('student', 'Student Dashboard', 'Browse visit opportunities, register, and receive updates from institutions.', [
+        return $this->dashboard('student', 'Student Dashboard', 'View assigned school visits, trip details, and messages from your school or host institutions.', [
             ['label' => 'Available visits', 'value' => CampusEvent::where('status', 'published')->count()],
             ['label' => 'My visits', 'value' => EventRegistration::where('user_id', $user->id)->count()],
             ['label' => 'Confirmed visits', 'value' => EventRegistration::where('user_id', $user->id)->where('status', 'confirmed')->count()],
@@ -1027,6 +1027,7 @@ class DashboardController extends Controller
             'tasks' => [],
             'analytics' => $this->analytics('student', $user),
             'messages' => $this->messages($user),
+            'studentPortfolio' => $this->studentPortfolio($user),
             'notifications' => $this->notificationFeed($user),
             'contentManagement' => $this->contentManagement($user),
         ]);
@@ -2629,6 +2630,8 @@ class DashboardController extends Controller
             return [];
         }
 
+        $user->loadMissing('school');
+
         $sessionTable = config('session.table', 'sessions');
         $currentSessionId = request()?->session()?->getId();
         $sessions = DB::table($sessionTable)
@@ -2671,6 +2674,9 @@ class DashboardController extends Controller
                 'email' => $user->email,
                 'phone' => $user->phone,
                 'role' => $user->role,
+                'schoolId' => $user->school?->id,
+                'schoolName' => $user->school?->name,
+                'schoolLocation' => $user->school?->location,
                 'emailVerified' => $user->email_verified_at !== null,
                 'studentIdentifier' => $user->student_identifier,
                 'gradeLevel' => $user->grade_level,
@@ -3921,19 +3927,20 @@ class DashboardController extends Controller
                 'id' => $item->id,
                 'eventId' => $item->campus_event_id,
                 'requestId' => $item->visit_request_id,
+                'stopType' => $item->stop_type,
                 'position' => $item->position,
                 'plannedStartAt' => $item->planned_start_at?->toIso8601String(),
                 'notes' => $item->notes,
                 'requestStatus' => $item->visitRequest?->status,
                 'students' => $item->visitRequest?->group_size,
-                'event' => $item->event?->title,
-                'university' => $item->event?->university?->name,
+                'event' => $item->event?->title ?: $item->title,
+                'university' => $item->event?->university?->name ?: 'School logistics',
                 'startsAt' => $item->event?->starts_at?->toIso8601String(),
                 'endsAt' => $item->event?->ends_at?->toIso8601String(),
                 'venue' => $item->event?->venue,
-                'location' => $item->event?->location,
-                'latitude' => $item->event?->latitude !== null ? (float) $item->event->latitude : null,
-                'longitude' => $item->event?->longitude !== null ? (float) $item->event->longitude : null,
+                'location' => $item->event?->location ?: $item->location,
+                'latitude' => $item->event?->latitude !== null ? (float) $item->event->latitude : ($item->latitude !== null ? (float) $item->latitude : null),
+                'longitude' => $item->event?->longitude !== null ? (float) $item->event->longitude : ($item->longitude !== null ? (float) $item->longitude : null),
                 'capacity' => $item->event?->capacity,
                 'eventStatus' => $item->event?->status,
             ])
@@ -3958,7 +3965,7 @@ class DashboardController extends Controller
             ->get()
             ->each(function (VisitRequest $request) use ($userId, &$position): void {
                 $item = SchoolItineraryItem::firstOrCreate(
-                    ['user_id' => $userId, 'campus_event_id' => $request->campus_event_id],
+                    ['user_id' => $userId, 'campus_event_id' => $request->campus_event_id, 'stop_type' => 'program'],
                     ['position' => ++$position, 'planned_start_at' => $request->event?->starts_at, 'visit_request_id' => $request->id]
                 );
                 if (! $item->visit_request_id) {
@@ -3973,7 +3980,7 @@ class DashboardController extends Controller
             ->get()
             ->each(function (EventRegistration $registration) use ($userId, &$position): void {
                 SchoolItineraryItem::firstOrCreate(
-                    ['user_id' => $userId, 'campus_event_id' => $registration->campus_event_id],
+                    ['user_id' => $userId, 'campus_event_id' => $registration->campus_event_id, 'stop_type' => 'program'],
                     ['position' => ++$position, 'planned_start_at' => $registration->event?->starts_at]
                 );
             });

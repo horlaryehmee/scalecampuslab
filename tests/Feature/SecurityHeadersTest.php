@@ -23,8 +23,10 @@ class SecurityHeadersTest extends TestCase
         $this->assertStringContainsString("object-src 'none'", $policy);
         $this->assertStringContainsString("frame-ancestors 'self'", $policy);
         $this->assertStringContainsString("form-action 'self'", $policy);
+        $this->assertStringContainsString('https://nominatim.openstreetmap.org', $policy);
+        $this->assertStringContainsString('https://router.project-osrm.org', $policy);
         $this->assertSame(
-            'camera=(), microphone=(), geolocation=(), usb=(), browsing-topics=()',
+            'camera=(), microphone=(), geolocation=(self), usb=(), browsing-topics=()',
             $response->headers->get('Permissions-Policy'),
         );
         $this->assertFalse($response->headers->has('Strict-Transport-Security'));

@@ -28,9 +28,12 @@ class ConversationService
             ->where('access_status', 'active')
             ->whereNotNull('email_verified_at');
 
+        if ($actorRole === 'student') {
+            return $query->whereRaw('1 = 0')->paginate($perPage);
+        }
+
         if ($actorRole !== 'admin') {
             $roles = match ($actorRole) {
-                'student' => ['admin', 'university', 'school', 'high_school'],
                 'university' => ['admin', 'student', 'school', 'high_school'],
                 'school' => ['admin', 'student', 'university'],
                 default => ['admin', 'student'],
@@ -43,7 +46,8 @@ class ConversationService
             $term = '%'.str_replace(['%', '_'], ['\\%', '\\_'], trim($search)).'%';
 
             $query->where(function (Builder $query) use ($actorRole, $term): void {
-                $query->where('name', 'like', $term);
+                $query->where('name', 'like', $term)
+                    ->orWhereHas('school', fn (Builder $query) => $query->where('name', 'like', $term));
 
                 if ($actorRole === 'admin') {
                     $query->orWhere('email', 'like', $term);
@@ -256,11 +260,17 @@ class ConversationService
 
         $actorRole = $this->normalizedRole($actor);
         $recipientRole = $this->normalizedRole($recipient);
+
+        if ($actorRole === 'student') {
+            throw ValidationException::withMessages([
+                'recipient_user_id' => 'Students can reply to existing conversations but cannot start new conversations.',
+            ]);
+        }
+
         $allowed = $actorRole === 'admin'
             || $recipientRole === 'admin'
             || ($actorRole === 'university' && $recipientRole === 'school')
             || ($actorRole === 'school' && $recipientRole === 'university')
-            || ($actorRole === 'student' && in_array($recipientRole, ['university', 'school'], true))
             || ($recipientRole === 'student' && in_array($actorRole, ['university', 'school'], true));
 
         if (! $allowed) {

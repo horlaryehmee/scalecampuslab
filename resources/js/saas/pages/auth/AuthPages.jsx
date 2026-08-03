@@ -45,6 +45,7 @@ export function LoginPage() {
         ['Admin', 'admin', '/dashboard/admin'],
         ['University', 'university', '/dashboard/university'],
         ['School', 'school', '/dashboard/school'],
+        ['Student', 'student', '/dashboard/student'],
     ];
 
     useEffect(() => {
@@ -87,22 +88,23 @@ export function LoginPage() {
                 <img src="/images/brand/scalecampus-logo-light-bg.png" alt="Scale Campus Labs" className="h-auto w-36 sm:w-40" />
             </Link>
 
-            <section className="w-full max-w-md rounded-2xl border border-slate-200 bg-white px-6 py-7 shadow-xl shadow-slate-900/10 sm:px-8">
+            <section className="w-full max-w-xl rounded-2xl border border-slate-200 bg-white px-6 py-8 shadow-xl shadow-slate-900/10 sm:px-10">
                 <div className="text-center">
                     <h1 className="text-2xl font-black tracking-[-0.035em]">Welcome back</h1>
                     <p className="mt-2 text-sm font-medium text-slate-500">Choose your workspace to continue</p>
                 </div>
 
-                <div className="mt-6 grid grid-cols-2 rounded-xl bg-slate-100 p-1">
+                <div className="mt-7 grid gap-1 rounded-xl bg-slate-100 p-1 sm:grid-cols-3">
                     {[
                         ['university', 'University', Building2],
                         ['school', 'High School', School],
+                        ['student', 'Student', GraduationCap],
                     ].map(([value, label, Icon]) => (
                         <button
                             key={value}
                             type="button"
                             onClick={() => setWorkspace(value)}
-                            className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-black transition ${workspace === value ? 'bg-white text-slate-950 shadow-sm ring-1 ring-slate-200' : 'text-slate-600 hover:text-slate-950'}`}
+                            className={`flex min-h-12 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-black transition ${workspace === value ? 'bg-white text-slate-950 shadow-sm ring-1 ring-slate-200' : 'text-slate-600 hover:text-slate-950'}`}
                         >
                             <Icon size={16} />
                             {label}
@@ -140,12 +142,12 @@ export function LoginPage() {
                     <span className="h-px flex-1 bg-slate-200" />
                 </div>
 
-                <div className="grid gap-2 sm:grid-cols-3">
+                <div className="grid gap-3 sm:grid-cols-2">
                     {demoAccounts.map(([label, role]) => (
                         <form key={role} action="/demo-login" method="POST">
                             <input type="hidden" name="_token" value={csrfToken} />
                             <input type="hidden" name="role" value={role} />
-                            <button type="submit" disabled={loading} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-black text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60">
+                            <button type="submit" disabled={loading} className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60">
                                 {label}
                             </button>
                         </form>
@@ -238,9 +240,15 @@ export function RegisterPage() {
     const [search] = useSearchParams();
     const requestedRole = ['university', 'school'].includes(search.get('role')) ? search.get('role') : 'university';
     const [form, setForm] = useState({ role: requestedRole, name: '', email: '', phone: '', password: '', password_confirmation: '', school_name: '', school_location: '' });
+    const [step, setStep] = useState(search.get('role') ? 'details' : 'role');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const update = (key) => (event) => setForm((current) => ({ ...current, [key]: event.target.value }));
+    const chooseRole = (role) => {
+        setForm((current) => ({ ...current, role }));
+        setError('');
+        setStep('details');
+    };
 
     const submit = async (event) => {
         event.preventDefault();
@@ -262,22 +270,60 @@ export function RegisterPage() {
     };
 
     return (
-        <AuthShell eyebrow="Create an account" title="Start with your institution workspace" body="Universities and schools can request access here. Student accounts are created by schools and activated through email invitations.">
-            <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
-                <Field label="Role" as="select" value={form.role} onChange={update('role')} options={[{ value: 'university', label: 'University' }, { value: 'school', label: 'School' }]} className="sm:col-span-2" />
+        <main className="flex min-h-screen flex-col items-center justify-center bg-[#f7f8fa] px-4 py-10 text-slate-950">
+            <Link to="/" className="mb-7 inline-flex" aria-label="ScaleCampusLab home">
+                <img src="/images/brand/scalecampus-logo-light-bg.png" alt="Scale Campus Labs" className="h-auto w-36 sm:w-40" />
+            </Link>
+
+            <section className="w-full max-w-xl rounded-2xl border border-slate-200 bg-white px-6 py-8 shadow-xl shadow-slate-900/10 sm:px-10">
+                <div className="text-center">
+                    <h1 className="text-2xl font-black tracking-[-0.035em]">Create an account</h1>
+                    <p className="mt-2 text-sm font-medium text-slate-500">{step === 'role' ? 'Choose the workspace you need' : `Create your ${form.role === 'university' ? 'university' : 'school'} workspace`}</p>
+                </div>
+
+                {step === 'role' ? (
+                    <div className="mt-7 grid gap-3 sm:grid-cols-2">
+                        {[
+                            ['university', 'University', 'Create visit programs, review school requests, and manage attendees.', Building2],
+                            ['school', 'School', 'Request university visits, invite students, and assign trip rosters.', School],
+                        ].map(([role, title, description, Icon]) => (
+                            <button
+                                key={role}
+                                type="button"
+                                onClick={() => chooseRole(role)}
+                                className="group rounded-2xl border border-slate-200 bg-white p-5 text-left transition hover:border-slate-400 hover:bg-slate-50 hover:shadow-sm"
+                            >
+                                <span className="grid h-12 w-12 place-items-center rounded-xl bg-slate-100 text-slate-700 transition group-hover:bg-slate-950 group-hover:text-white"><Icon size={22} /></span>
+                                <span className="mt-4 block text-lg font-black text-slate-950">{title}</span>
+                                <span className="mt-2 block text-sm font-semibold leading-6 text-slate-500">{description}</span>
+                                <span className="mt-5 inline-flex items-center gap-2 text-sm font-black text-slate-950">Continue <ArrowRight size={15} /></span>
+                            </button>
+                        ))}
+                        <p className="text-center text-sm font-semibold text-slate-500 sm:col-span-2">Already registered? <Link to="/login" className="font-black text-slate-950 hover:underline">Sign in</Link></p>
+                    </div>
+                ) : (
+                <form onSubmit={submit} className="mt-7 grid gap-4 sm:grid-cols-2">
+                <div className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-4 py-3 sm:col-span-2">
+                    <div>
+                        <p className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-400">Workspace type</p>
+                        <p className="mt-1 font-black text-slate-950">{form.role === 'university' ? 'University' : 'School'}</p>
+                    </div>
+                    <button type="button" onClick={() => setStep('role')} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50">Change</button>
+                </div>
                 <Field label={form.role === 'university' ? 'University representative name' : 'Coordinator name'} value={form.name} onChange={update('name')} required />
                 <Field label="Email" type="email" autoComplete="email" value={form.email} onChange={update('email')} required />
                 <Field label="Phone (optional)" type="tel" value={form.phone} onChange={update('phone')} className="sm:col-span-2" />
                 {form.role === 'school' && <><Field label="School name" value={form.school_name} onChange={update('school_name')} required /><Field label="School location" value={form.school_location} onChange={update('school_location')} required /></>}
-                <p className="rounded-2xl bg-emerald-50 px-4 py-3 text-xs font-semibold leading-5 text-emerald-900 sm:col-span-2">Students do not self-register. Your school coordinator will add you to their student list and you will receive an email invitation to set your password and verify your account.</p>
                 <Field label="Password" type="password" autoComplete="new-password" minLength="8" value={form.password} onChange={update('password')} required />
                 <Field label="Confirm password" type="password" autoComplete="new-password" minLength="8" value={form.password_confirmation} onChange={update('password_confirmation')} required />
                 <p className="text-xs font-semibold leading-5 text-slate-500 sm:col-span-2">Use at least eight characters with letters and numbers. We will send an email verification link after registration.</p>
                 {error && <p className="rounded-xl bg-rose-50 p-3 text-sm font-bold text-rose-700 sm:col-span-2">{error}</p>}
-                <div className="sm:col-span-2"><Button type="submit" loading={loading} className="w-full py-3">Create account <ArrowRight size={16} /></Button></div>
-            </form>
-            <p className="mt-5 text-center text-sm font-semibold text-slate-500">Already registered? <Link to="/login" className="font-black text-emerald-700">Sign in</Link></p>
-        </AuthShell>
+                    <div className="sm:col-span-2"><Button type="submit" loading={loading} className="w-full py-3">Create account <ArrowRight size={16} /></Button></div>
+                <p className="mt-5 text-center text-sm font-semibold text-slate-500 sm:col-span-2">Already registered? <Link to="/login" className="font-black text-slate-950 hover:underline">Sign in</Link></p>
+                </form>
+                )}
+            </section>
+        </main>
     );
 }
 
